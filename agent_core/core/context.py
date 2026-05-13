@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Literal
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal
 
 from agent_core.providers.auth import ProviderAuth
 from agent_core.providers.base import ModelProvider
 from agent_core.providers.types import Model
-from agent_core.tools.base import ToolRegistry
+
+if TYPE_CHECKING:
+    from agent_core.tools.base import ToolRegistry
 
 ConvertToLlm = Callable[[list[Any]], Awaitable[list[dict[str, Any]]]]
 TransformContext = Callable[

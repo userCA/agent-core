@@ -1,0 +1,95 @@
+"""JSONL file-based SessionStore."""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+from agent_core.session.store import (
+    CompactionEntry,
+    CustomEntry,
+    MessageEntry,
+    ModelChangeEntry,
+    SessionEntry,
+    SessionHeader,
+    SessionMeta,
+    SessionSnapshot,
+    ThinkingLevelChangeEntry,
+)
+
+
+class JsonlStore:
+    def __init__(self, directory: str) -> None:
+        self._dir = Path(directory)
+        self._dir.mkdir(parents=True, exist_ok=True)
+
+    def _path(self, session_id: str) -> Path:
+        return self._dir / f"{session_id}.jsonl"
+
+    async def create_session(self, session_id: str, header: SessionHeader) -> None:
+        path = self._path(session_id)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(header.model_dump(), ensure_ascii=False) + "\n")
+
+    async def append_entry(self, session_id: str, entry: SessionEntry) -> None:
+        path = self._path(session_id)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry.model_dump(), ensure_ascii=False) + "\n")
+
+    async def load_session(self, session_id: str) -> SessionSnapshot:
+        path = self._path(session_id)
+        if not path.exists():
+            raise KeyError(f"Session {session_id} not found")
+
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        if not lines:
+            raise ValueError(f"Session file {path} is empty")
+
+        header = SessionHeader.model_validate(json.loads(lines[0]))
+        entries: list[SessionEntry] = []
+        for line in lines[1:]:
+            data = json.loads(line)
+            entries.append(_deserialize_entry(data))
+
+        return SessionSnapshot(header=header, entries=entries)
+
+    async def list_sessions(self, *, owner: str | None = None, limit: int = 50) -> list[SessionMeta]:
+        result: list[SessionMeta] = []
+        for file_path in sorted(self._dir.glob("*.jsonl")):
+            sid = file_path.stem
+            with open(file_path, "r", encoding="utf-8") as f:
+                first = f.readline()
+                if not first:
+                    continue
+                header = SessionHeader.model_validate(json.loads(first))
+                entry_count = sum(1 for _ in f)
+            result.append(
+                SessionMeta(
+                    session_id=sid,
+                    created_at=header.timestamp,
+                    entry_count=entry_count,
+                )
+            )
+        return result[:limit]
+
+    async def close(self) -> None:
+        pass
+
+
+def _deserialize_entry(data: dict[str, Any]) -> SessionEntry:
+    entry_type = data.get("type")
+    if entry_type == "message":
+        return MessageEntry.model_validate(data)
+    if entry_type == "compaction":
+        return CompactionEntry.model_validate(data)
+    if entry_type == "model_change":
+        return ModelChangeEntry.model_validate(data)
+    if entry_type == "thinking_level_change":
+        return ThinkingLevelChangeEntry.model_validate(data)
+    if entry_type == "custom":
+        return CustomEntry.model_validate(data)
+    raise ValueError(f"Unknown entry type: {entry_type}")
