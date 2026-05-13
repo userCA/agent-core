@@ -9,6 +9,7 @@ from typing import Any, Awaitable, Callable
 
 from agent_core.compaction.compactor import Compactor, CompactionResult
 from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
+from agent_core.extensions.base import ExtensionContext, ExtensionRunner
 from agent_core.session.store import CompactionEntry, MessageEntry, SessionHeader, SessionStore
 
 Listener = Callable[[AgentEvent], Awaitable[None] | None]
@@ -34,6 +35,7 @@ class AgentSession:
         self._agent_unsub: Unsubscribe | None = None
         self._started = False
         self._closed = False
+        self._ext_runner: ExtensionRunner | None = None
 
     async def start(self) -> None:
         """Create session in store and subscribe to agent events."""
@@ -50,6 +52,13 @@ class AgentSession:
             await self._store.create_session(self._session_id, header)
 
         self._agent_unsub = self._agent.subscribe(self._on_agent_event)
+        if self._extensions:
+            ext_ctx = ExtensionContext(
+                session_id=self._session_id,
+                agent=self._agent,
+                store=self._store,
+            )
+            self._ext_runner = ExtensionRunner(self._extensions, ext_ctx)
         self._started = True
 
     # ---------- external listeners ----------
@@ -119,6 +128,9 @@ class AgentSession:
         elif isinstance(evt, AgentEnd):
             if self._compactor is not None:
                 await self._maybe_compact()
+
+        if self._ext_runner is not None:
+            await self._ext_runner.on_event(evt)
 
         for listener in list(self._listeners):
             result = listener(evt)
