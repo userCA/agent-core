@@ -5,17 +5,14 @@ from __future__ import annotations
 import os
 import time
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Protocol
+from typing import Any, Awaitable, Callable
 
+from agent_core.compaction.compactor import Compactor, CompactionResult
 from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
-from agent_core.session.store import MessageEntry, SessionHeader, SessionStore
+from agent_core.session.store import CompactionEntry, MessageEntry, SessionHeader, SessionStore
 
 Listener = Callable[[AgentEvent], Awaitable[None] | None]
 Unsubscribe = Callable[[], None]
-
-
-class Compactor(Protocol):
-    async def compact(self, session_id: str, store: SessionStore) -> None: ...
 
 
 class AgentSession:
@@ -80,6 +77,23 @@ class AgentSession:
         self._check_ready()
         await self._agent.continue_()
 
+    async def compact(self, *, instructions: str | None = None) -> None:
+        """Manually trigger compaction."""
+        self._check_ready()
+        if self._compactor is None:
+            return
+        messages = list(self._agent.state.messages)
+        result = await self._compactor.compact(
+            messages, reason="manual", instructions=instructions, signal=None
+        )
+        entry = CompactionEntry(
+            summary=result.summary,
+            first_kept_entry_id=result.first_kept_entry_id,
+            tokens_before=result.tokens_before,
+            id=f"compaction-{int(time.time() * 1000)}",
+        )
+        await self._store.append_entry(self._session_id, entry)
+
     def abort(self) -> None:
         self._agent.abort()
 
@@ -125,6 +139,23 @@ class AgentSession:
         if self._compactor is None:
             return
         try:
-            await self._compactor.compact(self._session_id, self._store)
+            model = getattr(self._agent.state, "model", None)
+            context_window = getattr(model, "context_window", 0) if model else 0
+            messages = list(self._agent.state.messages)
+            if not context_window or not self._compactor.should_compact(
+                messages, context_window=context_window
+            ):
+                return
+
+            result = await self._compactor.compact(
+                messages, reason="threshold", signal=None
+            )
+            entry = CompactionEntry(
+                summary=result.summary,
+                first_kept_entry_id=result.first_kept_entry_id,
+                tokens_before=result.tokens_before,
+                id=f"compaction-{int(time.time() * 1000)}",
+            )
+            await self._store.append_entry(self._session_id, entry)
         except Exception:
             pass
