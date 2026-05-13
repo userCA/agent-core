@@ -18,10 +18,12 @@ from agent_core.core.events import (
     TextDelta,
     ToolCallDelta,
     ThinkingDelta,
+    ToolExecutionEnd,
+    ToolExecutionStart,
     TurnEnd,
     TurnStart,
 )
-from agent_core.core.messages import AssistantMessage, Usage
+from agent_core.core.messages import AssistantMessage, ToolResultMessage, Usage
 from agent_core.providers.types import (
     StreamError,
     StreamMessageEnd,
@@ -31,6 +33,7 @@ from agent_core.providers.types import (
     StreamToolCallEnd,
     StreamToolCallStart,
 )
+from agent_core.tools.base import ToolContext, ToolRegistry, ToolResult
 
 
 async def agent_loop(
@@ -255,7 +258,156 @@ async def _execute_tools(
     signal: asyncio.Event | None,
     tool_results_out: list[Any],
 ) -> AsyncIterator[AgentEvent]:
-    # Stub: filled in during Phase 4 (tools). For Phase 3, no tool registry is wired.
-    if False:
-        yield AgentStart()  # pragma: no cover
-    return
+    registry = config.tool_registry
+    if registry is None:
+        return
+
+    calls = assistant.tool_calls()
+    if not calls:
+        return
+
+    if config.tool_execution == "parallel":
+        for tc in calls:
+            yield ToolExecutionStart(
+                tool_call_id=tc.id, tool_name=tc.name, args=tc.arguments
+            )
+        results = await _run_tools_parallel(
+            calls=calls,
+            registry=registry,
+            before=config.before_tool_call,
+            after=config.after_tool_call,
+            signal=signal,
+        )
+        for tool_call, result, is_error in results:
+            yield ToolExecutionEnd(
+                tool_call_id=tool_call.id,
+                tool_name=tool_call.name,
+                result=result,
+                is_error=is_error,
+            )
+            tool_result_msg = ToolResultMessage(
+                tool_call_id=tool_call.id,
+                content=result.content,
+                is_error=is_error,
+                timestamp=time.time(),
+            )
+            context.messages.append(tool_result_msg)
+            tool_results_out.append(tool_result_msg)
+    else:
+        for tc in calls:
+            yield ToolExecutionStart(
+                tool_call_id=tc.id, tool_name=tc.name, args=tc.arguments
+            )
+            _, result, is_error = await _run_single_tool(
+                tc, registry, config.before_tool_call, config.after_tool_call, signal
+            )
+            yield ToolExecutionEnd(
+                tool_call_id=tc.id,
+                tool_name=tc.name,
+                result=result,
+                is_error=is_error,
+            )
+            tool_result_msg = ToolResultMessage(
+                tool_call_id=tc.id,
+                content=result.content,
+                is_error=is_error,
+                timestamp=time.time(),
+            )
+            context.messages.append(tool_result_msg)
+            tool_results_out.append(tool_result_msg)
+
+
+async def _run_single_tool(
+    tool_call: Any,
+    registry: ToolRegistry,
+    before: Any,
+    after: Any,
+    signal: asyncio.Event | None,
+) -> tuple[Any, ToolResult, bool]:
+    abort_event = signal or asyncio.Event()
+    tool = registry.get(tool_call.name)
+
+    if tool is None:
+        result = ToolResult(
+            content=[TextContent(text=f"Tool '{tool_call.name}' not found.")]
+        )
+        return tool_call, result, True
+
+    # before hook
+    if before is not None:
+        try:
+            hook_result = await before(
+                {"tool_call": tool_call, "args": tool_call.arguments}
+            )
+            if hook_result and hook_result.get("block"):
+                result = ToolResult(
+                    content=[
+                        TextContent(
+                            text=hook_result.get("reason", "Blocked by before_tool_call hook.")
+                        )
+                    ]
+                )
+                return tool_call, result, True
+        except Exception:
+            pass
+
+    ctx = ToolContext(signal=abort_event)
+    try:
+        result = await tool.execute(
+            tool_call_id=tool_call.id,
+            params=tool_call.arguments,
+            ctx=ctx,
+        )
+        is_error = False
+    except Exception as exc:
+        result = ToolResult(content=[TextContent(text=str(exc))])
+        is_error = True
+
+    # after hook
+    if after is not None:
+        try:
+            hook_result = await after(
+                {
+                    "tool_call": tool_call,
+                    "args": tool_call.arguments,
+                    "result": result,
+                    "is_error": is_error,
+                }
+            )
+            if hook_result and hook_result.get("result"):
+                result = ToolResult(
+                    content=hook_result["result"].get("content", result.content),
+                    details=hook_result["result"].get("details", result.details),
+                )
+        except Exception:
+            pass
+
+    return tool_call, result, is_error
+
+
+async def _run_tools_parallel(
+    *,
+    calls: list[Any],
+    registry: ToolRegistry,
+    before: Any,
+    after: Any,
+    signal: asyncio.Event | None,
+) -> list[tuple[Any, ToolResult, bool]]:
+    tasks = [
+        _run_single_tool(c, registry, before, after, signal) for c in calls
+    ]
+    return await asyncio.gather(*tasks)
+
+
+async def _run_tools_sequential(
+    *,
+    calls: list[Any],
+    registry: ToolRegistry,
+    before: Any,
+    after: Any,
+    signal: asyncio.Event | None,
+) -> list[tuple[Any, ToolResult, bool]]:
+    results: list[tuple[Any, ToolResult, bool]] = []
+    for c in calls:
+        results.append(await _run_single_tool(c, registry, before, after, signal))
+    return results

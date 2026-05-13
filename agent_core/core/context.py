@@ -9,6 +9,7 @@ from typing import Any, Awaitable, Callable, Literal
 from agent_core.providers.auth import ProviderAuth
 from agent_core.providers.base import ModelProvider
 from agent_core.providers.types import Model
+from agent_core.tools.base import ToolRegistry
 
 ConvertToLlm = Callable[[list[Any]], Awaitable[list[dict[str, Any]]]]
 TransformContext = Callable[
@@ -35,7 +36,7 @@ class AgentLoopConfig:
     tool_execution: Literal["parallel", "sequential"] = "parallel"
     temperature: float | None = None
     max_tokens: int | None = None
-    tool_registry: Any | None = None
+    tool_registry: ToolRegistry | None = None
     before_tool_call: Any | None = None
     after_tool_call: Any | None = None
     get_steering_messages: Any | None = None
