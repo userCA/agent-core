@@ -67,6 +67,10 @@ def _default_convert_to_llm() -> ConvertToLlm:
                 text_parts = "".join(
                     c.text for c in m.content if getattr(c, "type", None) == "text"
                 )
+                # Hard cap to prevent context window overflow from accidental large payloads
+                MAX_TOOL_RESULT = 4000
+                if len(text_parts) > MAX_TOOL_RESULT:
+                    text_parts = text_parts[:MAX_TOOL_RESULT] + f"\n...[truncated, {len(text_parts)} chars total]"
                 out.append(
                     {"role": "tool", "tool_call_id": m.tool_call_id, "content": text_parts}
                 )
