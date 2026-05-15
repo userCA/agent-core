@@ -155,6 +155,7 @@ class ChatAssistant:
             provider=provider,
             auth_source=auth_source,
             tool_registry=tool_registry,
+            tool_execution="sequential",
         )
 
         assistant = cls(
