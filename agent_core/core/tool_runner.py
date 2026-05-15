@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import Any, AsyncIterator
 
 from agent_core.core.content import TextContent
-from agent_core.core.events import ToolExecutionEnd, ToolExecutionStart
+from agent_core.core.events import HumanInputRequired, ToolExecutionEnd, ToolExecutionStart
+from agent_core.core.human_input import HumanInputGate, RequiresHumanInput
 from agent_core.core.messages import AssistantMessage, ToolResultMessage
 from agent_core.tools.base import ToolContext, ToolRegistry, ToolResult
+
+logger = logging.getLogger(__name__)
 
 
 async def execute_tools(
@@ -19,6 +23,7 @@ async def execute_tools(
     context: Any,
     signal: asyncio.Event | None,
     tool_results_out: list[Any],
+    human_input_gate: HumanInputGate | None = None,
 ) -> AsyncIterator[Any]:
     registry: ToolRegistry | None = getattr(config, "tool_registry", None)
     if registry is None:
@@ -64,9 +69,26 @@ async def execute_tools(
             yield ToolExecutionStart(
                 tool_call_id=tc.id, tool_name=tc.name, args=tc.arguments
             )
-            _, result, is_error = await _run_single_tool(
-                tc, registry, before, after, signal
-            )
+            try:
+                _, result, is_error = await _run_single_tool(
+                    tc, registry, before, after, signal
+                )
+            except RequiresHumanInput as exc:
+                if human_input_gate is None:
+                    result = ToolResult(
+                        content=[TextContent(text="Human input required but HITL is not configured.")]
+                    )
+                    is_error = True
+                else:
+                    future = human_input_gate.require_input(tc.id)
+                    yield HumanInputRequired(
+                        tool_call_id=tc.id,
+                        prompt=exc.prompt,
+                        input_schema=exc.input_schema,
+                    )
+                    values = await future
+                    result = ToolResult(content=[TextContent(text=str(values))])
+                    is_error = False
             yield ToolExecutionEnd(
                 tool_call_id=tc.id,
                 tool_name=tc.name,
@@ -113,8 +135,8 @@ async def _run_single_tool(
                     ]
                 )
                 return tool_call, result, True
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("before_tool_call hook failed: %s", exc)
 
     ctx = ToolContext(signal=abort_event)
     try:
@@ -124,6 +146,8 @@ async def _run_single_tool(
             ctx=ctx,
         )
         is_error = False
+    except RequiresHumanInput:
+        raise
     except Exception as exc:
         result = ToolResult(content=[TextContent(text=str(exc))])
         is_error = True
@@ -143,8 +167,8 @@ async def _run_single_tool(
                     content=hook_result["result"].get("content", result.content),
                     details=hook_result["result"].get("details", result.details),
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("after_tool_call hook failed: %s", exc)
 
     return tool_call, result, is_error
 

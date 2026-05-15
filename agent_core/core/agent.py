@@ -25,6 +25,7 @@ from agent_core.core.events import (
     ToolExecutionStart,
     TurnEnd,
 )
+from agent_core.core.human_input import HumanInputGate
 from agent_core.core.loop import agent_loop, agent_loop_continue
 from agent_core.core.messages import AssistantMessage, UserMessage
 from agent_core.core.queue import PendingMessageQueue, QueueMode
@@ -121,6 +122,7 @@ class Agent:
         self._tool_execution = tool_execution
         self._steering = PendingMessageQueue(steering_mode)
         self._follow_up = PendingMessageQueue(followup_mode)
+        self._human_input_gate = HumanInputGate()
         self._listeners: list[Listener] = []
         self._active_run: asyncio.Task | None = None
         self._abort_event: asyncio.Event | None = None
@@ -143,6 +145,13 @@ class Agent:
 
     def follow_up(self, message: Any) -> None:
         self._follow_up.enqueue(message)
+
+    def provide_human_input(self, tool_call_id: str, values: dict[str, Any]) -> bool:
+        """Resume a tool that is waiting for human input.
+
+        Returns True if the input was accepted (a pending future existed).
+        """
+        return self._human_input_gate.provide_input(tool_call_id, values)
 
     def clear_all_queues(self) -> None:
         self._steering.clear()
@@ -168,6 +177,7 @@ class Agent:
     def abort(self) -> None:
         if self._abort_event is not None:
             self._abort_event.set()
+        self._human_input_gate.cancel_all()
 
     async def wait_for_idle(self) -> None:
         if self._active_run is not None:
@@ -244,6 +254,7 @@ class Agent:
                 after_tool_call=self._after_tool_call,
                 get_steering_messages=self._drain_steering,
                 get_follow_up_messages=self._drain_follow_up,
+                human_input_gate=self._human_input_gate,
             )
 
             if continuation:
@@ -255,6 +266,8 @@ class Agent:
                 async for evt in gen:
                     await self._handle_event(evt, context)
             except Exception as exc:  # pragma: no cover — last-resort
+                import logging
+                logging.getLogger(__name__).exception("Agent run failed")
                 self.state.error_message = str(exc)
 
         task = asyncio.create_task(_do_run())
@@ -290,6 +303,9 @@ class Agent:
             msg = evt.message
             if getattr(msg, "role", None) == "assistant" and getattr(msg, "error_message", None):
                 self.state.error_message = msg.error_message
+            # Persist tool results to agent state so they appear in future turns
+            for tool_result in getattr(evt, "tool_results", []):
+                self.state.messages.append(tool_result)
         elif isinstance(evt, AgentEnd):
             self.state.streaming_message = None
 

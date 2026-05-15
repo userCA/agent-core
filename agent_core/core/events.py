@@ -92,6 +92,13 @@ class ToolExecutionEnd(_EventBase):
     is_error: bool
 
 
+class HumanInputRequired(_EventBase):
+    type: Literal["human_input_required"] = "human_input_required"
+    tool_call_id: str
+    prompt: str
+    input_schema: dict[str, Any]
+
+
 AgentEvent = Annotated[
     Union[
         AgentStart,
@@ -104,6 +111,7 @@ AgentEvent = Annotated[
         ToolExecutionStart,
         ToolExecutionUpdate,
         ToolExecutionEnd,
+        HumanInputRequired,
     ],
     Field(discriminator="type"),
 ]

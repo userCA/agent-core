@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from datetime import datetime, timezone
@@ -11,6 +12,8 @@ from agent_core.compaction.compactor import Compactor, CompactionResult
 from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
 from agent_core.extensions.base import ExtensionContext, ExtensionRunner
 from agent_core.session.store import CompactionEntry, MessageEntry, SessionHeader, SessionStore
+
+logger = logging.getLogger(__name__)
 
 Listener = Callable[[AgentEvent], Awaitable[None] | None]
 Unsubscribe = Callable[[], None]
@@ -50,6 +53,8 @@ class AgentSession:
             await self._store.load_session(self._session_id)
         except KeyError:
             await self._store.create_session(self._session_id, header)
+        except Exception as exc:
+            logger.warning("Failed to load session %s: %s", self._session_id, exc)
 
         self._agent_unsub = self._agent.subscribe(self._on_agent_event)
         if self._extensions:
@@ -144,8 +149,8 @@ class AgentSession:
         )
         try:
             await self._store.append_entry(self._session_id, entry)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to persist message for session %s: %s", self._session_id, exc)
 
     async def _maybe_compact(self) -> None:
         if self._compactor is None:
@@ -169,5 +174,5 @@ class AgentSession:
                 id=f"compaction-{int(time.time() * 1000)}",
             )
             await self._store.append_entry(self._session_id, entry)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Compaction failed for session %s: %s", self._session_id, exc)

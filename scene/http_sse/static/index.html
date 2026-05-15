@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Core SSE Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f0f23;
+            --bg-secondary: #1a1a2e;
+            --bg-card: rgba(255, 255, 255, 0.05);
+            --bg-card-hover: rgba(255, 255, 255, 0.08);
+            --border: rgba(255, 255, 255, 0.1);
+            --text-primary: #e8e8f0;
+            --text-secondary: #a0a0b8;
+            --accent: #6366f1;
+            --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+            --user-bg: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            --assistant-bg: rgba(255, 255, 255, 0.08);
+            --tool-bg: rgba(251, 191, 36, 0.15);
+            --tool-border: rgba(251, 191, 36, 0.3);
+            --error: #ef4444;
+            --success: #10b981;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            background-image:
+                radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            background: rgba(15, 15, 35, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--accent-gradient);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .logo h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            padding: 0.35rem 0.75rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .btn:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: var(--accent-gradient);
+            border: none;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+            transform: translateY(-1px);
+        }
+
+        #chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            scroll-behavior: smooth;
+        }
+
+        #chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #chat-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #chat-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+
+        .message-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            max-width: 75%;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-wrapper.user {
+            align-self: flex-end;
+        }
+
+        .message-wrapper.assistant,
+        .message-wrapper.tool {
+            align-self: flex-start;
+        }
+
+        .message-wrapper.tool {
+            margin-top: 0.5rem;
+        }
+
+        .message-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.15rem;
+            padding: 0 0.5rem;
+        }
+
+        .message {
+            padding: 0.875rem 1.125rem;
+            border-radius: 16px;
+            line-height: 1.65;
+            word-wrap: break-word;
+            font-size: 0.95rem;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid transparent;
+        }
+
+        .message.user {
+            background: var(--user-bg);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .message.assistant {
+            background: var(--assistant-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 4px;
+            backdrop-filter: blur(10px);
+            min-height: 48px;
+        }
+
+        .message.tool {
+            background: var(--tool-bg);
+            border: 1px solid var(--tool-border);
+            color: #fbbf24;
+            border-bottom-left-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.82rem;
+        }
+
+        .message.error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+            border-bottom-left-radius: 4px;
+        }
+
+        .think-block {
+            margin-bottom: 0.75rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .think-block summary {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            user-select: none;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            transition: background 0.15s ease;
+        }
+
+        .think-block summary::-webkit-details-marker { display: none; }
+
+        .think-block summary::before {
+            content: '▸';
+            font-size: 0.65rem;
+            opacity: 0.55;
+            transition: transform 0.2s ease;
+        }
+
+        .think-block[open] summary::before {
+            transform: rotate(90deg);
+        }
+
+        .think-block summary:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .think-content {
+            padding: 0 0.75rem 0.65rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        .think-content > *:first-child { margin-top: 0; }
+        .think-content > *:last-child { margin-bottom: 0; }
+
+        .steps-panel {
+            margin-bottom: 0.75rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .steps-summary {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            user-select: none;
+            transition: background 0.15s ease;
+        }
+
+        .steps-summary:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .steps-summary-text {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .steps-summary-arrow {
+            font-size: 0.65rem;
+            opacity: 0.55;
+            transition: transform 0.2s ease;
+        }
+
+        .steps-panel.open .steps-summary-arrow {
+            transform: rotate(90deg);
+        }
+
+        .steps-list {
+            display: none;
+            padding: 0 0.75rem 0.65rem;
+        }
+
+        .steps-panel.open .steps-list {
+            display: block;
+        }
+
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .step-item:last-child {
+            border-bottom: none;
+        }
+
+        .step-icon {
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .step-label {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .step-status {
+            font-size: 0.7rem;
+            opacity: 0.6;
+            flex-shrink: 0;
+        }
+
+        .step-detail {
+            margin: 0.2rem 0 0.35rem 1.65rem;
+            padding: 0.4rem 0.6rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            font-size: 0.78rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: 'SF Mono', Monaco, monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .step-detail.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #fca5a5;
+        }
+
+        .final-content:empty::before {
+            content: '';
+            display: inline-block;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            opacity: 0.35;
+            animation: contentPulse 1.4s ease-in-out infinite;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 0.3rem;
+            padding: 0.5rem 0;
+        }
+
+        .typing-indicator span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            animation: typingBounce 1.4s ease-in-out infinite both;
+        }
+
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        .tool-name {
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .tool-name::before {
+            content: '🔧';
+        }
+
+        .tool-args {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            margin: 0.35rem 0;
+            font-size: 0.78rem;
+            overflow-x: auto;
+        }
+
+        .tool-result {
+            margin-top: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(16, 185, 129, 0.08);
+            border-radius: 6px;
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 0.82rem;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .tool-result::before {
+            content: '→ ';
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .tool-result.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #fca5a5;
+        }
+
+        .tool-result.error::before {
+            content: '✕ ';
+            color: var(--error);
+        }
+
+        .usage-info {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-top: 0.4rem;
+            padding: 0 0.5rem;
+            opacity: 0.55;
+            letter-spacing: 0.02em;
+        }
+
+        .type-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.1em;
+            background: var(--accent);
+            margin-left: 3px;
+            vertical-align: text-bottom;
+            animation: blink 1s step-end infinite;
+            border-radius: 1px;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .msg-content:empty::before {
+            content: '正在输入…';
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            opacity: 0.55;
+            animation: contentPulse 1.4s ease-in-out infinite;
+        }
+
+        @keyframes contentPulse {
+            0%, 100% { opacity: 0.35; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.3); }
+        }
+
+        .markdown-body {
+            font-size: 0.94rem;
+            line-height: 1.65;
+        }
+
+        .markdown-body > *:first-child { margin-top: 0 !important; }
+        .markdown-body > *:last-child { margin-bottom: 0 !important; }
+
+        .markdown-body h1,
+        .markdown-body h2,
+        .markdown-body h3,
+        .markdown-body h4,
+        .markdown-body h5,
+        .markdown-body h6 {
+            font-weight: 600;
+            line-height: 1.35;
+            margin: 1.1em 0 0.45em;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+
+        .markdown-body h1 { font-size: 1.2rem; }
+        .markdown-body h2 { font-size: 1.1rem; }
+        .markdown-body h3 { font-size: 1.02rem; }
+        .markdown-body h4 { font-size: 0.96rem; }
+
+        .markdown-body p { margin: 0.5em 0; }
+
+        .markdown-body ul,
+        .markdown-body ol {
+            padding-left: 1.4rem;
+            margin: 0.4em 0;
+        }
+
+        .markdown-body li { margin: 0.2em 0; }
+        .markdown-body li > p { margin: 0.2em 0; }
+        .markdown-body li > ul,
+        .markdown-body li > ol { margin: 0.2em 0; }
+
+        .markdown-body strong {
+            font-weight: 600;
+            color: #f4f4fa;
+        }
+
+        .markdown-body em { font-style: italic; }
+
+        .markdown-body code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.12em 0.4em;
+            border-radius: 4px;
+            font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
+            font-size: 0.86em;
+            color: #e4d3ff;
+        }
+
+        .markdown-body pre {
+            background: rgba(0, 0, 0, 0.35);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 0.6em 0;
+            font-size: 0.85rem;
+            line-height: 1.55;
+            border: 1px solid var(--border);
+        }
+
+        .markdown-body pre code {
+            background: transparent;
+            padding: 0;
+            color: var(--text-primary);
+            font-size: inherit;
+        }
+
+        .markdown-body a {
+            color: #a78bfa;
+            text-decoration: underline;
+            text-decoration-color: rgba(167, 139, 250, 0.35);
+            text-underline-offset: 2px;
+            transition: text-decoration-color 0.15s ease;
+        }
+
+        .markdown-body a:hover {
+            text-decoration-color: rgba(167, 139, 250, 0.9);
+        }
+
+        .markdown-body blockquote {
+            background: rgba(255, 255, 255, 0.025);
+            padding: 0.5rem 0.85rem;
+            border-radius: 6px;
+            margin: 0.5em 0;
+            color: var(--text-secondary);
+        }
+
+        .markdown-body blockquote > *:first-child { margin-top: 0; }
+        .markdown-body blockquote > *:last-child { margin-bottom: 0; }
+
+        .markdown-body hr {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 1em 0;
+        }
+
+        .markdown-body table {
+            border-collapse: collapse;
+            margin: 0.5em 0;
+            font-size: 0.9rem;
+        }
+
+        .markdown-body th,
+        .markdown-body td {
+            padding: 0.4rem 0.7rem;
+            border: 1px solid var(--border);
+        }
+
+        .markdown-body th {
+            background: rgba(255, 255, 255, 0.04);
+            font-weight: 600;
+            text-align: left;
+        }
+
+        #input-area {
+            background: rgba(15, 15, 35, 0.9);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            padding: 1rem 1.5rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        #message-input {
+            width: 100%;
+            padding: 0.875rem 1.125rem;
+            padding-right: 3rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        #message-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        #message-input:focus {
+            border-color: rgba(99, 102, 241, 0.5);
+            background: var(--bg-card-hover);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .input-hint {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            pointer-events: none;
+        }
+
+        #send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            border: none;
+            background: var(--accent-gradient);
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+            flex-shrink: 0;
+        }
+
+        #send-btn:hover:not(:disabled) {
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+            transform: translateY(-1px);
+        }
+
+        #send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #send-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .welcome-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            gap: 1rem;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .welcome-icon {
+            width: 64px;
+            height: 64px;
+            background: var(--accent-gradient);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+            margin-bottom: 0.5rem;
+        }
+
+        .welcome-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .welcome-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            max-width: 400px;
+            line-height: 1.6;
+        }
+
+        .welcome-examples {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-top: 0.5rem;
+        }
+
+        .example-chip {
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .example-chip:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(99, 102, 241, 0.3);
+            color: var(--text-primary);
+        }
+
+        .hitl-card {
+            margin: 0.75rem 0;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 12px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .hitl-prompt {
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+            line-height: 1.5;
+        }
+
+        .hitl-form {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .hitl-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .hitl-field label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .hitl-field input[type="text"],
+        .hitl-field textarea {
+            padding: 0.6rem 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .hitl-field input[type="text"]:focus,
+        .hitl-field textarea:focus {
+            border-color: rgba(99, 102, 241, 0.5);
+        }
+
+        .hitl-field textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .hitl-image-upload {
+            position: relative;
+        }
+
+        .hitl-image-upload input[type="file"] {
+            display: none;
+        }
+
+        .hitl-upload-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px dashed var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .hitl-upload-btn:hover {
+            border-color: rgba(99, 102, 241, 0.5);
+            color: var(--text-primary);
+        }
+
+        .hitl-image-preview {
+            margin-top: 0.5rem;
+            max-width: 200px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .hitl-audio-record {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .hitl-record-btn {
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .hitl-record-btn.recording {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.5);
+            color: #fca5a5;
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        .hitl-audio-playback {
+            display: none;
+            max-width: 200px;
+        }
+
+        .hitl-audio-playback.show {
+            display: block;
+        }
+
+        .hitl-submit {
+            padding: 0.6rem 1.25rem;
+            background: var(--accent-gradient);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            align-self: flex-start;
+        }
+
+        .hitl-submit:hover:not(:disabled) {
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .hitl-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .hitl-status {
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--success);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <div class="logo-icon">🤖</div>
+            <h1>Agent Core SSE Chat</h1>
+        </div>
+        <div class="header-actions">
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                <span>在线</span>
+            </div>
+            <button class="btn" id="new-session-btn">新会话</button>
+        </div>
+    </header>
+
+    <div id="chat-container">
+        <div class="welcome-screen" id="welcome">
+            <div class="welcome-icon">✨</div>
+            <div class="welcome-title">智能助手</div>
+            <div class="welcome-subtitle">基于 Agent Core 的流式对话体验。<br>支持工具调用、实时响应。</div>
+            <div class="welcome-examples">
+                <div class="example-chip" data-text="你好，请介绍一下你自己">👋 打个招呼</div>
+                <div class="example-chip" data-text="当前目录有哪些文件？">📁 列出文件</div>
+                <div class="example-chip" data-text="帮我写一段 Python 快速排序">🐍 写代码</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="input-area">
+        <div class="input-wrapper">
+            <input type="text" id="message-input" placeholder="输入消息..." autocomplete="off">
+            <span class="input-hint">↵</span>
+        </div>
+        <button id="send-btn" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+        </button>
+    </div>
+
+    <script>
+        let sessionId = null;
+        let isStreaming = false;
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const newSessionBtn = document.getElementById('new-session-btn');
+        const welcome = document.getElementById('welcome');
+
+        // Example chips
+        document.querySelectorAll('.example-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                messageInput.value = chip.dataset.text;
+                messageInput.focus();
+            });
+        });
+
+        function hideWelcome() {
+            if (welcome && welcome.parentNode) {
+                welcome.remove();
+            }
+        }
+
+        function addMessage(role, content) {
+            hideWelcome();
+            const wrapper = document.createElement('div');
+            wrapper.className = `message-wrapper ${role}`;
+
+            const label = document.createElement('div');
+            label.className = 'message-label';
+            label.textContent = role === 'user' ? '你' : role === 'tool' ? '工具' : '助手';
+            wrapper.appendChild(label);
+
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            div.innerHTML = content;
+            wrapper.appendChild(div);
+
+            chatContainer.appendChild(wrapper);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return div;
+        }
+
+        async function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderHitlCard({ toolCallId, prompt, inputSchema, sessionId }) {
+            const card = document.createElement('div');
+            card.className = 'hitl-card';
+            card.dataset.toolCallId = toolCallId;
+
+            const promptDiv = document.createElement('div');
+            promptDiv.className = 'hitl-prompt';
+            promptDiv.textContent = prompt;
+            card.appendChild(promptDiv);
+
+            const form = document.createElement('form');
+            form.className = 'hitl-form';
+
+            const fieldValues = {};
+            const fields = (inputSchema && inputSchema.fields) || [];
+
+            fields.forEach(field => {
+                const fieldWrap = document.createElement('div');
+                fieldWrap.className = 'hitl-field';
+
+                const label = document.createElement('label');
+                label.textContent = field.label || field.name;
+                fieldWrap.appendChild(label);
+
+                if (field.type === 'image_upload') {
+                    const uploadWrap = document.createElement('div');
+                    uploadWrap.className = 'hitl-image-upload';
+
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.accept = 'image/*';
+                    fileInput.dataset.name = field.name;
+
+                    const uploadBtn = document.createElement('label');
+                    uploadBtn.className = 'hitl-upload-btn';
+                    uploadBtn.textContent = '📎 选择图片';
+                    uploadBtn.appendChild(fileInput);
+
+                    const preview = document.createElement('img');
+                    preview.className = 'hitl-image-preview';
+                    preview.style.display = 'none';
+
+                    fileInput.addEventListener('change', async (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const base64 = await fileToBase64(file);
+                        fieldValues[field.name] = base64;
+                        preview.src = base64;
+                        preview.style.display = 'block';
+                    });
+
+                    uploadWrap.appendChild(uploadBtn);
+                    uploadWrap.appendChild(preview);
+                    fieldWrap.appendChild(uploadWrap);
+                } else if (field.type === 'audio_record') {
+                    const audioWrap = document.createElement('div');
+                    audioWrap.className = 'hitl-audio-record';
+
+                    const recordBtn = document.createElement('button');
+                    recordBtn.type = 'button';
+                    recordBtn.className = 'hitl-record-btn';
+                    recordBtn.textContent = '🎤 按住录音';
+
+                    const playback = document.createElement('audio');
+                    playback.className = 'hitl-audio-playback';
+                    playback.controls = true;
+
+                    let mediaRecorder = null;
+                    let audioChunks = [];
+                    let isRecording = false;
+
+                    const startRecord = async () => {
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            mediaRecorder = new MediaRecorder(stream);
+                            audioChunks = [];
+                            mediaRecorder.ondataavailable = (e) => {
+                                if (e.data.size > 0) audioChunks.push(e.data);
+                            };
+                            mediaRecorder.onstop = () => {
+                                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                                const url = URL.createObjectURL(blob);
+                                playback.src = url;
+                                playback.classList.add('show');
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                    fieldValues[field.name] = reader.result;
+                                };
+                                reader.readAsDataURL(blob);
+                                stream.getTracks().forEach(t => t.stop());
+                            };
+                            mediaRecorder.start();
+                            isRecording = true;
+                            recordBtn.classList.add('recording');
+                            recordBtn.textContent = '⏹ 停止录音';
+                        } catch (err) {
+                            alert('无法访问麦克风: ' + err.message);
+                        }
+                    };
+
+                    const stopRecord = () => {
+                        if (mediaRecorder && isRecording) {
+                            mediaRecorder.stop();
+                            isRecording = false;
+                            recordBtn.classList.remove('recording');
+                            recordBtn.textContent = '🎤 重新录音';
+                        }
+                    };
+
+                    recordBtn.addEventListener('mousedown', startRecord);
+                    recordBtn.addEventListener('mouseup', stopRecord);
+                    recordBtn.addEventListener('mouseleave', stopRecord);
+                    recordBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecord(); });
+                    recordBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRecord(); });
+
+                    audioWrap.appendChild(recordBtn);
+                    audioWrap.appendChild(playback);
+                    fieldWrap.appendChild(audioWrap);
+                } else if (field.type === 'textarea') {
+                    const textarea = document.createElement('textarea');
+                    textarea.placeholder = field.placeholder || '';
+                    textarea.addEventListener('input', (e) => {
+                        fieldValues[field.name] = e.target.value;
+                    });
+                    fieldWrap.appendChild(textarea);
+                } else {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.placeholder = field.placeholder || '';
+                    input.addEventListener('input', (e) => {
+                        fieldValues[field.name] = e.target.value;
+                    });
+                    fieldWrap.appendChild(input);
+                }
+
+                form.appendChild(fieldWrap);
+            });
+
+            const submitBtn = document.createElement('button');
+            submitBtn.type = 'submit';
+            submitBtn.className = 'hitl-submit';
+            submitBtn.textContent = '确认提交';
+            form.appendChild(submitBtn);
+
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'hitl-status';
+            statusDiv.style.display = 'none';
+            form.appendChild(statusDiv);
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                submitBtn.disabled = true;
+                statusDiv.style.display = 'block';
+                statusDiv.textContent = '提交中...';
+
+                try {
+                    const url = new URL('/human-input', window.location.origin);
+                    if (sessionId) url.searchParams.set('session_id', sessionId);
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tool_call_id: toolCallId, values: fieldValues }),
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        statusDiv.textContent = '已提交，继续处理中...';
+                        statusDiv.style.color = 'var(--success)';
+                        form.querySelectorAll('input, textarea, button').forEach(el => el.disabled = true);
+                    } else {
+                        statusDiv.textContent = '提交失败: ' + (result.error || '未知错误');
+                        statusDiv.style.color = 'var(--error)';
+                        submitBtn.disabled = false;
+                    }
+                } catch (err) {
+                    statusDiv.textContent = '提交失败: ' + err.message;
+                    statusDiv.style.color = 'var(--error)';
+                    submitBtn.disabled = false;
+                }
+            });
+
+            card.appendChild(form);
+            return card;
+        }
+
+        function createTypingIndicator() {
+            hideWelcome();
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message-wrapper assistant';
+            wrapper.id = 'typing-wrapper';
+
+            const label = document.createElement('div');
+            label.className = 'message-label';
+            label.textContent = '助手';
+            wrapper.appendChild(label);
+
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+            wrapper.appendChild(div);
+
+            chatContainer.appendChild(wrapper);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return wrapper;
+        }
+
+        function removeTypingIndicator() {
+            const el = document.getElementById('typing-wrapper');
+            if (el) el.remove();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function renderMarkdown(text) {
+            if (window.marked && window.DOMPurify) {
+                return DOMPurify.sanitize(marked.parse(text, { breaks: true, gfm: true }));
+            }
+            return escapeHtml(text).replace(/\n/g, '<br>');
+        }
+
+        function stripThinkTags(text) {
+            // 过滤掉所有完整的 <think>...<\/think> 标签
+            return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        }
+
+        function getDisplayableText(text) {
+            // 如果存在未闭合的 <think> 标签，只返回 <think> 之前的内容，避免 <think> 闪现
+            const openThink = text.indexOf('<think>');
+            const closeThink = text.indexOf('</think>');
+            if (openThink !== -1 && (closeThink === -1 || closeThink < openThink)) {
+                return text.slice(0, openThink).trim();
+            }
+            // 同时处理正在输入中的 <think（未闭合）防止字符逐个闪现
+            const partialOpen = text.indexOf('<think');
+            if (partialOpen !== -1 && (closeThink === -1 || closeThink < partialOpen)) {
+                return text.slice(0, partialOpen).trim();
+            }
+            return stripThinkTags(text);
+        }
+
+        function formatContent(text) {
+            const mainContent = getDisplayableText(text);
+            if (!mainContent) return '';
+            return `<div class="markdown-body">${renderMarkdown(mainContent)}</div>`;
+        }
+
+        function formatContentRaw(text) {
+            const mainContent = getDisplayableText(text);
+            if (!mainContent) return '';
+            return `<div class="markdown-body">${escapeHtml(mainContent).replace(/\n/g, '<br>')}</div>`;
+        }
+
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text || isStreaming) return;
+
+            messageInput.value = '';
+            addMessage('user', escapeHtml(text));
+            isStreaming = true;
+            sendBtn.disabled = true;
+
+            const typing = createTypingIndicator();
+            let assistantMsg = null;
+            let currentText = '';
+            let thinkingText = '';
+            let thinkingComplete = false;
+            let displayedText = '';
+            let typeQueue = [];
+            let typingTimer = null;
+            let isTyping = false;
+            let hasError = false;
+            let steps = [];
+            let stepsExpanded = false;
+            let extractedThinkContents = new Set();
+            let usageAdded = false;
+
+            function extractThinkSteps() {
+                // 从原始 currentText 中提取 think 块（displayedText 已被过滤）
+                const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
+                let match;
+                while ((match = thinkRegex.exec(currentText)) !== null) {
+                    const thinkContent = match[1];
+                    if (!extractedThinkContents.has(thinkContent)) {
+                        extractedThinkContents.add(thinkContent);
+                        steps.push({ type: 'think', label: '思考过程', detail: thinkContent, status: 'done', isError: false });
+                        thinkRegex.lastIndex = 0;
+                    }
+                }
+            }
+
+            function ensureAssistantMsg() {
+                if (assistantMsg) return;
+                const typingWrapper = document.getElementById('typing-wrapper');
+                if (typingWrapper) {
+                    typingWrapper.removeAttribute('id');
+                    assistantMsg = typingWrapper.querySelector('.message.assistant');
+                } else {
+                    assistantMsg = addMessage('assistant', '');
+                }
+                assistantMsg.innerHTML = `
+                    <div class="msg-content">
+                        <div class="steps-panel">
+                            <div class="steps-summary">
+                                <span class="steps-summary-text"></span>
+                                <span class="steps-summary-arrow">▸</span>
+                            </div>
+                            <div class="steps-list"></div>
+                        </div>
+                        <div class="final-content"></div>
+                    </div>
+                    <span class="type-cursor"></span>
+                `;
+                const panel = assistantMsg.querySelector('.steps-panel');
+                panel.querySelector('.steps-summary').addEventListener('click', () => {
+                    stepsExpanded = !stepsExpanded;
+                    panel.classList.toggle('open', stepsExpanded);
+                });
+            }
+
+            function renderSteps() {
+                if (!assistantMsg) return;
+                const panel = assistantMsg.querySelector('.steps-panel');
+                if (!panel) return;
+                if (steps.length === 0) {
+                    panel.style.display = 'none';
+                    return;
+                }
+                panel.style.display = 'block';
+                const summaryText = panel.querySelector('.steps-summary-text');
+                const list = panel.querySelector('.steps-list');
+
+                const thinkCount = steps.filter(s => s.type === 'think').length;
+                const toolCount = steps.filter(s => s.type === 'tool').length;
+                const runningCount = steps.filter(s => s.status === 'running').length;
+                let summary = '';
+                if (runningCount > 0) {
+                    summary = runningCount === 1 ? '正在处理…' : `${runningCount} 个任务进行中…`;
+                } else {
+                    const parts = [];
+                    if (thinkCount > 0) parts.push('思考已完成');
+                    if (toolCount > 0) parts.push(`已使用 ${toolCount} 个工具`);
+                    summary = parts.join(' • ') || '处理完成';
+                }
+                summaryText.textContent = summary;
+
+                let listHtml = '';
+                for (const step of steps) {
+                    const icon = step.type === 'think' ? '◉' : '🔧';
+                    const status = step.status === 'running' ? '…' : '✓';
+                    listHtml += `
+                        <div class="step-item">
+                            <span class="step-icon">${icon}</span>
+                            <span class="step-label">${escapeHtml(step.label)}</span>
+                            <span class="step-status">${status}</span>
+                        </div>`;
+                    if (step.detail) {
+                        const errorClass = step.isError ? 'error' : '';
+                        listHtml += `<div class="step-detail ${errorClass}">${escapeHtml(step.detail)}</div>`;
+                    }
+                }
+                list.innerHTML = listHtml;
+                panel.classList.toggle('open', stepsExpanded);
+            }
+
+            function removeCursor() {
+                if (assistantMsg) {
+                    const cursor = assistantMsg.querySelector('.type-cursor');
+                    if (cursor) cursor.remove();
+                }
+            }
+
+            let scrollRaf = null;
+            let userScrolling = false;
+            let scrollTimeout = null;
+            chatContainer.addEventListener('scroll', () => {
+                userScrolling = true;
+                if (scrollTimeout) clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => { userScrolling = false; }, 1500);
+            });
+            function smoothScrollToBottom() {
+                if (scrollRaf || userScrolling) return;
+                scrollRaf = requestAnimationFrame(() => {
+                    scrollRaf = null;
+                    const nearBottom = chatContainer.scrollHeight - chatContainer.clientHeight - chatContainer.scrollTop < 180;
+                    if (nearBottom) {
+                        chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+                    }
+                });
+            }
+
+            function renderFinalContent(rawMode = false) {
+                if (!assistantMsg) return;
+                const finalDiv = assistantMsg.querySelector('.final-content');
+                if (!finalDiv) return;
+                const html = rawMode
+                    ? formatContentRaw(displayedText)
+                    : formatContent(displayedText);
+                if (!html) {
+                    // 还没有最终内容，保留 typing-indicator
+                    if (!finalDiv.querySelector('.typing-indicator')) {
+                        finalDiv.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+                    }
+                    return;
+                }
+                finalDiv.innerHTML = html;
+            }
+
+            function flushRemainingType() {
+                if (typingTimer) {
+                    clearTimeout(typingTimer);
+                    typingTimer = null;
+                }
+                while (typeQueue.length > 0) {
+                    displayedText += typeQueue.shift();
+                }
+                isTyping = false;
+                extractThinkSteps();
+                renderSteps();
+                renderFinalContent(false); // 完成后解析 markdown
+                smoothScrollToBottom();
+            }
+
+            let typeCharsSinceScroll = 0;
+            function runTypeLoop() {
+                if (typeQueue.length === 0) {
+                    isTyping = false;
+                    typingTimer = null;
+                    extractThinkSteps();
+                    renderSteps();
+                    renderFinalContent(false); // 完成后解析 markdown
+                    smoothScrollToBottom();
+                    return;
+                }
+                displayedText += typeQueue.shift();
+                extractThinkSteps();
+                renderSteps();
+                renderFinalContent(true); // 打字机过程中用纯文本，避免卡顿
+                typeCharsSinceScroll++;
+                if (typeCharsSinceScroll >= 3) {
+                    typeCharsSinceScroll = 0;
+                    smoothScrollToBottom();
+                }
+                const delay = typeQueue.length <= 2 ? 90 : 45;
+                typingTimer = setTimeout(runTypeLoop, delay);
+            }
+
+            function enqueueType(text) {
+                typeQueue.push(...text.split(''));
+                if (!isTyping) {
+                    isTyping = true;
+                    runTypeLoop();
+                }
+            }
+
+            const url = new URL('/chat/stream', window.location.origin);
+            if (sessionId) url.searchParams.set('session_id', sessionId);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+
+                    for (const chunk of lines) {
+                        const dataLine = chunk.split('\n').find(l => l.startsWith('data: '));
+                        if (!dataLine) continue;
+
+                        let data;
+                        try {
+                            data = JSON.parse(dataLine.slice(6));
+                        } catch {
+                            continue;
+                        }
+
+                        if (data.event === 'session_id') {
+                            sessionId = data.session_id;
+                        } else if (data.event === 'thinking_delta') {
+                            ensureAssistantMsg();
+                            thinkingText += data.text;
+                            let thinkStep = steps.find(s => s.type === 'think');
+                            if (!thinkStep) {
+                                thinkStep = { type: 'think', label: '思考中…', detail: '', status: 'running', isError: false };
+                                steps.push(thinkStep);
+                            }
+                            thinkStep.detail = thinkingText;
+                            thinkStep.label = thinkingComplete ? '思考过程' : '思考中…';
+                            thinkStep.status = thinkingComplete ? 'done' : 'running';
+                            renderSteps();
+                        } else if (data.event === 'text_delta') {
+                            ensureAssistantMsg();
+                            if (thinkingText && !thinkingComplete) {
+                                thinkingComplete = true;
+                                const thinkStep = steps.find(s => s.type === 'think');
+                                if (thinkStep) {
+                                    thinkStep.label = '思考过程';
+                                    thinkStep.status = 'done';
+                                    renderSteps();
+                                }
+                            }
+                            currentText += data.text;
+                            enqueueType(data.text);
+                        } else if (data.event === 'tool_start') {
+                            ensureAssistantMsg();
+                            const argsStr = JSON.stringify(data.args, null, 2);
+                            const detail = argsStr !== '{}' ? argsStr : '';
+                            steps.push({
+                                type: 'tool',
+                                label: data.tool_name,
+                                detail: detail,
+                                status: 'running',
+                                isError: false,
+                            });
+                            renderSteps();
+                        } else if (data.event === 'tool_end') {
+                            const toolStep = steps.findLast(s => s.type === 'tool' && s.status === 'running');
+                            if (toolStep) {
+                                toolStep.detail = data.result;
+                                toolStep.status = 'done';
+                                toolStep.isError = data.is_error;
+                                renderSteps();
+                            }
+                        } else if (data.event === 'message_end') {
+                            flushRemainingType();
+                            removeCursor();
+                            if (assistantMsg && data.usage && !usageAdded) {
+                                usageAdded = true;
+                                const wrapper = assistantMsg.parentElement;
+                                const usage = document.createElement('div');
+                                usage.className = 'usage-info';
+                                usage.textContent = `${data.usage.total_tokens} tokens · ${data.usage.input_tokens} in · ${data.usage.output_tokens} out`;
+                                wrapper.appendChild(usage);
+                            }
+                        } else if (data.event === 'human_input_required') {
+                            ensureAssistantMsg();
+                            flushRemainingType();
+                            const card = renderHitlCard({
+                                toolCallId: data.tool_call_id,
+                                prompt: data.prompt,
+                                inputSchema: data.input_schema,
+                                sessionId: sessionId,
+                            });
+                            const finalDiv = assistantMsg.querySelector('.final-content');
+                            if (finalDiv) {
+                                finalDiv.appendChild(card);
+                            }
+                            smoothScrollToBottom();
+                        } else if (data.event === 'error') {
+                            hasError = true;
+                            flushRemainingType();
+                            removeCursor();
+                            removeTypingIndicator();
+                            addMessage('error', `⚠️ ${escapeHtml(data.message)}`);
+                        } else if (data.event === 'done') {
+                            flushRemainingType();
+                            removeCursor();
+                            isStreaming = false;
+                            sendBtn.disabled = false;
+                        }
+                    }
+                }
+            } catch (err) {
+                hasError = true;
+                flushRemainingType();
+                removeCursor();
+                removeTypingIndicator();
+                addMessage('error', `⚠️ 连接失败: ${escapeHtml(err.message)}`);
+            } finally {
+                isStreaming = false;
+                sendBtn.disabled = false;
+                flushRemainingType();
+                removeCursor();
+                if (!hasError && !assistantMsg) {
+                    removeTypingIndicator();
+                }
+            }
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        messageInput.addEventListener('input', () => {
+            sendBtn.disabled = !messageInput.value.trim() || isStreaming;
+        });
+
+        newSessionBtn.addEventListener('click', () => {
+            sessionId = null;
+            chatContainer.innerHTML = '';
+            chatContainer.appendChild(welcome);
+        });
+    </script>
+</body>
+</html>

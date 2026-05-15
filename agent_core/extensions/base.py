@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Protocol
 
 from agent_core.core.events import AgentEvent
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -51,8 +54,8 @@ class ExtensionRunner:
                 result = await ext.on_before_tool_call(self._ctx, tool_call)
                 if result and result.get("block"):
                     return result
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Extension before_tool_call failed: %s", exc)
         return None
 
     async def after_tool_call(self, call_ctx: dict[str, Any]) -> dict[str, Any] | None:
@@ -66,8 +69,8 @@ class ExtensionRunner:
                 if hook and hook.get("result"):
                     mutated_result = hook
                     result = type(result)(**hook["result"]) if type(result) else result
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Extension after_tool_call failed: %s", exc)
         return mutated_result
 
     # ---------- event forwarding ----------
@@ -76,5 +79,5 @@ class ExtensionRunner:
         for ext in self._extensions:
             try:
                 await ext.on_event(self._ctx, evt)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Extension on_event failed: %s", exc)

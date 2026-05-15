@@ -43,3 +43,4 @@ class AgentLoopConfig:
     after_tool_call: Any | None = None
     get_steering_messages: Any | None = None
     get_follow_up_messages: Any | None = None
+    human_input_gate: Any | None = None

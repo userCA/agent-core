@@ -64,16 +64,25 @@ async def agent_loop(
 
         tool_defs = _tools_to_provider_format(context.tools)
 
-        assistant, updates = await _stream_assistant(
+        assistant = AssistantMessage(
+            content=[],
+            usage=Usage(),
+            stop_reason="stop",
+            provider=config.model.provider,
+            model=config.model.id,
+            timestamp=time.time(),
+        )
+
+        yield MessageStart(message=assistant)
+        async for upd in _stream_assistant(
             config=config,
             llm_messages=llm_messages,
             tool_defs=tool_defs,
             auth=auth,
             signal=signal,
-        )
-
-        yield MessageStart(message=assistant)
-        for upd in updates:
+            system_prompt=context.system_prompt,
+            assistant=assistant,
+        ):
             yield upd
         yield MessageEnd(message=assistant)
         context.messages.append(assistant)
@@ -87,6 +96,7 @@ async def agent_loop(
                 context=context,
                 signal=signal,
                 tool_results_out=tool_result_messages,
+                human_input_gate=config.human_input_gate,
             ):
                 yield evt
 
@@ -161,17 +171,9 @@ async def _stream_assistant(
     tool_defs: list[dict[str, Any]],
     auth: Any,
     signal: asyncio.Event | None,
-) -> tuple[AssistantMessage, list[MessageUpdate]]:
-    assistant = AssistantMessage(
-        content=[],
-        usage=Usage(),
-        stop_reason="stop",
-        provider=config.model.provider,
-        model=config.model.id,
-        timestamp=time.time(),
-    )
-
-    updates: list[MessageUpdate] = []
+    system_prompt: str = "",
+    assistant: AssistantMessage,
+) -> AsyncIterator[MessageUpdate]:
     text_buf = ""
     tool_buffers: dict[str, dict[str, Any]] = {}
     error_message: str | None = None
@@ -180,7 +182,7 @@ async def _stream_assistant(
         model=config.model,
         messages=llm_messages,
         tools=tool_defs,
-        system_prompt=config.model.provider and config.model.provider or "",
+        system_prompt=system_prompt,
         thinking_level=config.thinking_level,
         temperature=config.temperature,
         max_tokens=config.max_tokens,
@@ -196,23 +198,19 @@ async def _stream_assistant(
     async for evt in iterator:
         if isinstance(evt, StreamTextDelta):
             text_buf += evt.text
-            updates.append(MessageUpdate(message=assistant, delta=TextDelta(text=evt.text)))
+            yield MessageUpdate(message=assistant, delta=TextDelta(text=evt.text))
         elif isinstance(evt, StreamThinkingDelta):
-            updates.append(MessageUpdate(message=assistant, delta=ThinkingDelta(text=evt.text)))
+            yield MessageUpdate(message=assistant, delta=ThinkingDelta(text=evt.text))
         elif isinstance(evt, StreamToolCallStart):
             tool_buffers[evt.id] = {"id": evt.id, "name": evt.name, "args": {}}
-            updates.append(
-                MessageUpdate(
-                    message=assistant,
-                    delta=ToolCallDelta(id=evt.id, name=evt.name),
-                )
+            yield MessageUpdate(
+                message=assistant,
+                delta=ToolCallDelta(id=evt.id, name=evt.name),
             )
         elif isinstance(evt, StreamToolCallDelta):
-            updates.append(
-                MessageUpdate(
-                    message=assistant,
-                    delta=ToolCallDelta(id=evt.id, arguments_delta=evt.arguments_delta),
-                )
+            yield MessageUpdate(
+                message=assistant,
+                delta=ToolCallDelta(id=evt.id, arguments_delta=evt.arguments_delta),
             )
         elif isinstance(evt, StreamToolCallEnd):
             slot = tool_buffers.setdefault(evt.id, {"id": evt.id, "name": "", "args": {}})
@@ -244,8 +242,6 @@ async def _stream_assistant(
     if error_message:
         assistant.error_message = error_message
 
-    return assistant, updates
-
 
 async def _execute_tools(
     *,
@@ -254,6 +250,7 @@ async def _execute_tools(
     context: AgentContext,
     signal: asyncio.Event | None,
     tool_results_out: list[Any],
+    human_input_gate: Any | None = None,
 ) -> AsyncIterator[AgentEvent]:
     """Delegate to tool_runner to avoid circular imports at module level."""
     from agent_core.core.tool_runner import execute_tools
@@ -264,5 +261,6 @@ async def _execute_tools(
         context=context,
         signal=signal,
         tool_results_out=tool_results_out,
+        human_input_gate=human_input_gate,
     ):
         yield evt

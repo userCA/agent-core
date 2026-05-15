@@ -12,3 +12,6 @@ build/
 .ruff_cache/
 .DS_Store
 sessions/
+.env
+.claude/
+demo/
