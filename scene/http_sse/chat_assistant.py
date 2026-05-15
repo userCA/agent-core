@@ -27,6 +27,7 @@ from agent_core.session.store import SessionStore
 from agent_core.skills import Skill, load_skills
 from agent_core.tools.base import Tool, ToolRegistry
 from agent_core.tools.local import create_all_tools
+from agent_core.tools.music import create_text_to_music_tool
 
 
 def _generate_session_id() -> str:
@@ -94,6 +95,7 @@ class ChatAssistant:
         local_tools = create_all_tools(cwd)
         for tool in local_tools.values():
             tool_registry.register(tool)
+        tool_registry.register(create_text_to_music_tool())
         if tools:
             for tool in tools:
                 tool_registry.register(tool)
