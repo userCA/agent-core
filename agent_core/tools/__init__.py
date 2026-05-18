@@ -8,6 +8,11 @@ from agent_core.tools.base import (
     ToolRegistry,
     ToolResult,
 )
+from agent_core.tools.mutation_queue import FileMutationQueue
+from agent_core.tools.operations import BashOperations, BashResult, FileInfo, FileOperations
+from agent_core.tools.operations_local import LocalBashOperations, LocalFileOperations
+from agent_core.tools.render import RenderedOutput, ToolRenderer
+from agent_core.tools.truncate import format_size, truncate_head, truncate_line, truncate_tail
 
 __all__ = [
     "Tool",
@@ -16,4 +21,17 @@ __all__ = [
     "ToolInfo",
     "ToolRegistry",
     "ToolResult",
+    "FileMutationQueue",
+    "BashOperations",
+    "BashResult",
+    "FileInfo",
+    "FileOperations",
+    "LocalBashOperations",
+    "LocalFileOperations",
+    "RenderedOutput",
+    "ToolRenderer",
+    "format_size",
+    "truncate_head",
+    "truncate_line",
+    "truncate_tail",
 ]
