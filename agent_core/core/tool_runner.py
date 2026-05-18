@@ -42,12 +42,14 @@ async def execute_tools(
             yield ToolExecutionStart(
                 tool_call_id=tc.id, tool_name=tc.name, args=tc.arguments
             )
+        mutation_queue = getattr(config, "mutation_queue", None)
         results = await _run_tools_parallel(
             calls=calls,
             registry=registry,
             before=before,
             after=after,
             signal=signal,
+            mutation_queue=mutation_queue,
         )
         for tool_call, result, is_error in results:
             yield ToolExecutionEnd(
@@ -75,8 +77,11 @@ async def execute_tools(
             def _on_update(partial: ToolResult) -> None:
                 update_queue.put_nowait(partial)
 
+            mutation_queue = getattr(config, "mutation_queue", None)
             tool_task = asyncio.create_task(
-                _run_single_tool(tc, registry, before, after, signal, _on_update)
+                _run_single_tool(
+                    tc, registry, before, after, signal, mutation_queue, _on_update
+                )
             )
 
             # Stream intermediate updates while the tool runs
@@ -150,6 +155,7 @@ async def _run_single_tool(
     before: Any,
     after: Any,
     signal: asyncio.Event | None,
+    mutation_queue: Any | None = None,
     on_update: Any = None,
 ) -> tuple[Any, ToolResult, bool]:
     abort_event = signal or asyncio.Event()
@@ -178,7 +184,11 @@ async def _run_single_tool(
         except Exception as exc:
             logger.debug("before_tool_call hook failed: %s", exc)
 
-    ctx = ToolContext(signal=abort_event, on_update=on_update)
+    ctx = ToolContext(
+        signal=abort_event,
+        mutation_queue=mutation_queue,
+        on_update=on_update,
+    )
     try:
         result = await tool.execute(
             tool_call_id=tool_call.id,
@@ -220,8 +230,9 @@ async def _run_tools_parallel(
     before: Any,
     after: Any,
     signal: asyncio.Event | None,
+    mutation_queue: Any | None = None,
 ) -> list[tuple[Any, ToolResult, bool]]:
     tasks = [
-        _run_single_tool(c, registry, before, after, signal) for c in calls
+        _run_single_tool(c, registry, before, after, signal, mutation_queue) for c in calls
     ]
     return await asyncio.gather(*tasks)

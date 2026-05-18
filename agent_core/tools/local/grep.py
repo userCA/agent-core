@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import re
 from typing import Any
 
 from agent_core.core.content import TextContent
 from agent_core.tools.base import Tool, ToolContext, ToolDefinition, ToolResult
+from agent_core.tools.operations_local import LocalFileOperations
 
 
 class GrepTool(Tool):
-    def __init__(self, cwd: str = "") -> None:
+    def __init__(self, cwd: str = "", file_ops: Any | None = None) -> None:
         self._cwd = cwd or os.getcwd()
+        self._file_ops = file_ops or LocalFileOperations(cwd=self._cwd)
         self.definition = ToolDefinition(
             name="grep",
             description="Search for a pattern in files using regular expressions.",
@@ -27,7 +30,7 @@ class GrepTool(Tool):
             },
         )
 
-    async def execute(self, tool_call_id: str, params: dict[str, Any], ctx: ToolContext) -> ToolResult:
+    async def execute(self, tool_call_id: str, params: dict[str, Any], ctx: ToolContext | None) -> ToolResult:
         pattern = params.get("pattern", "")
         path = params.get("path", "")
         include = params.get("include", "")
@@ -38,49 +41,40 @@ class GrepTool(Tool):
             path = os.path.join(self._cwd, path)
         path = os.path.normpath(path)
 
+        # Validate regex up-front for friendlier errors
         try:
-            regex = re.compile(pattern)
+            re.compile(pattern)
         except re.error as exc:
             return ToolResult(content=[TextContent(text=f"Invalid regex: {exc}")])
 
-        results: list[str] = []
+        try:
+            results = await self._file_ops.grep(pattern, path, recursive=True)
+        except Exception as exc:
+            return ToolResult(content=[TextContent(text=str(exc))])
 
-        def search_file(file_path: str) -> None:
-            try:
-                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-                    for i, line in enumerate(f, 1):
-                        if regex.search(line):
-                            results.append(f"{file_path}:{i}: {line.rstrip()}")
-            except (IsADirectoryError, OSError):
-                pass
+        # Filter by include glob pattern (applied to filename)
+        if include:
+            filtered: list[str] = []
+            for line in results:
+                # Each result line is "file_path:line:content"
+                file_part = line.split(":", 1)[0]
+                if fnmatch.fnmatch(os.path.basename(file_part), include):
+                    filtered.append(line)
+            results = filtered
 
-        if os.path.isfile(path):
-            search_file(path)
-        elif os.path.isdir(path):
-            for root, _dirs, files in os.walk(path):
-                # Skip hidden directories
-                if any(part.startswith(".") for part in root.split(os.sep) if part):
-                    continue
-                for name in sorted(files):
-                    if name.startswith("."):
-                        continue
-                    if include and not self._glob_match(name, include):
-                        continue
-                    full = os.path.join(root, name)
-                    search_file(full)
+        # Filter out hidden directories/files for usability
+        results = [
+            r for r in results
+            if not any(part.startswith(".") for part in r.split(":", 1)[0].split(os.sep) if part)
+        ]
 
         if not results:
             return ToolResult(content=[TextContent(text=f"No matches found for pattern: {pattern}")])
         return ToolResult(content=[TextContent(text="\n".join(results[:500]))])
 
-    @staticmethod
-    def _glob_match(name: str, pattern: str) -> bool:
-        import fnmatch
-        return fnmatch.fnmatch(name, pattern)
 
-
-def create_grep_tool(cwd: str = "") -> GrepTool:
-    return GrepTool(cwd)
+def create_grep_tool(cwd: str = "", file_ops: Any | None = None) -> GrepTool:
+    return GrepTool(cwd, file_ops)
 
 
 grep_tool = GrepTool()

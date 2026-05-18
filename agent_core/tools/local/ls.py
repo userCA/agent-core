@@ -7,11 +7,13 @@ from typing import Any
 
 from agent_core.core.content import TextContent
 from agent_core.tools.base import Tool, ToolContext, ToolDefinition, ToolResult
+from agent_core.tools.operations_local import LocalFileOperations
 
 
 class LsTool(Tool):
-    def __init__(self, cwd: str = "") -> None:
+    def __init__(self, cwd: str = "", file_ops: Any | None = None) -> None:
         self._cwd = cwd or os.getcwd()
+        self._file_ops = file_ops or LocalFileOperations(cwd=self._cwd)
         self.definition = ToolDefinition(
             name="ls",
             description="List the contents of a directory.",
@@ -24,7 +26,7 @@ class LsTool(Tool):
             },
         )
 
-    async def execute(self, tool_call_id: str, params: dict[str, Any], ctx: ToolContext) -> ToolResult:
+    async def execute(self, tool_call_id: str, params: dict[str, Any], ctx: ToolContext | None) -> ToolResult:
         path = params.get("path", "")
         if not path:
             path = self._cwd
@@ -33,12 +35,11 @@ class LsTool(Tool):
         path = os.path.normpath(path)
 
         try:
-            entries = os.listdir(path)
+            infos = await self._file_ops.ls(path)
             lines = [f"Contents of {path}:", ""]
-            for name in sorted(entries):
-                full = os.path.join(path, name)
-                prefix = "[D]" if os.path.isdir(full) else "[F]"
-                lines.append(f"{prefix} {name}")
+            for info in infos:
+                prefix = "[D]" if info.is_dir else "[F]"
+                lines.append(f"{prefix} {info.name}")
             return ToolResult(content=[TextContent(text="\n".join(lines))])
         except FileNotFoundError:
             return ToolResult(content=[TextContent(text=f"Directory not found: {path}")])
@@ -46,8 +47,8 @@ class LsTool(Tool):
             return ToolResult(content=[TextContent(text=str(exc))])
 
 
-def create_ls_tool(cwd: str = "") -> LsTool:
-    return LsTool(cwd)
+def create_ls_tool(cwd: str = "", file_ops: Any | None = None) -> LsTool:
+    return LsTool(cwd, file_ops)
 
 
 ls_tool = LsTool()

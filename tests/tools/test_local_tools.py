@@ -28,7 +28,7 @@ async def test_read_tool():
         result = await tool.execute("tc1", {"path": path}, ctx)
         assert "line1" in result.content[0].text
 
-        result = await tool.execute("tc1", {"path": path, "offset": 2, "limit": 1}, ctx)
+        result = await tool.execute("tc1", {"path": path, "offset": 1, "limit": 1}, ctx)
         assert result.content[0].text == "line2\n"
     finally:
         os.unlink(path)

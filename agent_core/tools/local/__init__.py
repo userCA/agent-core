@@ -6,6 +6,7 @@ from typing import Any
 
 from agent_core.tools.local.bash import BashTool, bash_tool, create_bash_tool
 from agent_core.tools.local.confirm import ConfirmTool, confirm_tool, create_confirm_tool
+from agent_core.tools.local.edit import EditTool, create_edit_tool, edit_tool
 from agent_core.tools.local.find import FindTool, create_find_tool, find_tool
 from agent_core.tools.local.grep import GrepTool, create_grep_tool, grep_tool
 from agent_core.tools.local.ls import LsTool, create_ls_tool, ls_tool
@@ -19,6 +20,9 @@ __all__ = [
     "ConfirmTool",
     "confirm_tool",
     "create_confirm_tool",
+    "EditTool",
+    "edit_tool",
+    "create_edit_tool",
     "FindTool",
     "find_tool",
     "create_find_tool",
@@ -45,6 +49,7 @@ def create_all_tools(cwd: str = "") -> dict[str, Any]:
         "read": create_read_tool(cwd),
         "bash": create_bash_tool(cwd),
         "write": create_write_tool(cwd),
+        "edit": create_edit_tool(cwd),
         "grep": create_grep_tool(cwd),
         "find": create_find_tool(cwd),
         "ls": create_ls_tool(cwd),

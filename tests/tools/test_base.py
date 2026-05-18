@@ -46,3 +46,20 @@ def test_registry_to_definitions():
 def test_tool_result_roundtrip():
     tr = ToolResult(content=[TextContent(text="ok")], details={"extra": 1})
     assert tr.model_dump()["content"] == [{"type": "text", "text": "ok"}]
+
+
+def test_tool_result_display():
+    result = ToolResult(content=[], display={"code": "python"})
+    assert result.display == {"code": "python"}
+
+
+def test_tool_definition_renderer():
+    definition = ToolDefinition(name="x", description="y", parameters={}, renderer=None)
+    assert definition.renderer is None
+
+
+def test_tool_context_mutation_queue():
+    import asyncio
+
+    ctx = ToolContext(signal=asyncio.Event(), mutation_queue=None)
+    assert ctx.mutation_queue is None
