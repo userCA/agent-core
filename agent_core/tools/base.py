@@ -14,6 +14,7 @@ from agent_core.core.content import ImageContent, TextContent
 class ToolResult(BaseModel):
     content: list[TextContent | ImageContent]
     details: Any | None = None
+    display: dict[str, Any] | None = None
 
 
 class ToolDefinition(BaseModel):
@@ -22,6 +23,7 @@ class ToolDefinition(BaseModel):
     parameters: dict[str, Any]
     prompt_snippet: str | None = None
     prompt_guidelines: list[str] = []
+    renderer: Any | None = None
 
 
 @dataclass
@@ -29,6 +31,7 @@ class ToolContext:
     signal: asyncio.Event
     on_update: Callable[[ToolResult], None] | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    mutation_queue: Any | None = None
 
 
 class Tool(Protocol):
