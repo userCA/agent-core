@@ -24,7 +24,9 @@ from agent_core.session.inmemory_store import InMemoryStore
 from agent_core.session.jsonl_store import JsonlStore
 from agent_core.session.session import AgentSession
 from agent_core.session.store import SessionStore
-from agent_core.skills import Skill, load_skills
+from agent_core.prompts.builder import SystemPromptBuilder
+from agent_core.resources.loader import ResourceLoader
+from agent_core.resources.types import Skill
 from agent_core.tools.base import Tool, ToolRegistry
 from agent_core.tools.local import create_all_tools
 
@@ -32,8 +34,6 @@ from agent_core.tools.local import create_all_tools
 def _generate_session_id() -> str:
     import time
     return f"scene-{int(time.time() * 1000)}"
-
-from scene.cli.system_prompt import build_system_prompt
 
 EventHandler = Callable[[AgentEvent], Awaitable[None] | None]
 
@@ -82,12 +82,13 @@ class ChatAssistant:
 
         cwd = cwd or os.getcwd()
 
-        # Load skills
-        skills_result = load_skills(cwd=cwd, include_defaults=True)
-        skills = skills_result.skills
-        if skills_dir:
-            extra = load_skills(cwd=cwd, include_defaults=False, skill_paths=[skills_dir])
-            skills.extend(extra.skills)
+        # Load skills and context files
+        loader = ResourceLoader(
+            cwd=cwd,
+            extra_skill_paths=[skills_dir] if skills_dir else None,
+        )
+        skills, _ = loader.load_skills()
+        context_files = loader.load_context_files()
 
         # Build tool registry
         tool_registry = ToolRegistry()
@@ -139,16 +140,16 @@ class ChatAssistant:
             model = provider.list_models()[0]
 
         # Build system prompt
-        prompt = build_system_prompt(
+        prompt = SystemPromptBuilder(base_prompt=system_prompt).build(
             cwd=cwd,
+            active_tools=tool_registry.to_definitions(),
             skills=skills,
-            custom_prompt=system_prompt,
-            tool_names=list(tool_registry),
+            context_files=context_files,
         )
 
         agent = Agent(
             initial_state=AgentState(
-                system_prompt=prompt,
+                system_prompt=prompt.text,
                 model=model,
                 tools=tool_registry.to_definitions(),
             ),
@@ -245,7 +246,7 @@ class ChatAssistant:
             return text
 
         try:
-            with open(skill.file_path, "r", encoding="utf-8") as f:
+            with open(skill.source.origin, "r", encoding="utf-8") as f:
                 content = f.read()
         except Exception:
             return text
@@ -258,8 +259,8 @@ class ChatAssistant:
                 body = parts[2].strip()
 
         skill_block = (
-            f'<skill name="{skill.name}" location="{skill.file_path}">\n'
-            f"References are relative to {skill.base_dir}.\n\n"
+            f'<skill name="{skill.name}" location="{skill.source.origin}">\n'
+            f"References are relative to {skill.source.base_dir}.\n\n"
             f"{body}\n"
             f"</skill>"
         )

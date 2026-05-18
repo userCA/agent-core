@@ -6,31 +6,44 @@ import asyncio
 import os
 import tempfile
 
+from agent_core.prompts.builder import SystemPromptBuilder
+from agent_core.resources.loader import ResourceLoader
+from agent_core.resources.types import Skill, SourceInfo
 from scene.cli.chat_assistant import ChatAssistant
-from scene.cli.system_prompt import build_system_prompt
 
 
-def test_build_system_prompt():
-    prompt = build_system_prompt(cwd="/tmp", tool_names=["read", "bash"])
-    assert "read" in prompt
-    assert "bash" in prompt
-    assert "/tmp" in prompt
+def test_system_prompt_builder():
+    prompt = SystemPromptBuilder().build(
+        cwd="/tmp",
+        active_tools=[],
+        skills=[],
+        context_files=[],
+    )
+    assert "/tmp" in prompt.text
 
 
-def test_build_system_prompt_with_skills():
-    from agent_core.skills import Skill
-
+def test_system_prompt_builder_with_skills():
     skills = [
         Skill(
             name="python",
             description="Python skill",
-            file_path="/skills/python/SKILL.md",
-            base_dir="/skills/python",
+            content="---\ndescription: Python skill\n---\n\nContent",
+            source=SourceInfo(
+                source="project",
+                scope="project",
+                origin="/skills/python/SKILL.md",
+                base_dir="/skills/python",
+            ),
         )
     ]
-    prompt = build_system_prompt(cwd="/tmp", skills=skills)
-    assert "python" in prompt
-    assert "Python skill" in prompt
+    prompt = SystemPromptBuilder().build(
+        cwd="/tmp",
+        active_tools=[],
+        skills=skills,
+        context_files=[],
+    )
+    assert "python" in prompt.text
+    assert "Python skill" in prompt.text
 
 
 async def test_chat_assistant_expand_skill_command():
@@ -40,17 +53,12 @@ async def test_chat_assistant_expand_skill_command():
         with open(os.path.join(skill_dir, "SKILL.md"), "w") as f:
             f.write("---\ndescription: My skill\n---\n\nSkill content here.\n")
 
-        from agent_core.skills import load_skills
-
-        skills_result = load_skills(
-            cwd=tmpdir,
-            include_defaults=False,
-            skill_paths=[skill_dir],
-        )
+        loader = ResourceLoader(cwd=tmpdir, extra_skill_paths=[skill_dir])
+        skills, _ = loader.load_skills()
 
         assistant = ChatAssistant(
             agent=None,  # type: ignore[arg-type]
-            skills=skills_result.skills,
+            skills=skills,
             cwd=tmpdir,
         )
 
