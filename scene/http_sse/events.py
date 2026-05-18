@@ -13,6 +13,7 @@ from agent_core.core.events import (
     ThinkingDelta,
     ToolExecutionEnd,
     ToolExecutionStart,
+    ToolExecutionUpdate,
     ToolCallDelta,
 )
 
@@ -37,6 +38,13 @@ def agent_event_to_sse_json(evt: AgentEvent) -> dict[str, Any] | None:
             "event": "tool_start",
             "tool_name": evt.tool_name,
             "args": evt.args,
+        }
+
+    if isinstance(evt, ToolExecutionUpdate):
+        return {
+            "event": "tool_update",
+            "tool_name": evt.tool_name,
+            "result": _extract_result_text(evt.partial_result),
         }
 
     if isinstance(evt, ToolExecutionEnd):

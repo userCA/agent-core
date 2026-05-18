@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agent Core SSE Chat</title>
+    <title>咪兔</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
@@ -142,6 +142,18 @@
 
         .btn-primary:hover {
             box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: rgba(239, 68, 68, 0.5);
             transform: translateY(-1px);
         }
 
@@ -949,13 +961,14 @@
     <header>
         <div class="logo">
             <div class="logo-icon">🤖</div>
-            <h1>Agent Core SSE Chat</h1>
+            <h1>咪兔</h1>
         </div>
         <div class="header-actions">
             <div class="status-badge">
                 <span class="status-dot"></span>
                 <span>在线</span>
             </div>
+            <button class="btn btn-danger" id="cancel-btn" style="display:none;">⏹ 取消</button>
             <button class="btn" id="new-session-btn">新会话</button>
         </div>
     </header>
@@ -963,7 +976,7 @@
     <div id="chat-container">
         <div class="welcome-screen" id="welcome">
             <div class="welcome-icon">✨</div>
-            <div class="welcome-title">智能助手</div>
+            <div class="welcome-title">咪兔</div>
             <div class="welcome-subtitle">基于 Agent Core 的流式对话体验。<br>支持工具调用、实时响应。</div>
             <div class="welcome-examples">
                 <div class="example-chip" data-text="你好，请介绍一下你自己">👋 打个招呼</div>
@@ -992,6 +1005,7 @@
         const chatContainer = document.getElementById('chat-container');
         const messageInput = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
         const newSessionBtn = document.getElementById('new-session-btn');
         const welcome = document.getElementById('welcome');
 
@@ -1016,7 +1030,7 @@
 
             const label = document.createElement('div');
             label.className = 'message-label';
-            label.textContent = role === 'user' ? '你' : role === 'tool' ? '工具' : '助手';
+            label.textContent = role === 'user' ? '你' : role === 'tool' ? '工具' : '咪兔';
             wrapper.appendChild(label);
 
             const div = document.createElement('div');
@@ -1230,7 +1244,7 @@
 
             const label = document.createElement('div');
             label.className = 'message-label';
-            label.textContent = '助手';
+            label.textContent = '咪兔';
             wrapper.appendChild(label);
 
             const div = document.createElement('div');
@@ -1301,6 +1315,7 @@
             addMessage('user', escapeHtml(text));
             isStreaming = true;
             sendBtn.disabled = true;
+            cancelBtn.style.display = 'inline-block';
 
             const typing = createTypingIndicator();
             let assistantMsg = null;
@@ -1609,11 +1624,19 @@
                             removeCursor();
                             removeTypingIndicator();
                             addMessage('error', `⚠️ ${escapeHtml(data.message)}`);
+                            cancelBtn.style.display = 'none';
+                        } else if (data.event === 'tool_update') {
+                            const toolStep = steps.findLast(s => s.type === 'tool' && s.status === 'running');
+                            if (toolStep) {
+                                toolStep.detail = data.result;
+                                renderSteps();
+                            }
                         } else if (data.event === 'done') {
                             flushRemainingType();
                             removeCursor();
                             isStreaming = false;
                             sendBtn.disabled = false;
+                            cancelBtn.style.display = 'none';
                         }
                     }
                 }
@@ -1623,9 +1646,11 @@
                 removeCursor();
                 removeTypingIndicator();
                 addMessage('error', `⚠️ 连接失败: ${escapeHtml(err.message)}`);
+                cancelBtn.style.display = 'none';
             } finally {
                 isStreaming = false;
                 sendBtn.disabled = false;
+                cancelBtn.style.display = 'none';
                 flushRemainingType();
                 removeCursor();
                 if (!hasError && !assistantMsg) {
@@ -1641,6 +1666,18 @@
 
         messageInput.addEventListener('input', () => {
             sendBtn.disabled = !messageInput.value.trim() || isStreaming;
+        });
+
+        cancelBtn.addEventListener('click', async () => {
+            if (!sessionId) return;
+            try {
+                const url = new URL('/abort', window.location.origin);
+                url.searchParams.set('session_id', sessionId);
+                await fetch(url, { method: 'POST' });
+                cancelBtn.style.display = 'none';
+            } catch (err) {
+                console.error('Abort failed:', err);
+            }
         });
 
         newSessionBtn.addEventListener('click', () => {

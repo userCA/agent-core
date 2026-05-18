@@ -8,7 +8,7 @@ import time
 from typing import Any, AsyncIterator
 
 from agent_core.core.content import TextContent
-from agent_core.core.events import HumanInputRequired, ToolExecutionEnd, ToolExecutionStart
+from agent_core.core.events import HumanInputRequired, ToolExecutionEnd, ToolExecutionStart, ToolExecutionUpdate
 from agent_core.core.human_input import HumanInputGate, RequiresHumanInput
 from agent_core.core.messages import AssistantMessage, ToolResultMessage
 from agent_core.tools.base import ToolContext, ToolRegistry, ToolResult
@@ -69,10 +69,41 @@ async def execute_tools(
             yield ToolExecutionStart(
                 tool_call_id=tc.id, tool_name=tc.name, args=tc.arguments
             )
-            try:
-                _, result, is_error = await _run_single_tool(
-                    tc, registry, before, after, signal
+
+            update_queue: asyncio.Queue[ToolResult] = asyncio.Queue()
+
+            def _on_update(partial: ToolResult) -> None:
+                update_queue.put_nowait(partial)
+
+            tool_task = asyncio.create_task(
+                _run_single_tool(tc, registry, before, after, signal, _on_update)
+            )
+
+            # Stream intermediate updates while the tool runs
+            while not tool_task.done():
+                try:
+                    partial = update_queue.get_nowait()
+                    yield ToolExecutionUpdate(
+                        tool_call_id=tc.id,
+                        tool_name=tc.name,
+                        args=tc.arguments,
+                        partial_result=partial,
+                    )
+                except asyncio.QueueEmpty:
+                    await asyncio.sleep(0.5)
+
+            # Drain remaining updates
+            while not update_queue.empty():
+                partial = update_queue.get_nowait()
+                yield ToolExecutionUpdate(
+                    tool_call_id=tc.id,
+                    tool_name=tc.name,
+                    args=tc.arguments,
+                    partial_result=partial,
                 )
+
+            try:
+                _, result, is_error = tool_task.result()
             except RequiresHumanInput as exc:
                 if human_input_gate is None:
                     result = ToolResult(
@@ -119,6 +150,7 @@ async def _run_single_tool(
     before: Any,
     after: Any,
     signal: asyncio.Event | None,
+    on_update: Any = None,
 ) -> tuple[Any, ToolResult, bool]:
     abort_event = signal or asyncio.Event()
     tool = registry.get(tool_call.name)
@@ -146,7 +178,7 @@ async def _run_single_tool(
         except Exception as exc:
             logger.debug("before_tool_call hook failed: %s", exc)
 
-    ctx = ToolContext(signal=abort_event)
+    ctx = ToolContext(signal=abort_event, on_update=on_update)
     try:
         result = await tool.execute(
             tool_call_id=tool_call.id,

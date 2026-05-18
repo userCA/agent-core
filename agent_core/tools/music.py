@@ -125,7 +125,7 @@ class TextToMusicTool:
                     )
 
                 # Step 2: Poll for result
-                result = await self._poll_result(client, headers, task_id, ctx.signal)
+                result = await self._poll_result(client, headers, task_id, ctx)
                 return ToolResult(content=[TextContent(text=result)])
 
         except httpx.HTTPStatusError as exc:
@@ -160,7 +160,7 @@ class TextToMusicTool:
         client: httpx.AsyncClient,
         headers: dict[str, str],
         task_id: str,
-        signal: asyncio.Event,
+        ctx: ToolContext,
     ) -> str:
         """Poll query endpoint until task completes or times out."""
         query_payload = {
@@ -169,13 +169,13 @@ class TextToMusicTool:
         }
 
         for attempt in range(POLL_MAX_ATTEMPTS):
-            if signal.is_set():
+            if ctx.signal.is_set():
                 return f"任务 {task_id} 已取消"
 
-            resp = await client.post(
+            resp = await client.get(
                 self._query_url,
                 headers=headers,
-                json=query_payload,
+                params=query_payload,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -193,6 +193,11 @@ class TextToMusicTool:
 
             if status in ("FAILED", "ERROR", "FAILURE"):
                 return f"任务失败: {data}"
+
+            # Push progress update so the UI doesn't appear frozen
+            if ctx.on_update is not None:
+                progress = f"第 {attempt + 1} 次查询，状态: {status or '处理中'}…"
+                ctx.on_update(ToolResult(content=[TextContent(text=progress)]))
 
             await asyncio.sleep(POLL_INTERVAL)
 
@@ -225,20 +230,20 @@ class TextToMusicTool:
         for root in (data, data.get("data"), data.get("result"), data.get("body")):
             if not isinstance(root, dict):
                 continue
-            # Look for output/result/audios array
-            for out_key in ("output", "outputs", "result", "results", "audios", "audioList"):
+            # Look for output/result/audios/contents array
+            for out_key in ("output", "outputs", "result", "results", "audios", "audioList", "contents"):
                 out = root.get(out_key)
                 if isinstance(out, list):
                     for item in out:
                         if isinstance(item, dict):
-                            for url_key in ("url", "audioUrl", "fileUrl", "downloadUrl", "link"):
+                            for url_key in ("url", "audioUrl", "fileUrl", "downloadUrl", "link", "content"):
                                 val = item.get(url_key)
                                 if val and isinstance(val, str):
                                     urls.append(val)
                         elif isinstance(item, str):
                             urls.append(item)
                 elif isinstance(out, dict):
-                    for url_key in ("url", "audioUrl", "fileUrl", "downloadUrl", "link"):
+                    for url_key in ("url", "audioUrl", "fileUrl", "downloadUrl", "link", "content"):
                         val = out.get(url_key)
                         if val and isinstance(val, str):
                             urls.append(val)

@@ -121,6 +121,18 @@ async def human_input(request: Request, human_request: HumanInputRequest) -> dic
     return {"success": accepted}
 
 
+@app.post("/abort")
+async def abort_session(request: Request) -> dict[str, Any]:
+    """Abort the current operation for a session."""
+    session_id = request.query_params.get("session_id")
+    if not session_id:
+        return {"success": False, "error": "Missing session_id"}
+
+    _, assistant = await manager.get_or_create(session_id)
+    assistant.abort()
+    return {"success": True}
+
+
 @app.get("/")
 async def index() -> HTMLResponse:
     html_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
