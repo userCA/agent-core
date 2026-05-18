@@ -1002,6 +1002,7 @@
     <script>
         let sessionId = null;
         let isStreaming = false;
+        let pendingQueue = [];
         const chatContainer = document.getElementById('chat-container');
         const messageInput = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
@@ -1307,15 +1308,32 @@
             return `<div class="markdown-body">${escapeHtml(mainContent).replace(/\n/g, '<br>')}</div>`;
         }
 
+        function updatePendingHint() {
+            if (pendingQueue.length > 0) {
+                messageInput.placeholder = `排队中 ${pendingQueue.length} 条，任务结束后自动发送…`;
+            } else {
+                messageInput.placeholder = '输入消息…';
+            }
+        }
+
         async function sendMessage() {
             const text = messageInput.value.trim();
-            if (!text || isStreaming) return;
+            if (!text) return;
+
+            if (isStreaming) {
+                pendingQueue.push(text);
+                messageInput.value = '';
+                updatePendingHint();
+                sendBtn.disabled = true;
+                return;
+            }
 
             messageInput.value = '';
             addMessage('user', escapeHtml(text));
             isStreaming = true;
             sendBtn.disabled = true;
             cancelBtn.style.display = 'inline-block';
+            updatePendingHint();
 
             const typing = createTypingIndicator();
             let assistantMsg = null;
@@ -1624,7 +1642,10 @@
                             removeCursor();
                             removeTypingIndicator();
                             addMessage('error', `⚠️ ${escapeHtml(data.message)}`);
+                            isStreaming = false;
+                            sendBtn.disabled = !messageInput.value.trim();
                             cancelBtn.style.display = 'none';
+                            updatePendingHint();
                         } else if (data.event === 'tool_update') {
                             const toolStep = steps.findLast(s => s.type === 'tool' && s.status === 'running');
                             if (toolStep) {
@@ -1635,8 +1656,17 @@
                             flushRemainingType();
                             removeCursor();
                             isStreaming = false;
-                            sendBtn.disabled = false;
+                            sendBtn.disabled = !messageInput.value.trim();
                             cancelBtn.style.display = 'none';
+                            updatePendingHint();
+                            // Auto-send queued messages
+                            if (pendingQueue.length > 0) {
+                                const next = pendingQueue.shift();
+                                updatePendingHint();
+                                messageInput.value = next;
+                                sendBtn.disabled = false;
+                                sendMessage();
+                            }
                         }
                     }
                 }
@@ -1649,12 +1679,21 @@
                 cancelBtn.style.display = 'none';
             } finally {
                 isStreaming = false;
-                sendBtn.disabled = false;
+                sendBtn.disabled = !messageInput.value.trim();
                 cancelBtn.style.display = 'none';
+                updatePendingHint();
                 flushRemainingType();
                 removeCursor();
                 if (!hasError && !assistantMsg) {
                     removeTypingIndicator();
+                }
+                // Auto-send queued messages after error/abort
+                if (pendingQueue.length > 0) {
+                    const next = pendingQueue.shift();
+                    updatePendingHint();
+                    messageInput.value = next;
+                    sendBtn.disabled = false;
+                    sendMessage();
                 }
             }
         }
@@ -1665,7 +1704,7 @@
         });
 
         messageInput.addEventListener('input', () => {
-            sendBtn.disabled = !messageInput.value.trim() || isStreaming;
+            sendBtn.disabled = !messageInput.value.trim();
         });
 
         cancelBtn.addEventListener('click', async () => {
