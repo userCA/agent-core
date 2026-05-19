@@ -955,6 +955,157 @@
             font-size: 0.8rem;
             color: var(--success);
         }
+
+        /* Pending message bubbles */
+        .pending-bubbles {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            padding: 0.5rem 1.5rem 0;
+            background: rgba(15, 15, 35, 0.9);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.25s ease, padding 0.25s ease;
+        }
+        .pending-bubbles.has-items {
+            max-height: 120px;
+            padding-top: 0.6rem;
+            padding-bottom: 0.6rem;
+        }
+        .pending-bubble {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.35rem 0.7rem;
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            border-radius: 20px;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            max-width: 220px;
+        }
+        .pending-bubble-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .pending-bubble-remove {
+            cursor: pointer;
+            opacity: 0.6;
+            font-size: 0.9rem;
+            line-height: 1;
+            padding: 0 0.1rem;
+        }
+        .pending-bubble-remove:hover {
+            opacity: 1;
+            color: var(--error);
+        }
+
+        /* Running step spinner */
+        .step-status.running {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+        }
+        .step-status.running::after {
+            content: '';
+            width: 10px;
+            height: 10px;
+            border: 1.5px solid rgba(255, 255, 255, 0.15);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: stepSpin 0.8s linear infinite;
+        }
+        .step-item:nth-child(1) .step-status.running::after { animation-delay: -0.05s; }
+        .step-item:nth-child(2) .step-status.running::after { animation-delay: -0.15s; }
+        .step-item:nth-child(3) .step-status.running::after { animation-delay: -0.25s; }
+        .step-item:nth-child(4) .step-status.running::after { animation-delay: -0.35s; }
+        .step-item:nth-child(5) .step-status.running::after { animation-delay: -0.45s; }
+        @keyframes stepSpin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Step elapsed time */
+        .step-elapsed {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            opacity: 0.7;
+            margin-left: 0.3rem;
+        }
+        .step-slow-hint {
+            font-size: 0.7rem;
+            color: rgba(251, 191, 36, 0.7);
+            margin-left: 0.3rem;
+            font-style: italic;
+        }
+
+        /* Differentiated tool result rendering */
+        .result-audio {
+            display: block;
+            width: 100%;
+            max-width: 400px;
+            margin: 0.4rem 0;
+            border-radius: 8px;
+        }
+        .result-image {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 8px;
+            margin: 0.4rem 0;
+            display: block;
+        }
+        .result-code {
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 0.4rem 0;
+        }
+        .result-code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.35rem 0.6rem;
+            background: rgba(255, 255, 255, 0.04);
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+        }
+        .result-code-header:hover {
+            background: rgba(255, 255, 255, 0.07);
+        }
+        .result-code-body {
+            padding: 0.5rem 0.6rem;
+            font-size: 0.78rem;
+            font-family: 'SF Mono', Monaco, monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: rgba(255, 255, 255, 0.75);
+            max-height: 200px;
+            overflow-y: auto;
+            transition: max-height 0.2s ease;
+        }
+        .result-code-body.collapsed {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            overflow: hidden;
+        }
+        .result-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 0.82rem;
+        }
+        .result-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -986,6 +1137,8 @@
         </div>
     </div>
 
+    <div id="pending-bubbles" class="pending-bubbles"></div>
+
     <div id="input-area">
         <div class="input-wrapper">
             <input type="text" id="message-input" placeholder="输入消息..." autocomplete="off">
@@ -1009,6 +1162,7 @@
         const cancelBtn = document.getElementById('cancel-btn');
         const newSessionBtn = document.getElementById('new-session-btn');
         const welcome = document.getElementById('welcome');
+        const pendingBubblesEl = document.getElementById('pending-bubbles');
 
         // Example chips
         document.querySelectorAll('.example-chip').forEach(chip => {
@@ -1316,6 +1470,61 @@
             }
         }
 
+        function renderToolResult(text) {
+            if (!text) return escapeHtml(text);
+            const trimmed = text.trim();
+
+            // Audio URL
+            if (/^https?:\/\/.*\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i.test(trimmed)) {
+                return `<audio class="result-audio" controls src="${escapeHtml(trimmed)}"></audio>`;
+            }
+            // Image URL
+            if (/^https?:\/\/.*\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(trimmed)) {
+                return `<img class="result-image" src="${escapeHtml(trimmed)}" alt="result" loading="lazy">`;
+            }
+            // Link
+            if (/^https?:\/\/.+/i.test(trimmed)) {
+                return `<a class="result-link" href="${escapeHtml(trimmed)}" target="_blank" rel="noopener">🔗 ${escapeHtml(trimmed)}</a>`;
+            }
+            // JSON
+            try {
+                const parsed = JSON.parse(trimmed);
+                const formatted = JSON.stringify(parsed, null, 2);
+                const id = 'code-' + Math.random().toString(36).slice(2, 8);
+                return `
+                    <div class="result-code">
+                        <div class="result-code-header" onclick="document.getElementById('${id}').classList.toggle('collapsed')">
+                            <span>JSON</span>
+                            <span>点击折叠/展开</span>
+                        </div>
+                        <div class="result-code-body" id="${id}">${escapeHtml(formatted)}</div>
+                    </div>`;
+            } catch {
+                // not JSON
+            }
+            return escapeHtml(text);
+        }
+
+        function renderPendingBubbles() {
+            if (!pendingBubblesEl) return;
+            pendingBubblesEl.innerHTML = '';
+            pendingQueue.forEach((text, idx) => {
+                const bubble = document.createElement('div');
+                bubble.className = 'pending-bubble';
+                bubble.innerHTML = `
+                    <span class="pending-bubble-text">${escapeHtml(text)}</span>
+                    <span class="pending-bubble-remove" data-idx="${idx}">×</span>
+                `;
+                bubble.querySelector('.pending-bubble-remove').addEventListener('click', () => {
+                    pendingQueue.splice(idx, 1);
+                    renderPendingBubbles();
+                    updatePendingHint();
+                });
+                pendingBubblesEl.appendChild(bubble);
+            });
+            pendingBubblesEl.classList.toggle('has-items', pendingQueue.length > 0);
+        }
+
         async function sendMessage() {
             const text = messageInput.value.trim();
             if (!text) return;
@@ -1324,6 +1533,7 @@
                 pendingQueue.push(text);
                 messageInput.value = '';
                 updatePendingHint();
+                renderPendingBubbles();
                 sendBtn.disabled = true;
                 return;
             }
@@ -1346,6 +1556,7 @@
             let isTyping = false;
             let hasError = false;
             let steps = [];
+            let stepTimers = {};
             let stepsExpanded = false;
             let extractedThinkContents = new Set();
             let usageAdded = false;
@@ -1408,9 +1619,11 @@
                 const thinkCount = steps.filter(s => s.type === 'think').length;
                 const toolCount = steps.filter(s => s.type === 'tool').length;
                 const runningCount = steps.filter(s => s.status === 'running').length;
+                const doneCount = steps.filter(s => s.status === 'done').length;
                 let summary = '';
                 if (runningCount > 0) {
-                    summary = runningCount === 1 ? '正在处理…' : `${runningCount} 个任务进行中…`;
+                    const total = steps.length;
+                    summary = doneCount > 0 ? `${doneCount}/${total} 已完成` : (runningCount === 1 ? '正在处理…' : `${runningCount} 个任务进行中…`);
                 } else {
                     const parts = [];
                     if (thinkCount > 0) parts.push('思考已完成');
@@ -1422,16 +1635,26 @@
                 let listHtml = '';
                 for (const step of steps) {
                     const icon = step.type === 'think' ? '◉' : '🔧';
-                    const status = step.status === 'running' ? '…' : '✓';
+                    const statusClass = step.status === 'running' ? 'running' : '';
+                    const status = step.status === 'running' ? '' : '✓';
+                    let elapsedHtml = '';
+                    if (step.status === 'running' && step.startTime) {
+                        const elapsed = Math.floor((Date.now() - step.startTime) / 1000);
+                        elapsedHtml = `<span class="step-elapsed">${elapsed}s</span>`;
+                    }
+                    let slowHintHtml = '';
+                    if (step.status === 'running' && step.isSlow) {
+                        slowHintHtml = '<span class="step-slow-hint">（预计需要较长时间）</span>';
+                    }
                     listHtml += `
                         <div class="step-item">
                             <span class="step-icon">${icon}</span>
-                            <span class="step-label">${escapeHtml(step.label)}</span>
-                            <span class="step-status">${status}</span>
+                            <span class="step-label">${escapeHtml(step.label)}${elapsedHtml}${slowHintHtml}</span>
+                            <span class="step-status ${statusClass}">${status}</span>
                         </div>`;
                     if (step.detail) {
                         const errorClass = step.isError ? 'error' : '';
-                        listHtml += `<div class="step-detail ${errorClass}">${escapeHtml(step.detail)}</div>`;
+                        listHtml += `<div class="step-detail ${errorClass}">${step.renderedDetail || escapeHtml(step.detail)}</div>`;
                     }
                 }
                 list.innerHTML = listHtml;
@@ -1595,18 +1818,29 @@
                             ensureAssistantMsg();
                             const argsStr = JSON.stringify(data.args, null, 2);
                             const detail = argsStr !== '{}' ? argsStr : '';
+                            const stepIdx = steps.length;
+                            const isSlow = /music|text_to_music/.test(data.tool_name || '');
                             steps.push({
                                 type: 'tool',
                                 label: data.tool_name,
                                 detail: detail,
                                 status: 'running',
                                 isError: false,
+                                startTime: Date.now(),
+                                isSlow: isSlow,
                             });
+                            stepTimers[stepIdx] = setInterval(() => renderSteps(), 1000);
                             renderSteps();
                         } else if (data.event === 'tool_end') {
                             const toolStep = steps.findLast(s => s.type === 'tool' && s.status === 'running');
                             if (toolStep) {
+                                const stepIdx = steps.indexOf(toolStep);
+                                if (stepTimers[stepIdx]) {
+                                    clearInterval(stepTimers[stepIdx]);
+                                    delete stepTimers[stepIdx];
+                                }
                                 toolStep.detail = data.result;
+                                toolStep.renderedDetail = renderToolResult(data.result);
                                 toolStep.status = 'done';
                                 toolStep.isError = data.is_error;
                                 renderSteps();
@@ -1646,10 +1880,14 @@
                             sendBtn.disabled = !messageInput.value.trim();
                             cancelBtn.style.display = 'none';
                             updatePendingHint();
+                            renderPendingBubbles();
+                            Object.values(stepTimers).forEach(t => clearInterval(t));
+                            stepTimers = {};
                         } else if (data.event === 'tool_update') {
                             const toolStep = steps.findLast(s => s.type === 'tool' && s.status === 'running');
                             if (toolStep) {
                                 toolStep.detail = data.result;
+                                toolStep.renderedDetail = renderToolResult(data.result);
                                 renderSteps();
                             }
                         } else if (data.event === 'done') {
@@ -1659,10 +1897,14 @@
                             sendBtn.disabled = !messageInput.value.trim();
                             cancelBtn.style.display = 'none';
                             updatePendingHint();
+                            renderPendingBubbles();
+                            Object.values(stepTimers).forEach(t => clearInterval(t));
+                            stepTimers = {};
                             // Auto-send queued messages
                             if (pendingQueue.length > 0) {
                                 const next = pendingQueue.shift();
                                 updatePendingHint();
+                                renderPendingBubbles();
                                 messageInput.value = next;
                                 sendBtn.disabled = false;
                                 sendMessage();
@@ -1677,11 +1919,14 @@
                 removeTypingIndicator();
                 addMessage('error', `⚠️ 连接失败: ${escapeHtml(err.message)}`);
                 cancelBtn.style.display = 'none';
+                Object.values(stepTimers).forEach(t => clearInterval(t));
+                stepTimers = {};
             } finally {
                 isStreaming = false;
                 sendBtn.disabled = !messageInput.value.trim();
                 cancelBtn.style.display = 'none';
                 updatePendingHint();
+                renderPendingBubbles();
                 flushRemainingType();
                 removeCursor();
                 if (!hasError && !assistantMsg) {
@@ -1691,6 +1936,7 @@
                 if (pendingQueue.length > 0) {
                     const next = pendingQueue.shift();
                     updatePendingHint();
+                    renderPendingBubbles();
                     messageInput.value = next;
                     sendBtn.disabled = false;
                     sendMessage();
@@ -1721,6 +1967,9 @@
 
         newSessionBtn.addEventListener('click', () => {
             sessionId = null;
+            pendingQueue = [];
+            updatePendingHint();
+            renderPendingBubbles();
             chatContainer.innerHTML = '';
             chatContainer.appendChild(welcome);
         });
