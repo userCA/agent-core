@@ -10,6 +10,7 @@ from typing import Any, Awaitable, Callable
 
 from agent_core.compaction.compactor import Compactor, CompactionResult
 from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
+from agent_core.core.messages import deserialize_message
 from agent_core.extensions.base import ExtensionContext, ExtensionRunner
 from agent_core.session.store import CompactionEntry, MessageEntry, SessionHeader, SessionStore
 
@@ -50,7 +51,8 @@ class AgentSession:
             cwd=os.getcwd(),
         )
         try:
-            await self._store.load_session(self._session_id)
+            snapshot = await self._store.load_session(self._session_id)
+            self._restore_messages(snapshot)
         except KeyError:
             await self._store.create_session(self._session_id, header)
         except Exception as exc:
@@ -125,6 +127,23 @@ class AgentSession:
             raise RuntimeError("AgentSession is disposed")
         if not self._started:
             raise RuntimeError("AgentSession not started; call start() first")
+
+    def _restore_messages(self, snapshot: Any) -> None:
+        """Hydrate agent.state.messages from a loaded SessionSnapshot."""
+        restored: list[Any] = []
+        for entry in snapshot.entries:
+            if isinstance(entry, MessageEntry):
+                try:
+                    restored.append(deserialize_message(entry.message))
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to restore message %s in session %s: %s",
+                        entry.id,
+                        self._session_id,
+                        exc,
+                    )
+        if restored:
+            self._agent.state.messages = restored
 
     # ---------- event handling ----------
     async def _on_agent_event(self, evt: AgentEvent) -> None:

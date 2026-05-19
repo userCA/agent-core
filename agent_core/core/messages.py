@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 from agent_core.core.content import ImageContent, TextContent, ToolCallContent
 
@@ -73,3 +73,10 @@ AgentMessage = Annotated[
     Union[UserMessage, AssistantMessage, ToolResultMessage, CustomMessage],
     Field(discriminator="role"),
 ]
+
+_agent_message_adapter: TypeAdapter[AgentMessage] = TypeAdapter(AgentMessage)
+
+
+def deserialize_message(data: dict[str, Any]) -> AgentMessage:
+    """Restore an AgentMessage from its JSON-serialized dict form."""
+    return _agent_message_adapter.validate_python(data)
