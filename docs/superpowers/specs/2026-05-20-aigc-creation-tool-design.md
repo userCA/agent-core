@@ -25,9 +25,9 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                      Agent / Session                         │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────────┐ │
-│  │ before_tool  │    │ HumanInput  │    │ ToolContext      │ │
-│  │ _call hook   │───▶│ Gate        │───▶│ .metadata       │ │
-│  │ (注入认证)   │    │ (暂停/恢复)  │    │ (业务参数+认证)  │ │
+│  │ Extension    │    │ HumanInput  │    │ ToolContext      │ │
+│  │ (认证+审批)  │───▶│ Gate        │───▶│ .metadata       │ │
+│  │              │    │ (暂停/恢复)  │    │ (业务参数+认证)  │ │
 │  └─────────────┘    └─────────────┘    └─────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
           │
@@ -132,36 +132,81 @@ def _resolve_auth(self, metadata: dict[str, Any]) -> dict[str, str]:
 
 ## 4. 认证信息注入机制
 
-**问题：** 前端请求 header 中的 cookie/token 如何传入工具？
+**方案：统一用 Extension 管理（方案A）**
 
-**方案：** `before_tool_call` hook + `ToolContext.metadata`
+不在 `ChatAssistant` 层单独配置 `before_tool_call` hook，而是通过 **Extension + `AgentState.metadata`** 统一管理认证注入和审批。
+
+### 4.1 AgentState 扩展
 
 ```python
-# 在 ChatAssistant / Scene 层配置
-async def before_tool_call(info: dict[str, Any]) -> dict[str, Any] | None:
-    tool_name = info["tool_call"].name
-    if tool_name.startswith("create_") and "aigc" in tool_name:
-        # 从当前 HTTP 请求上下文中提取认证 header
-        # （具体实现依赖 scene 层的请求上下文机制）
-        auth_headers = extract_auth_from_request_context()
-        return {
-            "inject_metadata": {
-                "aigc_auth": auth_headers,
-            }
+# agent_core/core/state.py
+class AgentState(BaseModel):
+    ...
+    metadata: dict[str, Any] = Field(default_factory=dict)  # 新增
+```
+
+`metadata` 作为请求级/会话级的共享状态，scene 层写入，Extension 和 Tool 读取。
+
+### 4.2 Scene 层写入请求上下文
+
+```python
+# scene/http_sse/chat_assistant.py（或 middleware）
+# 每个请求进来时，将请求 header 写入 AgentState.metadata
+agent.state.metadata["request_headers"] = dict(request.headers)
+```
+
+### 4.3 Extension 统一管理
+
+```python
+# agent_core/extensions/aigc_guard.py
+
+class AigcGuardExt:
+    """统一管理 AIGC 工具的认证注入和审批。"""
+    name = "aigc-guard"
+
+    async def on_before_tool_call(self, ctx: ExtensionContext, tool_call: Any) -> dict[str, Any] | None:
+        name = getattr(tool_call, "name", "")
+        if not name.startswith("create_"):
+            return None
+
+        headers = ctx.agent.state.metadata.get("request_headers", {})
+
+        # 1. 认证注入
+        ctx.agent.state.metadata["aigc_auth"] = {
+            "uid": headers.get("uid"),
+            "deviceid": headers.get("deviceid"),
+            "channel": headers.get("channel"),
+            "pacmtoken": headers.get("pacmtoken"),
+            # ... 其他认证字段
         }
-    return None
+
+        # 2. 审批检查（示例）
+        if name in ("create_nolo_video",):
+            approved = ctx.agent.state.metadata.get("aigc_approved_tools", set())
+            if name not in approved:
+                return {
+                    "block": True,
+                    "reason": f"工具 {name} 需要管理员审批，请确认后继续。"
+                }
+
+        return None
 ```
 
-框架侧需要在 `_run_single_tool` 中支持 `before_tool_call` 返回 `inject_metadata`：
+### 4.4 工具侧读取认证
 
 ```python
-# tool_runner.py _run_single_tool
-hook_result = await before(...)
-if hook_result and hook_result.get("inject_metadata"):
-    ctx.metadata.update(hook_result["inject_metadata"])
+# AigcCreationTool._resolve_auth
+def _resolve_auth(self, metadata: dict[str, Any]) -> dict[str, str]:
+    """认证信息优先级：metadata[aigc_auth] > 环境变量 > 默认值"""
+    auth = metadata.get("aigc_auth", {})
+    return {
+        "uid": auth.get("uid") or os.environ.get("MIGU_UID") or DEFAULT_UID,
+        "deviceid": auth.get("deviceid") or os.environ.get("MIGU_DEVICE_ID") or DEFAULT_DEVICE_ID,
+        "channel": auth.get("channel") or os.environ.get("MIGU_CHANNEL") or DEFAULT_CHANNEL,
+        "pacmtoken": auth.get("pacmtoken") or os.environ.get("MIGU_PACM_TOKEN"),
+        # ... 其他字段
+    }
 ```
-
-> **注：** 如果框架当前不支持 `inject_metadata`，则需要小幅度扩展 `before_tool_call` 的返回语义。
 
 ## 5. HITL 参数收集与重试机制
 
@@ -456,21 +501,26 @@ async def test_aigc_tool_with_hitl():
 
 ## 10. 任务拆分
 
-1. **框架增强：HITL 恢复后重试工具**
-   - 修改 `tool_runner.py` sequential 模式
-   - 支持 `before_tool_call` 返回 `inject_metadata`
+1. **框架增强：AgentState 加 metadata**
+   - `agent_core/core/state.py`：新增 `metadata: dict[str, Any]` 字段
 
-2. **核心工具：AigcCreationTool 类**
+2. **框架增强：修复 Extension → Agent 连接**
+   - `agent_core/session/session.py`：`start()` 中将 `ExtensionRunner` 注册到 `Agent`
+
+3. **框架增强：HITL 恢复后重试工具**
+   - `agent_core/core/tool_runner.py`：sequential 模式下 HITL 恢复后重新执行工具
+
+4. **核心工具：AigcCreationTool 类**
    - 新建 `agent_core/tools/aigc_creation.py`
-   - 实现 execute、_build_payload、_poll_result 等
+   - 实现 execute、_build_payload、_poll_result、_resolve_auth 等
 
-3. **场景工厂：nolo 视频工具**
+5. **场景工厂：nolo 视频工具**
    - 实现 `create_nolo_video_tool` 工厂函数
    - 定义 parameters schema 和 HITL 卡片定义
 
-4. **集成测试**
+6. **集成测试**
    - 使用 FakeProvider 测试完整 HITL 流程
    - 使用 respx mock HTTP 测试 API 调用
 
-5. **（可选）新增场景**
+7. **（可选）新增场景**
    - 按同样模式添加 `create_xmas_card_tool` 等
