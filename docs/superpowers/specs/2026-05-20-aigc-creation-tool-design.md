@@ -90,6 +90,7 @@ execute(tool_call_id, params, ctx)
     │
     ├── 1. 提取认证信息
     │      auth_headers = _resolve_auth(ctx.metadata)
+    │      # ctx.metadata 已包含 AgentState.metadata 的内容
     │      # 优先级: ctx.metadata["aigc_auth"] > 构造函数默认值 > 环境变量
     │
     ├── 2. 参数校验与补全
@@ -117,17 +118,19 @@ execute(tool_call_id, params, ctx)
 
 ### 3.3 认证信息解析
 
+工具通过 `ctx.metadata["aigc_auth"]` 读取认证信息（Extension 注入，见 §4.3）。
+
 ```python
 def _resolve_auth(self, metadata: dict[str, Any]) -> dict[str, str]:
-    """认证信息优先级：运行时 metadata > 构造函数 > 环境变量 > 默认值"""
-    auth = {
-        "uid": metadata.get("uid") or self._uid or os.environ.get("MIGU_UID") or DEFAULT_UID,
-        "deviceid": metadata.get("deviceid") or self._device_id or os.environ.get("MIGU_DEVICE_ID") or DEFAULT_DEVICE_ID,
-        "channel": metadata.get("channel") or self._channel or os.environ.get("MIGU_CHANNEL") or DEFAULT_CHANNEL,
-        "pacmtoken": metadata.get("pacmtoken") or os.environ.get("MIGU_PACM_TOKEN"),
+    """认证信息优先级：metadata[aigc_auth] > 构造函数 > 环境变量 > 默认值"""
+    auth = metadata.get("aigc_auth", {})
+    return {
+        "uid": auth.get("uid") or self._uid or os.environ.get("MIGU_UID") or DEFAULT_UID,
+        "deviceid": auth.get("deviceid") or self._device_id or os.environ.get("MIGU_DEVICE_ID") or DEFAULT_DEVICE_ID,
+        "channel": auth.get("channel") or self._channel or os.environ.get("MIGU_CHANNEL") or DEFAULT_CHANNEL,
+        "pacmtoken": auth.get("pacmtoken") or os.environ.get("MIGU_PACM_TOKEN"),
         # ... 其他 header 字段
     }
-    return {k: v for k, v in auth.items() if v is not None}
 ```
 
 ## 4. 认证信息注入机制
@@ -147,7 +150,38 @@ class AgentState(BaseModel):
 
 `metadata` 作为请求级/会话级的共享状态，scene 层写入，Extension 和 Tool 读取。
 
-### 4.2 Scene 层写入请求上下文
+### 4.2 ToolContext.metadata 与 AgentState.metadata 的同步
+
+**问题：** `ToolContext.metadata` 和 `AgentState.metadata` 是两个独立的 dict，工具无法通过 `ctx.metadata` 读到 Extension 写入 `AgentState.metadata` 的认证信息。
+
+**方案：** 在 `_run_single_tool` 创建 `ToolContext` 时，将 `AgentState.metadata` 合并进去。
+
+```python
+# tool_runner.py _run_single_tool
+
+# 从 config 中获取 agent_state（需新增传递）
+agent_state = getattr(config, "agent_state", None)
+base_metadata = dict(agent_state.metadata) if agent_state else {}
+
+ctx = ToolContext(
+    signal=abort_event,
+    mutation_queue=mutation_queue,
+    on_update=on_update,
+    metadata=base_metadata,  # 携带 AgentState.metadata 的内容
+)
+```
+
+**传递链路：**
+
+```
+Agent._run() → AgentLoopConfig(agent_state=self.state)
+    → tool_runner._run_single_tool() → ToolContext(metadata=dict(agent_state.metadata))
+        → tool.execute(ctx=ctx) → ctx.metadata 包含 aigc_auth 等
+```
+
+需要在 `AgentLoopConfig` 中新增 `agent_state` 字段，在 `Agent._run()` 中传入。
+
+### 4.3 Scene 层写入请求上下文
 
 ```python
 # scene/http_sse/chat_assistant.py（或 middleware）
@@ -155,7 +189,7 @@ class AgentState(BaseModel):
 agent.state.metadata["request_headers"] = dict(request.headers)
 ```
 
-### 4.3 Extension 统一管理
+### 4.4 Extension 统一管理
 
 ```python
 # agent_core/extensions/aigc_guard.py
@@ -192,7 +226,7 @@ class AigcGuardExt:
         return None
 ```
 
-### 4.4 工具侧读取认证
+### 4.5 工具侧读取认证
 
 ```python
 # AigcCreationTool._resolve_auth
@@ -233,16 +267,41 @@ except RequiresHumanInput as exc:
     yield HumanInputRequired(tool_call_id=tc.id, prompt=exc.prompt, input_schema=exc.input_schema)
     values = await future
 
-    # ✅ 改进：将用户输入合并到参数，重新执行工具
+    # 将用户输入合并到参数（用户输入优先级更高）
     merged_args = {**tc.arguments, **values}
-    result = await tool.execute(tool_call_id=tc.id, params=merged_args, ctx=ctx)
-    is_error = False
+
+    # 重试工具：重新走 _run_single_tool 以保持 hook 一致性
+    retry_result = await _run_single_tool(
+        tool_call=_patched_tool_call(tc, merged_args),
+        registry=registry,
+        before=before,
+        after=after,
+        signal=signal,
+        mutation_queue=mutation_queue,
+        on_update=on_update,
+    )
+    _, result, is_error = retry_result
 ```
 
 **关键决策：**
 - 用户输入的 `values` 与原参数 `tc.arguments` 合并（用户输入优先级更高）
+- HITL 重试时重新走 `_run_single_tool`，确保 Extension 的 `on_before_tool_call` / `on_after_tool_call` 以及 `before_tool_call` / `after_tool_call` hook 均正常执行
+- 这意味着认证注入和审批检查在重试时仍会生效（但认证已写入 `AgentState.metadata`，审批已通过，不会重复阻断）
 - 仅影响 **sequential** 执行模式（需要 HITL 的工具不应并行）
 - parallel 模式保持原行为（不支持 HITL 重试）
+
+**`_patched_tool_call` 辅助函数：**
+
+```python
+def _patched_tool_call(tc: Any, merged_args: dict[str, Any]) -> Any:
+    """Create a copy of the tool call with merged arguments for HITL retry."""
+    # ToolCallContent 是 Pydantic model，用 model_copy 覆盖 arguments
+    if hasattr(tc, "model_copy"):
+        return tc.model_copy(update={"arguments": merged_args})
+    # Fallback: 直接修改（不推荐，但作为兜底）
+    tc.arguments = merged_args
+    return tc
+```
 
 ### 5.3 HITL 卡片定义示例
 
@@ -507,20 +566,26 @@ async def test_aigc_tool_with_hitl():
 2. **框架增强：修复 Extension → Agent 连接**
    - `agent_core/session/session.py`：`start()` 中将 `ExtensionRunner` 注册到 `Agent`
 
-3. **框架增强：HITL 恢复后重试工具**
-   - `agent_core/core/tool_runner.py`：sequential 模式下 HITL 恢复后重新执行工具
+3. **框架增强：AgentState.metadata → ToolContext.metadata 同步**
+   - `agent_core/core/context.py`：`AgentLoopConfig` 新增 `agent_state` 字段
+   - `agent_core/core/agent.py`：`_run()` 中传入 `agent_state=self.state`
+   - `agent_core/core/tool_runner.py`：`_run_single_tool` 创建 `ToolContext` 时合并 `agent_state.metadata`
 
-4. **核心工具：AigcCreationTool 类**
+4. **框架增强：HITL 恢复后重试工具**
+   - `agent_core/core/tool_runner.py`：sequential 模式下 HITL 恢复后重新走 `_run_single_tool`
+   - 新增 `_patched_tool_call` 辅助函数
+
+5. **核心工具：AigcCreationTool 类**
    - 新建 `agent_core/tools/aigc_creation.py`
    - 实现 execute、_build_payload、_poll_result、_resolve_auth 等
 
-5. **场景工厂：nolo 视频工具**
+6. **场景工厂：nolo 视频工具**
    - 实现 `create_nolo_video_tool` 工厂函数
    - 定义 parameters schema 和 HITL 卡片定义
 
-6. **集成测试**
+7. **集成测试**
    - 使用 FakeProvider 测试完整 HITL 流程
    - 使用 respx mock HTTP 测试 API 调用
 
-7. **（可选）新增场景**
+8. **（可选）新增场景**
    - 按同样模式添加 `create_xmas_card_tool` 等
