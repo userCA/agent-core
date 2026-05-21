@@ -156,30 +156,40 @@ class AgentState(BaseModel):
 
 **方案：** 在 `_run_single_tool` 创建 `ToolContext` 时，将 `AgentState.metadata` 合并进去。
 
+**关键：`_run_single_tool` 没有访问 `config` 的途径**，无法通过 `getattr(config, "agent_state")` 获取。因此新增 `metadata` 参数：
+
 ```python
-# tool_runner.py _run_single_tool
-
-# 从 config 中获取 agent_state（需新增传递）
-agent_state = getattr(config, "agent_state", None)
-base_metadata = dict(agent_state.metadata) if agent_state else {}
-
-ctx = ToolContext(
-    signal=abort_event,
-    mutation_queue=mutation_queue,
-    on_update=on_update,
-    metadata=base_metadata,  # 携带 AgentState.metadata 的内容
-)
+# tool_runner.py _run_single_tool 签名变更
+async def _run_single_tool(
+    tool_call: Any,
+    registry: ToolRegistry,
+    before: Any,
+    after: Any,
+    signal: asyncio.Event | None,
+    mutation_queue: Any | None = None,
+    on_update: Any = None,
+    metadata: dict[str, Any] | None = None,  # 新增
+) -> tuple[Any, ToolResult, bool]:
+    ...
+    ctx = ToolContext(
+        signal=abort_event,
+        mutation_queue=mutation_queue,
+        on_update=on_update,
+        metadata=dict(metadata or {}),  # 携带 AgentState.metadata 的内容
+    )
 ```
 
 **传递链路：**
 
 ```
 Agent._run() → AgentLoopConfig(agent_state=self.state)
-    → tool_runner._run_single_tool() → ToolContext(metadata=dict(agent_state.metadata))
-        → tool.execute(ctx=ctx) → ctx.metadata 包含 aigc_auth 等
+    → execute_tools() 中提取 agent_state.metadata
+    → _run_single_tool(..., metadata=dict(agent_state.metadata))
+        → ToolContext(metadata=...) → tool.execute(ctx=ctx)
+            → ctx.metadata 包含 aigc_auth 等
 ```
 
-需要在 `AgentLoopConfig` 中新增 `agent_state` 字段，在 `Agent._run()` 中传入。
+需要在 `AgentLoopConfig` 中新增 `agent_state` 字段，在 `Agent._run()` 中传入。`execute_tools` 中所有调用 `_run_single_tool` 的地方都需要传入 `metadata`。
 
 ### 4.3 Scene 层写入请求上下文
 
@@ -262,6 +272,8 @@ except RequiresHumanInput as exc:
 
 ```python
 # tool_runner.py sequential 模式改进
+HITL_MAX_RETRIES = 1  # 防止无限循环
+
 except RequiresHumanInput as exc:
     future = human_input_gate.require_input(tc.id)
     yield HumanInputRequired(tool_call_id=tc.id, prompt=exc.prompt, input_schema=exc.input_schema)
@@ -279,6 +291,8 @@ except RequiresHumanInput as exc:
         signal=signal,
         mutation_queue=mutation_queue,
         on_update=on_update,
+        metadata=base_metadata,
+        _hitl_retry=True,  # 标记为 HITL 重试，防止无限循环
     )
     _, result, is_error = retry_result
 ```
@@ -290,20 +304,52 @@ except RequiresHumanInput as exc:
 - 仅影响 **sequential** 执行模式（需要 HITL 的工具不应并行）
 - parallel 模式保持原行为（不支持 HITL 重试）
 
-**`_patched_tool_call` 辅助函数：**
+### 5.3 防止 HITL 无限循环
+
+**问题：** 如果工具在 HITL 重试后仍然参数不全，再次抛出 `RequiresHumanInput`，会导致无限循环。
+
+**方案：** 给 `_run_single_tool` 新增 `_hitl_retry` 参数，标记是否为 HITL 重试调用。如果为 True 且工具再次抛出 `RequiresHumanInput`，则不再循环，改为返回错误结果。
+
+```python
+async def _run_single_tool(
+    tool_call: Any,
+    registry: ToolRegistry,
+    before: Any,
+    after: Any,
+    signal: asyncio.Event | None,
+    mutation_queue: Any | None = None,
+    on_update: Any = None,
+    metadata: dict[str, Any] | None = None,
+    _hitl_retry: bool = False,  # 新增
+) -> tuple[Any, ToolResult, bool]:
+    ...
+    try:
+        result = await tool.execute(...)
+        is_error = False
+    except RequiresHumanInput:
+        if _hitl_retry:
+            # HITL 重试后仍然缺参，不再循环，返回错误
+            result = ToolResult(
+                content=[TextContent(text="HITL 重试后参数仍不完整，请检查输入。")]
+            )
+            is_error = True
+        else:
+            raise  # 首次 HITL，正常向上抛出
+```
+
+**设计约束：** 工具实现应确保 HITL 返回后参数完整。框架只兜底，不提供多次 HITL 循环。
+
+### 5.4 `_patched_tool_call` 辅助函数
+
+`tc` 是 `ToolCallContent`（Pydantic v2 `BaseModel`），`model_copy` 方法可用。
 
 ```python
 def _patched_tool_call(tc: Any, merged_args: dict[str, Any]) -> Any:
     """Create a copy of the tool call with merged arguments for HITL retry."""
-    # ToolCallContent 是 Pydantic model，用 model_copy 覆盖 arguments
-    if hasattr(tc, "model_copy"):
-        return tc.model_copy(update={"arguments": merged_args})
-    # Fallback: 直接修改（不推荐，但作为兜底）
-    tc.arguments = merged_args
-    return tc
+    return tc.model_copy(update={"arguments": merged_args})
 ```
 
-### 5.3 HITL 卡片定义示例
+### 5.5 HITL 卡片定义示例
 
 工具自由定义 `input_schema`，前端根据 `tool_name` + `input_schema` 渲染。
 
@@ -564,15 +610,17 @@ async def test_aigc_tool_with_hitl():
    - `agent_core/core/state.py`：新增 `metadata: dict[str, Any]` 字段
 
 2. **框架增强：修复 Extension → Agent 连接**
-   - `agent_core/session/session.py`：`start()` 中将 `ExtensionRunner` 注册到 `Agent`
+   - `agent_core/session/session.py`：`start()` 中将 `ExtensionRunner` 的 `before_tool_call` / `after_tool_call` 注册到 `Agent`
 
 3. **框架增强：AgentState.metadata → ToolContext.metadata 同步**
    - `agent_core/core/context.py`：`AgentLoopConfig` 新增 `agent_state` 字段
    - `agent_core/core/agent.py`：`_run()` 中传入 `agent_state=self.state`
-   - `agent_core/core/tool_runner.py`：`_run_single_tool` 创建 `ToolContext` 时合并 `agent_state.metadata`
+   - `agent_core/core/tool_runner.py`：`execute_tools` 提取 `agent_state.metadata` 并传给 `_run_single_tool`
+   - `agent_core/core/tool_runner.py`：`_run_single_tool` 新增 `metadata` 参数，创建 `ToolContext` 时合并
 
 4. **框架增强：HITL 恢复后重试工具**
    - `agent_core/core/tool_runner.py`：sequential 模式下 HITL 恢复后重新走 `_run_single_tool`
+   - `agent_core/core/tool_runner.py`：`_run_single_tool` 新增 `_hitl_retry` 参数，防止无限循环
    - 新增 `_patched_tool_call` 辅助函数
 
 5. **核心工具：AigcCreationTool 类**
@@ -586,6 +634,7 @@ async def test_aigc_tool_with_hitl():
 7. **集成测试**
    - 使用 FakeProvider 测试完整 HITL 流程
    - 使用 respx mock HTTP 测试 API 调用
+   - 测试 HITL 防无限循环机制
 
 8. **（可选）新增场景**
    - 按同样模式添加 `create_xmas_card_tool` 等
