@@ -10,25 +10,26 @@
 - 认证信息（cookie/token）由前端请求 header 带入，不暴露给 LLM
 - 创作任务异步完成，需要轮询查询结果
 
+**设计原则：** 最小化框架改动。业务工具的需求不驱动核心 loop 逻辑变更。
+
 ## 2. 架构概览
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                         前端层                               │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────┐ │
-│  │ 请求header   │    │ HITL卡片渲染 │    │ 登录/授权页面    │ │
-│  │ (cookie等)   │    │ (表单/选择)  │    │                 │ │
-│  └──────┬──────┘    └──────┬──────┘    └─────────────────┘ │
+│  ┌─────────────┐    ┌─────────────┐                        │
+│  │ 请求header   │    │ HITL卡片渲染 │                        │
+│  │ (cookie等)   │    │ (表单/选择)  │                        │
+│  └──────┬──────┘    └──────┬──────┘                         │
 └─────────┼──────────────────┼────────────────────────────────┘
           │                  │
           ▼                  ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      Agent / Session                         │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────┐ │
-│  │ Extension    │    │ HumanInput  │    │ ToolContext      │ │
-│  │ (认证+审批)  │───▶│ Gate        │───▶│ .metadata       │ │
-│  │              │    │ (暂停/恢复)  │    │ (业务参数+认证)  │ │
-│  └─────────────┘    └─────────────┘    └─────────────────┘ │
+│  ┌─────────────┐    ┌─────────────┐                        │
+│  │ Extension    │    │ HumanInput  │                        │
+│  │ (认证+审批)  │───▶│ Gate        │                        │
+│  └─────────────┘    └─────────────┘                        │
 └─────────────────────────────────────────────────────────────┘
           │
           ▼
@@ -90,13 +91,11 @@ execute(tool_call_id, params, ctx)
     │
     ├── 1. 提取认证信息
     │      auth_headers = _resolve_auth(ctx.metadata)
-    │      # ctx.metadata 已包含 AgentState.metadata 的内容
     │      # 优先级: ctx.metadata["aigc_auth"] > 构造函数默认值 > 环境变量
     │
     ├── 2. 参数校验与补全
     │      missing = _check_required_params(params)
     │      if missing and hitl_schema_builder:
-    │          # 抛出 HITL，等待用户补充参数
     │          raise RequiresHumanInput(
     │              prompt="请补充以下创作参数",
     │              input_schema=hitl_schema_builder(missing)
@@ -135,71 +134,44 @@ def _resolve_auth(self, metadata: dict[str, Any]) -> dict[str, str]:
 
 ## 4. 认证信息注入机制
 
-**方案：统一用 Extension 管理（方案A）**
+**方案：Extension + `before_tool_call` inject_metadata（精简方案）**
 
-不在 `ChatAssistant` 层单独配置 `before_tool_call` hook，而是通过 **Extension + `AgentState.metadata`** 统一管理认证注入和审批。
+通过 Extension 统一管理认证注入和审批，利用 `before_tool_call` 的 `inject_metadata` 机制将认证信息传入 `ToolContext.metadata`。
 
-### 4.1 AgentState 扩展
+### 4.1 框架增强：`before_tool_call` 支持 `inject_metadata`
 
-```python
-# agent_core/core/state.py
-class AgentState(BaseModel):
-    ...
-    metadata: dict[str, Any] = Field(default_factory=dict)  # 新增
-```
-
-`metadata` 作为请求级/会话级的共享状态，scene 层写入，Extension 和 Tool 读取。
-
-### 4.2 ToolContext.metadata 与 AgentState.metadata 的同步
-
-**问题：** `ToolContext.metadata` 和 `AgentState.metadata` 是两个独立的 dict，工具无法通过 `ctx.metadata` 读到 Extension 写入 `AgentState.metadata` 的认证信息。
-
-**方案：** 在 `_run_single_tool` 创建 `ToolContext` 时，将 `AgentState.metadata` 合并进去。
-
-**关键：`_run_single_tool` 没有访问 `config` 的途径**，无法通过 `getattr(config, "agent_state")` 获取。因此新增 `metadata` 参数：
+当前 `before_tool_call` 只支持 `{"block": True, "reason": "..."}` 返回值。扩展为同时支持 `inject_metadata`，将数据注入 `ToolContext.metadata`。
 
 ```python
-# tool_runner.py _run_single_tool 签名变更
-async def _run_single_tool(
-    tool_call: Any,
-    registry: ToolRegistry,
-    before: Any,
-    after: Any,
-    signal: asyncio.Event | None,
-    mutation_queue: Any | None = None,
-    on_update: Any = None,
-    metadata: dict[str, Any] | None = None,  # 新增
-) -> tuple[Any, ToolResult, bool]:
-    ...
-    ctx = ToolContext(
-        signal=abort_event,
-        mutation_queue=mutation_queue,
-        on_update=on_update,
-        metadata=dict(metadata or {}),  # 携带 AgentState.metadata 的内容
-    )
+# tool_runner.py _run_single_tool 改动（~5行）
+
+if before is not None:
+    try:
+        hook_result = await before(
+            {"tool_call": tool_call, "args": tool_call.arguments}
+        )
+        if hook_result and hook_result.get("block"):
+            result = ToolResult(
+                content=[TextContent(text=hook_result.get("reason", "Blocked."))]
+            )
+            return tool_call, result, True
+        # ✅ 新增：支持 inject_metadata
+        if hook_result and hook_result.get("inject_metadata"):
+            _extra_metadata.update(hook_result["inject_metadata"])
+    except Exception as exc:
+        logger.debug("before_tool_call hook failed: %s", exc)
+
+ctx = ToolContext(
+    signal=abort_event,
+    mutation_queue=mutation_queue,
+    on_update=on_update,
+    metadata=_extra_metadata,  # ✅ 携带注入的 metadata
+)
 ```
 
-**传递链路：**
+**影响范围：** 仅 `tool_runner.py`，~5 行改动，向后兼容（现有 hook 返回值不受影响）。
 
-```
-Agent._run() → AgentLoopConfig(agent_state=self.state)
-    → execute_tools() 中提取 agent_state.metadata
-    → _run_single_tool(..., metadata=dict(agent_state.metadata))
-        → ToolContext(metadata=...) → tool.execute(ctx=ctx)
-            → ctx.metadata 包含 aigc_auth 等
-```
-
-需要在 `AgentLoopConfig` 中新增 `agent_state` 字段，在 `Agent._run()` 中传入。`execute_tools` 中所有调用 `_run_single_tool` 的地方都需要传入 `metadata`。
-
-### 4.3 Scene 层写入请求上下文
-
-```python
-# scene/http_sse/chat_assistant.py（或 middleware）
-# 每个请求进来时，将请求 header 写入 AgentState.metadata
-agent.state.metadata["request_headers"] = dict(request.headers)
-```
-
-### 4.4 Extension 统一管理
+### 4.2 Extension 统一管理
 
 ```python
 # agent_core/extensions/aigc_guard.py
@@ -213,143 +185,92 @@ class AigcGuardExt:
         if not name.startswith("create_"):
             return None
 
-        headers = ctx.agent.state.metadata.get("request_headers", {})
+        # 从 ExtensionContext 获取请求 headers
+        # （需在 ExtensionContext 中携带，见 §4.4）
+        request_headers = ctx.request_headers
 
-        # 1. 认证注入
-        ctx.agent.state.metadata["aigc_auth"] = {
-            "uid": headers.get("uid"),
-            "deviceid": headers.get("deviceid"),
-            "channel": headers.get("channel"),
-            "pacmtoken": headers.get("pacmtoken"),
-            # ... 其他认证字段
+        # 1. 认证注入 → 通过 inject_metadata 传入 ToolContext
+        result: dict[str, Any] = {
+            "inject_metadata": {
+                "aigc_auth": {
+                    "uid": request_headers.get("uid"),
+                    "deviceid": request_headers.get("deviceid"),
+                    "channel": request_headers.get("channel"),
+                    "pacmtoken": request_headers.get("pacmtoken"),
+                }
+            }
         }
 
-        # 2. 审批检查（示例）
-        if name in ("create_nolo_video",):
-            approved = ctx.agent.state.metadata.get("aigc_approved_tools", set())
-            if name not in approved:
-                return {
-                    "block": True,
-                    "reason": f"工具 {name} 需要管理员审批，请确认后继续。"
-                }
+        # 2. 审批检查
+        if name in NEED_APPROVAL_TOOLS:
+            if not self._check_approval(ctx.session_id, name):
+                return {"block": True, "reason": f"工具 {name} 需要管理员审批。"}
 
-        return None
+        return result
 ```
 
-### 4.5 工具侧读取认证
+### 4.3 框架增强：修复 Extension → Agent 连接
+
+当前 `AgentSession.start()` 创建了 `ExtensionRunner` 但未将其 hook 注册到 `Agent`，导致 Extension 的 `on_before_tool_call` / `on_after_tool_call` 永远不会触发。
 
 ```python
-# AigcCreationTool._resolve_auth
-def _resolve_auth(self, metadata: dict[str, Any]) -> dict[str, str]:
-    """认证信息优先级：metadata[aigc_auth] > 环境变量 > 默认值"""
-    auth = metadata.get("aigc_auth", {})
-    return {
-        "uid": auth.get("uid") or os.environ.get("MIGU_UID") or DEFAULT_UID,
-        "deviceid": auth.get("deviceid") or os.environ.get("MIGU_DEVICE_ID") or DEFAULT_DEVICE_ID,
-        "channel": auth.get("channel") or os.environ.get("MIGU_CHANNEL") or DEFAULT_CHANNEL,
-        "pacmtoken": auth.get("pacmtoken") or os.environ.get("MIGU_PACM_TOKEN"),
-        # ... 其他字段
-    }
+# agent_core/session/session.py start() 改动
+
+if self._ext_runner is not None:
+    ext_ctx = ExtensionContext(...)
+    self._ext_runner = ExtensionRunner(self._extensions, ext_ctx)
+    # ✅ 新增：将 ExtensionRunner 注册到 Agent
+    self._agent._before_tool_call = self._ext_runner.before_tool_call
+    self._agent._after_tool_call = self._ext_runner.after_tool_call
 ```
 
-## 5. HITL 参数收集与重试机制
+**影响范围：** 仅 `session.py`，~2 行改动。
 
-### 5.1 当前框架行为（需要改进）
+### 4.4 ExtensionContext 携带请求 headers
+
+当前 `ExtensionContext` 只有 `session_id` / `agent` / `store`，没有请求上下文。需要让 Extension 能访问到前端传入的请求 headers。
+
+**方案：** 给 `ExtensionContext` 新增 `request_headers` 字段，由 scene 层在创建 `AgentSession` 时传入。
 
 ```python
-# tool_runner.py 当前实现
-except RequiresHumanInput as exc:
-    future = human_input_gate.require_input(tc.id)
-    yield HumanInputRequired(...)
-    values = await future
-    # ❌ 问题：values 被直接包装成 ToolResult，工具不会重新执行
-    result = ToolResult(content=[TextContent(text=str(values))])
+# extensions/base.py
+@dataclass
+class ExtensionContext:
+    session_id: str
+    agent: Any
+    store: Any | None = None
+    request_headers: dict[str, str] = field(default_factory=dict)  # 新增
 ```
 
-### 5.2 改进方案：HITL 恢复后重试工具
-
-**目标：** 用户输入的参数合并到原调用参数中，工具重新执行。
-
+scene 层在创建 `AgentSession` 时：
 ```python
-# tool_runner.py sequential 模式改进
-HITL_MAX_RETRIES = 1  # 防止无限循环
-
-except RequiresHumanInput as exc:
-    future = human_input_gate.require_input(tc.id)
-    yield HumanInputRequired(tool_call_id=tc.id, prompt=exc.prompt, input_schema=exc.input_schema)
-    values = await future
-
-    # 将用户输入合并到参数（用户输入优先级更高）
-    merged_args = {**tc.arguments, **values}
-
-    # 重试工具：重新走 _run_single_tool 以保持 hook 一致性
-    retry_result = await _run_single_tool(
-        tool_call=_patched_tool_call(tc, merged_args),
-        registry=registry,
-        before=before,
-        after=after,
-        signal=signal,
-        mutation_queue=mutation_queue,
-        on_update=on_update,
-        metadata=base_metadata,
-        _hitl_retry=True,  # 标记为 HITL 重试，防止无限循环
-    )
-    _, result, is_error = retry_result
+ext_ctx = ExtensionContext(
+    session_id=session_id,
+    agent=agent,
+    store=store,
+    request_headers=dict(request.headers),  # 从当前 HTTP 请求注入
+)
 ```
 
-**关键决策：**
-- 用户输入的 `values` 与原参数 `tc.arguments` 合并（用户输入优先级更高）
-- HITL 重试时重新走 `_run_single_tool`，确保 Extension 的 `on_before_tool_call` / `on_after_tool_call` 以及 `before_tool_call` / `after_tool_call` hook 均正常执行
-- 这意味着认证注入和审批检查在重试时仍会生效（但认证已写入 `AgentState.metadata`，审批已通过，不会重复阻断）
-- 仅影响 **sequential** 执行模式（需要 HITL 的工具不应并行）
-- parallel 模式保持原行为（不支持 HITL 重试）
+**影响范围：** `extensions/base.py` 加 1 个字段，`session.py` 修改 `ExtensionContext` 构造。
 
-### 5.3 防止 HITL 无限循环
+## 5. HITL 参数收集（不改框架）
 
-**问题：** 如果工具在 HITL 重试后仍然参数不全，再次抛出 `RequiresHumanInput`，会导致无限循环。
+### 5.1 当前框架行为（保持不变）
 
-**方案：** 给 `_run_single_tool` 新增 `_hitl_retry` 参数，标记是否为 HITL 重试调用。如果为 True 且工具再次抛出 `RequiresHumanInput`，则不再循环，改为返回错误结果。
-
-```python
-async def _run_single_tool(
-    tool_call: Any,
-    registry: ToolRegistry,
-    before: Any,
-    after: Any,
-    signal: asyncio.Event | None,
-    mutation_queue: Any | None = None,
-    on_update: Any = None,
-    metadata: dict[str, Any] | None = None,
-    _hitl_retry: bool = False,  # 新增
-) -> tuple[Any, ToolResult, bool]:
-    ...
-    try:
-        result = await tool.execute(...)
-        is_error = False
-    except RequiresHumanInput:
-        if _hitl_retry:
-            # HITL 重试后仍然缺参，不再循环，返回错误
-            result = ToolResult(
-                content=[TextContent(text="HITL 重试后参数仍不完整，请检查输入。")]
-            )
-            is_error = True
-        else:
-            raise  # 首次 HITL，正常向上抛出
+```
+1. 工具缺参 → raise RequiresHumanInput(prompt, input_schema)
+2. 框架 yield HumanInputRequired 事件 → 前端渲染卡片
+3. 用户填写表单 → provide_human_input(tool_call_id, values)
+4. 框架将 values 包装为 ToolResult 返回给 LLM
+5. LLM 看到 "用户输入: {template_id:426, images:[...]}"
+6. LLM 自动再次调用工具，这次带完整参数
+7. 工具正常执行
 ```
 
-**设计约束：** 工具实现应确保 HITL 返回后参数完整。框架只兜底，不提供多次 HITL 循环。
+**多一个 LLM turn，但零框架改动。** 对于创作类任务（本身要等几十秒轮询），多 1-2 秒可忽略。
 
-### 5.4 `_patched_tool_call` 辅助函数
-
-`tc` 是 `ToolCallContent`（Pydantic v2 `BaseModel`），`model_copy` 方法可用。
-
-```python
-def _patched_tool_call(tc: Any, merged_args: dict[str, Any]) -> Any:
-    """Create a copy of the tool call with merged arguments for HITL retry."""
-    return tc.model_copy(update={"arguments": merged_args})
-```
-
-### 5.5 HITL 卡片定义示例
+### 5.2 HITL 卡片定义示例
 
 工具自由定义 `input_schema`，前端根据 `tool_name` + `input_schema` 渲染。
 
@@ -552,89 +473,38 @@ async def _poll_result(self, client, headers, task_id, ctx) -> str:
 | 任务执行失败 | 返回服务端错误信息 |
 | 用户取消（signal） | 中断轮询，返回取消提示 |
 
-## 9. 测试策略
+## 9. 框架改动汇总
 
-### 9.1 FakeProvider 测试模式
+**总计改动 3 个文件，约 10 行核心改动：**
 
-使用 `FakeProvider` 模拟 LLM 行为，测试完整的事件流：
+| 文件 | 改动 | 行数 |
+|------|------|------|
+| `session/session.py` | ExtensionRunner 注册到 Agent + ExtensionContext 携带 request_headers | ~4行 |
+| `extensions/base.py` | ExtensionContext 加 `request_headers` 字段 | ~1行 |
+| `core/tool_runner.py` | `before_tool_call` 支持 `inject_metadata` | ~5行 |
 
-```python
-@pytest.mark.asyncio
-async def test_aigc_tool_with_hitl():
-    """Test HITL flow: tool pauses for params, resumes after human input."""
-    provider = FakeProvider()
-    provider.queue_script([
-        StreamToolCallStart(id="tc1", name="create_nolo_video"),
-        StreamToolCallEnd(id="tc1", arguments={"style_note": "温柔"}),
-        StreamMessageEnd(stop_reason="tool_calls"),
-    ])
-
-    tool = create_nolo_video_tool()
-    registry = ToolRegistry()
-    registry.register(tool)
-
-    agent = Agent(provider=provider, tool_registry=registry, ...)
-
-    events = []
-    agent.subscribe(lambda evt: events.append(evt))
-
-    await agent.prompt("生成一个视频")
-
-    # 验证 HumanInputRequired 事件被发出
-    hitl_events = [e for e in events if isinstance(e, HumanInputRequired)]
-    assert len(hitl_events) == 1
-    assert hitl_events[0].tool_call_id == "tc1"
-
-    # 模拟用户补充参数
-    await agent.provide_human_input("tc1", {
-        "template_id": "426",
-        "input_images": ["img123"],
-    })
-
-    # 验证工具重新执行并返回结果
-    end_events = [e for e in events if isinstance(e, ToolExecutionEnd)]
-    assert len(end_events) == 1
-    assert not end_events[0].is_error
-```
-
-### 9.2 单元测试
-
-- `_build_payload`：验证不同场景的请求体结构
-- `_extract_task_id`：验证各种响应格式的解析
-- `_poll_result`：使用 `respx` mock HTTP 接口，测试轮询逻辑
-- `_resolve_auth`：验证认证信息优先级
+**不改的核心文件：** `state.py`、`context.py`、`agent.py`、`loop.py` — 零改动。
 
 ## 10. 任务拆分
 
-1. **框架增强：AgentState 加 metadata**
-   - `agent_core/core/state.py`：新增 `metadata: dict[str, Any]` 字段
+1. **框架增强：修复 Extension → Agent 连接 + request_headers**
+   - `agent_core/extensions/base.py`：`ExtensionContext` 加 `request_headers` 字段
+   - `agent_core/session/session.py`：`start()` 中将 `ExtensionRunner` 注册到 `Agent`，构造 `ExtensionContext` 时传入 request_headers
 
-2. **框架增强：修复 Extension → Agent 连接**
-   - `agent_core/session/session.py`：`start()` 中将 `ExtensionRunner` 的 `before_tool_call` / `after_tool_call` 注册到 `Agent`
+2. **框架增强：`before_tool_call` 支持 `inject_metadata`**
+   - `agent_core/core/tool_runner.py`：`_run_single_tool` 中处理 `inject_metadata`，写入 `ToolContext.metadata`
 
-3. **框架增强：AgentState.metadata → ToolContext.metadata 同步**
-   - `agent_core/core/context.py`：`AgentLoopConfig` 新增 `agent_state` 字段
-   - `agent_core/core/agent.py`：`_run()` 中传入 `agent_state=self.state`
-   - `agent_core/core/tool_runner.py`：`execute_tools` 提取 `agent_state.metadata` 并传给 `_run_single_tool`
-   - `agent_core/core/tool_runner.py`：`_run_single_tool` 新增 `metadata` 参数，创建 `ToolContext` 时合并
-
-4. **框架增强：HITL 恢复后重试工具**
-   - `agent_core/core/tool_runner.py`：sequential 模式下 HITL 恢复后重新走 `_run_single_tool`
-   - `agent_core/core/tool_runner.py`：`_run_single_tool` 新增 `_hitl_retry` 参数，防止无限循环
-   - 新增 `_patched_tool_call` 辅助函数
-
-5. **核心工具：AigcCreationTool 类**
+3. **核心工具：AigcCreationTool 类**
    - 新建 `agent_core/tools/aigc_creation.py`
    - 实现 execute、_build_payload、_poll_result、_resolve_auth 等
 
-6. **场景工厂：nolo 视频工具**
+4. **场景工厂：nolo 视频工具**
    - 实现 `create_nolo_video_tool` 工厂函数
    - 定义 parameters schema 和 HITL 卡片定义
 
-7. **集成测试**
-   - 使用 FakeProvider 测试完整 HITL 流程
+5. **集成测试**
+   - 使用 FakeProvider 测试 HITL 流程（缺参 → 卡片 → LLM 再次调用）
    - 使用 respx mock HTTP 测试 API 调用
-   - 测试 HITL 防无限循环机制
 
-8. **（可选）新增场景**
+6. **（可选）新增场景**
    - 按同样模式添加 `create_xmas_card_tool` 等
