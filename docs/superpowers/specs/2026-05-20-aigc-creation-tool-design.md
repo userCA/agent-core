@@ -27,8 +27,10 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                      Agent / Session                         │
 │  ┌─────────────┐    ┌─────────────┐                        │
-│  │ Extension    │    │ HumanInput  │                        │
-│  │ (认证+审批)  │───▶│ Gate        │                        │
+│  │ before_hook  │    │ HumanInput  │                        │
+│  │ (认证注入)   │───▶│ Gate        │                        │
+│  │ Extension    │    │ (暂停/恢复)  │                        │
+│  │ (审批)       │    │             │                        │
 │  └─────────────┘    └─────────────┘                        │
 └─────────────────────────────────────────────────────────────┘
           │
@@ -117,7 +119,7 @@ execute(tool_call_id, params, ctx)
 
 ### 3.3 认证信息解析
 
-工具通过 `ctx.metadata["aigc_auth"]` 读取认证信息（Extension 注入，见 §4.3）。
+工具通过 `ctx.metadata["aigc_auth"]` 读取认证信息（由 `before_tool_call` 注入，见 §4.1）。
 
 ```python
 def _resolve_auth(self, metadata: dict[str, Any]) -> dict[str, str]:
@@ -132,18 +134,133 @@ def _resolve_auth(self, metadata: dict[str, Any]) -> dict[str, str]:
     }
 ```
 
-## 4. 认证信息注入机制
+## 4. 认证与审批机制
 
-**方案：Extension + `before_tool_call` inject_metadata（精简方案）**
+### 4.1 认证注入：scene 层 before_tool_call + contextvars
 
-通过 Extension 统一管理认证注入和审批，利用 `before_tool_call` 的 `inject_metadata` 机制将认证信息传入 `ToolContext.metadata`。
+**问题：** `before_tool_call` 在 `ChatAssistant` 创建时绑定，但 HTTP 请求 headers 是**每次请求动态变化**的（同一 ChatAssistant 服务多轮对话）。
 
-### 4.1 框架增强：`before_tool_call` 支持 `inject_metadata`
-
-当前 `before_tool_call` 只支持 `{"block": True, "reason": "..."}` 返回值。扩展为同时支持 `inject_metadata`，将数据注入 `ToolContext.metadata`。
+**方案：** 使用 Python `contextvars` 传递请求上下文，这是 FastAPI/Starlette 的标准做法。
 
 ```python
-# tool_runner.py _run_single_tool 改动（~5行）
+# scene/http_sse/request_context.py
+from contextvars import ContextVar
+
+current_request_headers: ContextVar[dict[str, str]] = ContextVar(
+    "current_request_headers", default={}
+)
+```
+
+```python
+# scene/http_sse/server.py
+@app.post("/chat/stream")
+async def chat_stream(request: Request, chat_request: ChatRequest) -> StreamingResponse:
+    current_request_headers.set(dict(request.headers))
+    return StreamingResponse(
+        _event_stream(session_id, chat_request.message),
+        ...
+    )
+```
+
+```python
+# scene/http_sse/chat_assistant.py
+async def auth_before_tool_call(info: dict[str, Any]) -> dict[str, Any] | None:
+    """注入 AIGC 认证信息到 ToolContext.metadata。"""
+    tool_name = info["tool_call"].name
+    if not tool_name.startswith("create_"):
+        return None
+    
+    headers = current_request_headers.get({})
+    return {
+        "inject_metadata": {
+            "aigc_auth": {
+                "uid": headers.get("uid"),
+                "deviceid": headers.get("deviceid"),
+                "channel": headers.get("channel"),
+                "pacmtoken": headers.get("pacmtoken"),
+                # ... 其他字段
+            }
+        }
+    }
+
+# 在 ChatAssistant.create() 中注册
+agent = Agent(
+    ...,
+    before_tool_call=auth_before_tool_call,
+)
+```
+
+**为什么不用 Extension：** Extension 的 `on_before_tool_call` 拿不到 HTTP 请求上下文（`ExtensionContext` 在 `AgentSession.start()` 时静态创建，而 headers 是每次请求动态的）。
+
+### 4.2 审批：Extension on_before_tool_call
+
+审批不需要请求上下文，走 Extension。
+
+```python
+# agent_core/extensions/aigc_guard.py
+
+class AigcGuardExt:
+    """AIGC 工具审批扩展。"""
+    name = "aigc-guard"
+
+    async def on_before_tool_call(self, ctx: ExtensionContext, tool_call: Any) -> dict[str, Any] | None:
+        name = getattr(tool_call, "name", "")
+        if name not in NEED_APPROVAL_TOOLS:
+            return None
+        
+        approved = ctx.agent.state.metadata.get("aigc_approved_tools", set())
+        if name not in approved:
+            return {"block": True, "reason": f"工具 {name} 需要管理员审批。"}
+        return None
+```
+
+### 4.3 框架增强：session.start() 自动链式组合 before_tool_call
+
+**问题：** Agent 只支持一个 `before_tool_call`，但 scene 层需要 auth hook，Extension 需要 approval hook。
+
+**方案：** `AgentSession.start()` 自动将 Extension hooks 链在 scene 层 hook 之后。
+
+```python
+# agent_core/session/session.py start()
+
+if self._ext_runner is not None:
+    existing = self._agent._before_tool_call
+    
+    async def _chained_before(call_ctx: dict[str, Any]) -> dict[str, Any] | None:
+        """先执行 scene 层的 auth hook，再执行 Extension 的 approval hook。"""
+        # 1. scene 层 hook（认证注入）
+        result = None
+        if existing is not None:
+            result = await existing(call_ctx)
+            if result and result.get("block"):
+                return result
+        
+        # 2. Extension hook（审批）
+        ext_result = await self._ext_runner.before_tool_call(call_ctx)
+        if ext_result and ext_result.get("block"):
+            return ext_result
+        
+        # 3. 合并 inject_metadata
+        merged: dict[str, Any] = {}
+        for r in (result, ext_result):
+            if r and r.get("inject_metadata"):
+                merged.update(r["inject_metadata"])
+        return {"inject_metadata": merged} if merged else None
+    
+    self._agent._before_tool_call = _chained_before
+```
+
+**执行顺序：**
+1. scene 层 auth hook → 注入 `aigc_auth` metadata
+2. Extension approval hook → 检查是否 block
+3. `tool_runner.py` 将 metadata 写入 `ToolContext`
+
+### 4.4 框架增强：tool_runner.py 支持 inject_metadata
+
+当前 `before_tool_call` 只支持 `{"block": True, "reason": "..."}` 返回值。扩展为同时支持 `inject_metadata`。
+
+```python
+# agent_core/core/tool_runner.py _run_single_tool 改动（~5行）
 
 if before is not None:
     try:
@@ -168,91 +285,6 @@ ctx = ToolContext(
     metadata=_extra_metadata,  # ✅ 携带注入的 metadata
 )
 ```
-
-**影响范围：** 仅 `tool_runner.py`，~5 行改动，向后兼容（现有 hook 返回值不受影响）。
-
-### 4.2 Extension 统一管理
-
-```python
-# agent_core/extensions/aigc_guard.py
-
-class AigcGuardExt:
-    """统一管理 AIGC 工具的认证注入和审批。"""
-    name = "aigc-guard"
-
-    async def on_before_tool_call(self, ctx: ExtensionContext, tool_call: Any) -> dict[str, Any] | None:
-        name = getattr(tool_call, "name", "")
-        if not name.startswith("create_"):
-            return None
-
-        # 从 ExtensionContext 获取请求 headers
-        # （需在 ExtensionContext 中携带，见 §4.4）
-        request_headers = ctx.request_headers
-
-        # 1. 认证注入 → 通过 inject_metadata 传入 ToolContext
-        result: dict[str, Any] = {
-            "inject_metadata": {
-                "aigc_auth": {
-                    "uid": request_headers.get("uid"),
-                    "deviceid": request_headers.get("deviceid"),
-                    "channel": request_headers.get("channel"),
-                    "pacmtoken": request_headers.get("pacmtoken"),
-                }
-            }
-        }
-
-        # 2. 审批检查
-        if name in NEED_APPROVAL_TOOLS:
-            if not self._check_approval(ctx.session_id, name):
-                return {"block": True, "reason": f"工具 {name} 需要管理员审批。"}
-
-        return result
-```
-
-### 4.3 框架增强：修复 Extension → Agent 连接
-
-当前 `AgentSession.start()` 创建了 `ExtensionRunner` 但未将其 hook 注册到 `Agent`，导致 Extension 的 `on_before_tool_call` / `on_after_tool_call` 永远不会触发。
-
-```python
-# agent_core/session/session.py start() 改动
-
-if self._ext_runner is not None:
-    ext_ctx = ExtensionContext(...)
-    self._ext_runner = ExtensionRunner(self._extensions, ext_ctx)
-    # ✅ 新增：将 ExtensionRunner 注册到 Agent
-    self._agent._before_tool_call = self._ext_runner.before_tool_call
-    self._agent._after_tool_call = self._ext_runner.after_tool_call
-```
-
-**影响范围：** 仅 `session.py`，~2 行改动。
-
-### 4.4 ExtensionContext 携带请求 headers
-
-当前 `ExtensionContext` 只有 `session_id` / `agent` / `store`，没有请求上下文。需要让 Extension 能访问到前端传入的请求 headers。
-
-**方案：** 给 `ExtensionContext` 新增 `request_headers` 字段，由 scene 层在创建 `AgentSession` 时传入。
-
-```python
-# extensions/base.py
-@dataclass
-class ExtensionContext:
-    session_id: str
-    agent: Any
-    store: Any | None = None
-    request_headers: dict[str, str] = field(default_factory=dict)  # 新增
-```
-
-scene 层在创建 `AgentSession` 时：
-```python
-ext_ctx = ExtensionContext(
-    session_id=session_id,
-    agent=agent,
-    store=store,
-    request_headers=dict(request.headers),  # 从当前 HTTP 请求注入
-)
-```
-
-**影响范围：** `extensions/base.py` 加 1 个字段，`session.py` 修改 `ExtensionContext` 构造。
 
 ## 5. HITL 参数收集（不改框架）
 
@@ -475,36 +507,48 @@ async def _poll_result(self, client, headers, task_id, ctx) -> str:
 
 ## 9. 框架改动汇总
 
-**总计改动 3 个文件，约 10 行核心改动：**
+**总计改动 2 个核心文件，约 20 行核心改动：**
 
 | 文件 | 改动 | 行数 |
 |------|------|------|
-| `session/session.py` | ExtensionRunner 注册到 Agent + ExtensionContext 携带 request_headers | ~4行 |
-| `extensions/base.py` | ExtensionContext 加 `request_headers` 字段 | ~1行 |
 | `core/tool_runner.py` | `before_tool_call` 支持 `inject_metadata` | ~5行 |
+| `session/session.py` | `start()` 中链式组合 Extension hooks | ~15行 |
 
-**不改的核心文件：** `state.py`、`context.py`、`agent.py`、`loop.py` — 零改动。
+**Scene 层新增：**
+- `scene/http_sse/request_context.py` — contextvar 定义（~3行）
+- `scene/http_sse/server.py` — 请求入口 set contextvar（~1行）
+- `scene/http_sse/chat_assistant.py` — `auth_before_tool_call` + 注册到 Agent（~10行）
+
+**不改的核心文件：** `state.py`、`context.py`、`agent.py`、`loop.py`、`extensions/base.py` — 零改动。
 
 ## 10. 任务拆分
 
-1. **框架增强：修复 Extension → Agent 连接 + request_headers**
-   - `agent_core/extensions/base.py`：`ExtensionContext` 加 `request_headers` 字段
-   - `agent_core/session/session.py`：`start()` 中将 `ExtensionRunner` 注册到 `Agent`，构造 `ExtensionContext` 时传入 request_headers
-
-2. **框架增强：`before_tool_call` 支持 `inject_metadata`**
+1. **框架增强：`before_tool_call` 支持 `inject_metadata`**
    - `agent_core/core/tool_runner.py`：`_run_single_tool` 中处理 `inject_metadata`，写入 `ToolContext.metadata`
 
-3. **核心工具：AigcCreationTool 类**
+2. **框架增强：session.start() 链式组合 Extension hooks**
+   - `agent_core/session/session.py`：`start()` 中如果存在 Extension，自动将 Extension hooks 链在 scene 层 `before_tool_call` 之后
+
+3. **Scene 层：认证注入**
+   - `scene/http_sse/request_context.py`：新增 `current_request_headers` contextvar
+   - `scene/http_sse/server.py`：请求入口 set contextvar
+   - `scene/http_sse/chat_assistant.py`：`auth_before_tool_call` + 注册到 Agent
+
+4. **核心工具：AigcCreationTool 类**
    - 新建 `agent_core/tools/aigc_creation.py`
    - 实现 execute、_build_payload、_poll_result、_resolve_auth 等
 
-4. **场景工厂：nolo 视频工具**
+5. **场景工厂：nolo 视频工具**
    - 实现 `create_nolo_video_tool` 工厂函数
    - 定义 parameters schema 和 HITL 卡片定义
 
-5. **集成测试**
+6. **集成测试**
    - 使用 FakeProvider 测试 HITL 流程（缺参 → 卡片 → LLM 再次调用）
    - 使用 respx mock HTTP 测试 API 调用
+   - 测试 inject_metadata 链路
 
-6. **（可选）新增场景**
+7. **（可选）审批 Extension**
+   - `agent_core/extensions/aigc_guard.py`：实现审批逻辑
+
+8. **（可选）新增场景**
    - 按同样模式添加 `create_xmas_card_tool` 等
