@@ -43,8 +43,7 @@ LLM 调用 show_widget(html=..., title=..., height=...)
 ```python
 ShowWidgetTool(
     name="show_widget",
-    description=<短描述,~50 字: "渲染一个交互式 HTML widget 到聊天界面。适合可视化、图表、流程图、富展示场景。详细规范见 prompt_snippet。">,
-    prompt_snippet=<WIDGET_SPEC 全文>,
+    description=<WIDGET_SPEC 全文>,
     parameters={
         "type": "object",
         "properties": {
@@ -66,14 +65,19 @@ ShowWidgetTool(
 )
 ```
 
-**为什么拆 description / prompt_snippet**:
-- `description` 字段会随**每个工具调用**发送给模型,WIDGET_SPEC 全文(~600 tokens)放这里会污染所有不相关的工具调用上下文
-- `prompt_snippet` 由 `SystemPromptBuilder` 拼进系统提示,只在该工具被激活时注入,可以借助 prompt cache 摊薄成本
-- 模型仍能完整看到规范,但成本结构更健康
+**为什么把 WIDGET_SPEC 放在 `description`**:
+- LLM provider(OpenAI / Anthropic)把工具列表的 `description` 作为 system message 的一部分**一次性发送**,后续 tool_call 不会重复发送 — 不存在"每次工具调用污染上下文"
+- `prompt_snippet` 是单行简介格式(`SystemPromptBuilder` 拼成 `- {name}: {snippet}` 列表项),无法容纳多段 markdown 规范
+- `description` 是工具规范的天然归属,LLM 调用工具时直接看到完整契约
 
 ### 返回结构
 
 ```python
+# height 容错:非 int 或 ≤0 → 400;再 clamp 到 1200
+h = params.get("height")
+height = h if isinstance(h, int) and h > 0 else 400
+height = min(height, 1200)
+
 ToolResult(
     content=[TextContent(text=f"[widget rendered: {title or '未命名'}]")],
     display={
@@ -81,7 +85,7 @@ ToolResult(
             "version": 1,
             "html": <校验后的 html>,
             "title": title,
-            "height": min(height or 400, 1200),
+            "height": height,
         }
     }
 )
@@ -93,6 +97,7 @@ ToolResult(
 |---|---|
 | HTML 大小 > 50KB | `raise ValueError("html size exceeds 50KB limit (got {n} bytes)")` |
 | 包含 `<html>` / `<head>` / `<body>` / `<!DOCTYPE>` | `raise ValueError("html contains forbidden tag <{tag}>; 请删除后重新调用 show_widget")` |
+| `height` 非 int 或 ≤0 | silent fallback 到 400(不 raise:容错优先,LLM 可能传 `"400"` / `0` / `None`) |
 | 正常输入 | 正常返回,`display` 含 widget 元数据 |
 
 **注意 1**: 不做 HTML 深度清洗。安全由 iframe sandbox + CSP 兜底,不重复造轮子。
@@ -110,7 +115,7 @@ if "<body>" in html.lower():
 
 ## WIDGET_SPEC
 
-通过 `ToolDefinition.prompt_snippet` 注入到系统提示(由 `SystemPromptBuilder` 拼装),不通过独立 `read_spec` 调用(避免 LLM 跳过)。
+直接注入 `ToolDefinition.description`(LLM provider 将其作为 system message 的工具描述一次性发送):
 
 ```
 ## show_widget 设计规范(必须遵守)
@@ -160,10 +165,19 @@ viewBox="0 0 680 H", width="100%"
 ### SSE 事件改动(events.py)
 
 ```python
+if isinstance(evt, ToolExecutionStart):
+    return {
+        "event": "tool_start",
+        "tool_name": evt.tool_name,
+        "tool_call_id": evt.tool_call_id,  # 新增:前端按 id 定位 step,避免并行执行下错位
+        "args": evt.args,
+    }
+
 if isinstance(evt, ToolExecutionEnd):
     result_dict = {
         "event": "tool_end",
         "tool_name": evt.tool_name,
+        "tool_call_id": evt.tool_call_id,  # 新增:同上
         "result": _extract_result_text(evt.result),
         "is_error": evt.is_error,
     }
@@ -177,6 +191,8 @@ if isinstance(evt, ToolExecutionEnd):
     return result_dict
 ```
 
+(`ToolExecutionUpdate` 同样可加 `tool_call_id`,本次不强制。)
+
 ### 前端渲染(index.html)
 
 **渲染位置决策**: widget 作为**当前 assistant message 气泡的直接子节点**插入(与 `.final-content` **同级**,按事件到达的时间顺序排列),不进入 `.final-content` 内部。理由:
@@ -189,7 +205,9 @@ if isinstance(evt, ToolExecutionEnd):
 ```js
 } else if (data.event === 'tool_end' && data.display?.widget) {
     // 1. 让现有 tool step 仍标记为 done(用占位文本)
-    const toolStep = steps.findLast(s => s.type === 'tool' && s.status === 'running');
+    //    用 tool_call_id 匹配 step,避免并行工具执行下找错 step
+    //    (并行模式下多个 tool_start 先发,steps 中可能同时存在多个 running 的 tool step)
+    const toolStep = steps.find(s => s.type === 'tool' && s.tool_call_id === data.tool_call_id);
     if (toolStep) {
         toolStep.detail = '[widget rendered]';
         toolStep.status = 'done';
@@ -206,10 +224,12 @@ if isinstance(evt, ToolExecutionEnd):
 }
 ```
 
+**前置要求**: 处理 `tool_start` 时,push 进 `steps` 的 step 对象必须带 `tool_call_id` 字段(从 `data.tool_call_id` 取),供 `tool_end` 反向匹配。
+
 **renderWidget 流程**:
 
 1. **先调 `flushRemainingType()`** — 把当前正在 typing 的 streaming 文本最终化进当前 `.final-content`,避免后续重渲染时还会移动 widget 前的文本
-2. 创建容器 div + 标题标签(成功路径下才会被调用;失败走 raise → tool-error step)
+2. 创建容器 div + 标题标签(成功路径下才会被调用;失败走 raise → tool-error step)。**标题必须用 `titleEl.textContent = title` 设置,严禁使用 `innerHTML`** — LLM 可注入任意字符串到 `title` 参数,直接拼入 innerHTML 会在宿主 DOM 中触发 XSS
 3. 创建 `<iframe sandbox="allow-scripts">`(**不带 `allow-same-origin`**)
 4. 构建 srcdoc: CSP meta + 映射后的 CSS 变量 + HTML 内容
 5. `iframe.onload` 后做一次 `smoothScrollToBottom()`(CDN 库可能延迟撑开内容)
@@ -219,6 +239,8 @@ if isinstance(evt, ToolExecutionEnd):
 9. **页面初始化时**(不在这里)调用一次 `window.addEventListener("message", handleWidgetMessage)`
 
 **渲染位置补充**: 若当前没有 assistant 气泡(LLM 直接调用 widget 无文本),由 `ensureAssistantMsg()` 创建一个新气泡承载 widget。此时 `usage-info` 仍贴在该气泡末尾,视觉上 widget 即气泡主体。这是已知 tradeoff,v1 接受。
+
+**多次连续 widget 调用**: LLM 同一轮调用多次 `show_widget`(中间无 `text_delta`)时,每次 widget 之间都会通过 `startNewFinalContent()` 插入一个空 `.final-content` div,产生多个空 div。视觉上无可见影响(空 div 不占布局空间),作为已知 tradeoff 接受。若未来要优化,可在 `startNewFinalContent()` 入口检查 `currentFinalContent` 是否为空,空则复用、不新建。
 
 **CSP 策略**(通过 srcdoc 内 `<meta>` 注入):
 ```
@@ -334,7 +356,8 @@ v1 不做 iframe 内部错误检测(`srcdoc` 模式无法可靠检测内容错�
 5. **height 边界**: `height=2000` → 实际存储为 1200;`height=None` → 400
 6. **SSE 透传**: 模拟成功 `ToolExecutionEnd` → `agent_event_to_sse_json` 输出含 `display.widget`;模拟异常路径(loop 生成的 `is_error=True` 事件)→ 不含 `display`
 7. **无污染**: 普通 tool(如 read_file)的 `tool_end` 事件不含 `display` 键(回归测试)
-8. **ToolDefinition 形态**: `tool.definition.description` 短(<200 字),`tool.definition.prompt_snippet` 含 WIDGET_SPEC 全文
+   *实现方式*: 直接构造 `ToolExecutionEnd(result=ToolResult(content=[TextContent(text='ok')], display=None))` 喂给 `agent_event_to_sse_json`,断言输出 dict 不含 `"display"` 键。无需走完整 agent loop。
+8. **ToolDefinition 形态**: `tool.definition.description` 含 WIDGET_SPEC 全文(包含 "show_widget 设计规范" 字样);`prompt_snippet` 不设置(由 `extract_snippet` fallback 到 description 首句)
 
 前端:手动验证(启动 http_sse,让 LLM 调用 show_widget;另测一个 `<body>` 错误用例确认 LLM 收到错误后会重试;测一次含 CDN script 的 widget 确认 iframe.onload 后滚动正常)。
 
@@ -358,6 +381,14 @@ tool_registry.register(ShowWidgetTool())
 ```
 
 **index.html 新增 helper 说明**: `startNewFinalContent()` 是本次新增的小函数(~15 行),职责是在当前 assistantMsg 末尾创建一个新的空 `.final-content` div,并把 `renderFinalContent()` / `flushRemainingType()` 的目标切换到这个新 div(通过更新模块级当前 final 容器引用)。每次插入 widget 后调用一次,确保后续 `text_delta` 写入新容器,旧 `.final-content` 凝固为历史,widget DOM 不再被 `innerHTML = html` 抹掉。
+
+**实现要点(契约)**:
+- 维护一个模块级变量 `currentFinalContent`(默认 = `ensureAssistantMsg()` 创建 assistant 气泡时所建的初始 `.final-content` div 的引用;`ensureAssistantMsg` 中创建该 div 后必须**同步赋值 `currentFinalContent`**)
+- `startNewFinalContent()`:创建新的空 `.final-content` div,append 到当前 `assistantMsg`,并把 `currentFinalContent` 更新为该新 div
+- 修改 `renderFinalContent()` 内部:把通过 `assistantMsg.querySelector('.final-content')` 的查找改为直接使用 `currentFinalContent`(querySelector 只返回第一个匹配,widget 插入后会写入旧 div 而非新 div)
+- 修改 `flushRemainingType()`:同上改用 `currentFinalContent`
+- 切换 assistant 气泡(新的 `message_start` / 新一轮对话)时,`ensureAssistantMsg()` 必须把 `currentFinalContent` 重新指向新气泡的初始 final-content
+- **共 4 处代码点须修改(ensureAssistantMsg / startNewFinalContent / renderFinalContent / flushRemainingType),实施时全部对齐,不可遗漏**
 
 ## 演进路线
 
