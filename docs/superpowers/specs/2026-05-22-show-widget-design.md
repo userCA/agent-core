@@ -357,7 +357,7 @@ v1 不做 iframe 内部错误检测(`srcdoc` 模式无法可靠检测内容错�
 6. **SSE 透传**: 模拟成功 `ToolExecutionEnd` → `agent_event_to_sse_json` 输出含 `display.widget`;模拟异常路径(loop 生成的 `is_error=True` 事件)→ 不含 `display`
 7. **无污染**: 普通 tool(如 read_file)的 `tool_end` 事件不含 `display` 键(回归测试)
    *实现方式*: 直接构造 `ToolExecutionEnd(result=ToolResult(content=[TextContent(text='ok')], display=None))` 喂给 `agent_event_to_sse_json`,断言输出 dict 不含 `"display"` 键。无需走完整 agent loop。
-8. **ToolDefinition 形态**: `tool.definition.description` 含 WIDGET_SPEC 全文(包含 "show_widget 设计规范" 字样);`prompt_snippet` 不设置(由 `extract_snippet` fallback 到 description 首句)
+8. **ToolDefinition 形态**: 断言 `WIDGET_SPEC in tool.definition.description`(子串包含),不做全文 equality 比较,避免 markdown / emoji / 空白漂移导致测试脆弱。同时断言 `tool.definition.prompt_snippet is None`(由 `extract_snippet` fallback 到 description 首句)
 
 前端:手动验证(启动 http_sse,让 LLM 调用 show_widget;另测一个 `<body>` 错误用例确认 LLM 收到错误后会重试;测一次含 CDN script 的 widget 确认 iframe.onload 后滚动正常)。
 
@@ -388,7 +388,9 @@ tool_registry.register(ShowWidgetTool())
 - 修改 `renderFinalContent()` 内部:把通过 `assistantMsg.querySelector('.final-content')` 的查找改为直接使用 `currentFinalContent`(querySelector 只返回第一个匹配,widget 插入后会写入旧 div 而非新 div)
 - 修改 `flushRemainingType()`:同上改用 `currentFinalContent`
 - 切换 assistant 气泡(新的 `message_start` / 新一轮对话)时,`ensureAssistantMsg()` 必须把 `currentFinalContent` 重新指向新气泡的初始 final-content
-- **共 4 处代码点须修改(ensureAssistantMsg / startNewFinalContent / renderFinalContent / flushRemainingType),实施时全部对齐,不可遗漏**
+- **HITL 卡片插入逻辑同样改造**:现有 `index.html:2247` 附近的 HITL 卡片插入代码使用 `assistantMsg.querySelector('.final-content')` 定位插入锚点,querySelector 只返回**第一个** final-content;widget 之后 `startNewFinalContent()` 追加了新 final-content,HITL 卡片会插到旧的、已凝固的 final-content(widget 之前),导致顺序错乱。必须从 `querySelector('.final-content')` 改为使用 `currentFinalContent`,保证多 final-content 模型下 HITL 出现在正确位置
+- **共 5 处代码点须修改(ensureAssistantMsg / startNewFinalContent / renderFinalContent / flushRemainingType / HITL 卡片插入逻辑 `index.html:2247`),实施时全部对齐,不可遗漏**
+- **风险说明**: 若同一轮 LLM 先调 show_widget 再触发 HITL(并行 + 后端任意回执顺序),原实现会把 HITL 塞到 widget 之前;修正后两者按 SSE 到达顺序正确排列
 
 ## 演进路线
 
@@ -414,3 +416,5 @@ Chromium/Firefox 最新两个稳定版本。Safari < 15.4 未测试。
 - sendPrompt 实际激活(v2)
 - **iframe 高度自适应**(height 是静态值,JS 动态加载内容不会自动撑开)
 - **`<a>` 链接点击行为**(在 iframe 内导航,替换当前 widget 内容;`target="_top"` 和 `target="_blank"` 因 sandbox 限制而失败)
+- **历史会话刷新安全**: 刷新页面后历史 assistant 气泡不含 widget(因 JsonlStore 不持久化 display 字段),`currentFinalContent` 自然退化为单一 final-content,不触发 `startNewFinalContent`,对历史回放无副作用
+- **abort 后到达的 widget tool_end**: 由现有 `isStreaming` 状态机丢弃,无需特殊处理
