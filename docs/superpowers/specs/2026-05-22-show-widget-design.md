@@ -97,12 +97,7 @@ ToolResult(
 
 **注意 1**: 不做 HTML 深度清洗。安全由 iframe sandbox + CSP 兜底,不重复造轮子。
 
-**注意 2**: 校验失败时**直接 `raise ValueError`**(带明确的修复指令文案)。`agent_core` 的 loop 捕获工具异常后会:
-- 生成 `ToolExecutionEnd` 事件,`is_error=True`,`result` 含异常信息文本
-- 该错误进入 LLM 上下文,LLM 据此**自行重试**(删除禁止标签后重新调用)
-- 由于没有正常的 `ToolResult` 返回,`display` 字段不再透传,前端不渲染错误卡片;错误的可见反馈来自普通的 tool-error step
-
-`ToolResult` 没有 `is_error` 字段(那是 `ToolExecutionEnd` 事件层的属性,由 loop 根据异常推断),因此我们用 raise 而不是返回错误 `ToolResult`。
+**注意 2**: 校验失败时**直接 `raise ValueError`**(带明确的修复指令文案)。loop 捕获异常后会生成 `is_error=True` 的 `ToolExecutionEnd`,其 `result` 是 `ToolResult(content=[TextContent(text=str(exc))], display=None)`。`events.py` 的 `evt.result.display and 'widget' in evt.result.display` 守卫会因 `display` 为 `None` 而短路,前端不会渲染 widget,只显示普通 tool-error step(异常文本进入 `data.result`,由现有 `tool_end` 分支正常处理)。`ToolResult` 没有 `is_error` 字段(那是事件层属性),因此我们用 raise 而非返回错误 `ToolResult`。
 
 **错误处理示例**(工具内部):
 ```python
@@ -184,9 +179,10 @@ if isinstance(evt, ToolExecutionEnd):
 
 ### 前端渲染(index.html)
 
-**渲染位置决策**: widget 作为**独立块**插入到当前 assistant message 的 `.final-content` 容器内(与 `renderHitlCard` 走同样的路径,参考 `index.html:2247-2250`),而不是塞进 tool step 气泡里。理由:
+**渲染位置决策**: widget 作为**当前 assistant message 气泡的直接子节点**插入(与 `.final-content` **同级**,按事件到达的时间顺序排列),不进入 `.final-content` 内部。理由:
+- `renderFinalContent()` 通过 `finalDiv.innerHTML = html` 全量覆盖 `.final-content`;若 widget 插在其中,后续 `text_delta` 一次重渲染就会把 widget DOM 抹掉(HITL 卡片之所以安全,是因为 HITL 会阻断后续流;widget 不阻断,LLM 可继续输出"如上图所示...")
 - widget 体积大(默认 400px 高),塞进紧凑的 tool step 列表会破坏视觉节奏
-- HITL 表单卡片已经采用同样的"插入 assistant message"模式,保持一致
+- 与 HITL 表单卡片"插入 assistant message 气泡"的总体路径一致,仅插入层级不同
 
 收到 `tool_end` 事件且 `data.tool_name === "show_widget"` 时,**先于现有的 `tool_end` 处理逻辑**做分支(以 `else if` 链形式嵌入现有 SSE 事件分发器):
 
@@ -212,13 +208,15 @@ if isinstance(evt, ToolExecutionEnd):
 
 **renderWidget 流程**:
 
-1. 创建容器 div + 标题标签(成功路径下才会被调用;失败走 raise → tool-error step)
-2. 创建 `<iframe sandbox="allow-scripts">`(**不带 `allow-same-origin`**)
-3. 构建 srcdoc: CSP meta + 映射后的 CSS 变量 + HTML 内容
-4. `iframe.onload` 后做一次 `smoothScrollToBottom()`(CDN 库可能延迟撑开内容)
-5. 插入到 `assistantMsg.querySelector('.final-content')`
-6. 调用 `registerWidget(iframe)` 注册到 `widgetFrames`,供 v2 sendPrompt 校验来源
-7. **页面初始化时**(不在这里)调用一次 `window.addEventListener("message", handleWidgetMessage)`
+1. **先调 `flushRemainingType()`** — 把当前正在 typing 的 streaming 文本最终化进当前 `.final-content`,避免后续重渲染时还会移动 widget 前的文本
+2. 创建容器 div + 标题标签(成功路径下才会被调用;失败走 raise → tool-error step)
+3. 创建 `<iframe sandbox="allow-scripts">`(**不带 `allow-same-origin`**)
+4. 构建 srcdoc: CSP meta + 映射后的 CSS 变量 + HTML 内容
+5. `iframe.onload` 后做一次 `smoothScrollToBottom()`(CDN 库可能延迟撑开内容)
+6. **`assistantMsg.appendChild(widgetBlock)`** — 作为 `.final-content` 的兄弟节点插入到 assistant 气泡末尾,**不是** `.final-content` 内部
+7. 调用 `registerWidget(iframe)` 注册到 `widgetFrames`,供 v2 sendPrompt 校验来源
+8. **调用新增 helper `startNewFinalContent()`** — 在 widget 之后追加一个新的空 `.final-content` div,供后续 `text_delta`/`renderFinalContent()` 写入(避免后续文本通过 `innerHTML = html` 抹掉 widget;新 `.final-content` 成为当前"活跃"容器,旧的保留为已凝固的历史)
+9. **页面初始化时**(不在这里)调用一次 `window.addEventListener("message", handleWidgetMessage)`
 
 **渲染位置补充**: 若当前没有 assistant 气泡(LLM 直接调用 widget 无文本),由 `ensureAssistantMsg()` 创建一个新气泡承载 widget。此时 `usage-info` 仍贴在该气泡末尾,视觉上 widget 即气泡主体。这是已知 tradeoff,v1 接受。
 
@@ -315,6 +313,8 @@ function handleWidgetMessage(e) {
 window.addEventListener("message", handleWidgetMessage);
 ```
 
+**v2 sendPrompt 校验强化**: v2 激活 sendPrompt 时,除 `widgetFrames.has(e.source)` 外,还需额外校验 `e.source.frameElement && document.contains(e.source.frameElement) && currentSessionId === iframeOwnedSessionId`。理由:`WeakSet` 中 `contentWindow` 在 iframe DOM 还存在时不会 GC,旧会话的 widget iframe 若未显式销毁,可能跨会话仍能通过单一 `has()` 校验向新会话注入消息。v1 监听器空实现不阻塞此场景,但 v2 实装时必须落实此双重校验。
+
 **错误降级**:
 
 v1 不做 iframe 内部错误检测(`srcdoc` 模式无法可靠检测内容错误:`onerror` 不触发,`documentElement` 即使 srcdoc 为空字符串也存在,检查恒为 true)。错误的可见反馈走两条路径:
@@ -347,7 +347,7 @@ v1 不做 iframe 内部错误检测(`srcdoc` 模式无法可靠检测内容错�
 | `agent_core/tools/widgets/tool.py` | 新建 | ~90 |
 | `scene/http_sse/chat_assistant.py` | 修改 | +2(import + register) |
 | `scene/http_sse/events.py` | 修改 | +4 |
-| `scene/http_sse/static/index.html` | 修改 | +100 |
+| `scene/http_sse/static/index.html` | 修改 | +115 |
 | `tests/tools/test_show_widget.py` | 新建 | ~90 |
 
 **chat_assistant.py 改动示例**:
@@ -357,6 +357,8 @@ from agent_core.tools.widgets import ShowWidgetTool
 tool_registry.register(ShowWidgetTool())
 ```
 
+**index.html 新增 helper 说明**: `startNewFinalContent()` 是本次新增的小函数(~15 行),职责是在当前 assistantMsg 末尾创建一个新的空 `.final-content` div,并把 `renderFinalContent()` / `flushRemainingType()` 的目标切换到这个新 div(通过更新模块级当前 final 容器引用)。每次插入 widget 后调用一次,确保后续 `text_delta` 写入新容器,旧 `.final-content` 凝固为历史,widget DOM 不再被 `innerHTML = html` 抹掉。
+
 ## 演进路线
 
 | 阶段 | 内容 | 触发条件 |
@@ -365,6 +367,10 @@ tool_registry.register(ShowWidgetTool())
 | **v2** | 激活 `sendPrompt`: postMessage → 宿主调用 `Agent.prompt()` | v1 稳定后 |
 | **v3** | 结构化 widget 类型(chart/form/video_player): `kind` 参数 + 专用前端组件,降低 token 消耗 | 高频 widget 模式出现 |
 | **v4** | 流式 token-by-token 渲染(`ctx.on_update`);双向 RPC(widget 查询 Agent) | 需求驱动 |
+
+## 目标浏览器
+
+Chromium/Firefox 最新两个稳定版本。Safari < 15.4 未测试。
 
 ## 不在首版范围
 
