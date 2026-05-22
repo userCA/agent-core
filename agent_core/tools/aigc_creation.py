@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import uuid
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -18,20 +17,26 @@ from agent_core.tools.base import ToolContext, ToolDefinition, ToolResult
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CREATE_URL = os.environ.get(
-    "MIGU_AIGC_CREATE_URL", "http://app.c.vip.migu.cn/user/h5/ai-gc/create/v1.0"
+    "MIGU_AIGC_CREATE_URL", "https://app.c.vip.migu.cn/user/h5/ai-gc/create/v1.0"
 )
 _DEFAULT_QUERY_URL = os.environ.get(
-    "MIGU_AIGC_QUERY_URL", "http://app.c.vip.migu.cn/user/h5/ai-gc/query/v1.0"
+    "MIGU_AIGC_QUERY_URL", "https://app.c.vip.migu.cn/user/h5/ai-gc/query/v1.0"
 )
-_DEFAULT_CHANNEL = "014000D"
-_DEFAULT_UID = ""
-_DEFAULT_DEVICE_ID = ""
+_DEFAULT_CHANNEL = "014X031"
+_DEFAULT_PACM_TOKEN = (
+    "C9948B8E9AA3A78F63978BA4878293729A9A8D8A97A4A389679688A0807A9F759B95"
+    "868A93A9A78A5E928CA38C829A769A9B8C8998A0A28C67948AA08A7D9F72-2453988156"
+)
 _DEFAULT_POLL_INTERVAL = 3.0
 _DEFAULT_POLL_MAX_ATTEMPTS = 60
 
 
-def _generate_session_id() -> str:
-    return str(uuid.uuid4()).replace("-", "")[:16]
+@dataclass
+class AigcAuth:
+    """Auth credentials for AIGC API calls."""
+
+    channel: str | None = None
+    pacmtoken: str | None = None
 
 
 @dataclass
@@ -40,9 +45,7 @@ class AigcToolConfig:
 
     api_url: str | None = None
     query_url: str | None = None
-    uid: str | None = None
-    device_id: str | None = None
-    channel: str | None = None
+    auth: AigcAuth | None = None
     poll_interval: float = _DEFAULT_POLL_INTERVAL
     poll_max_attempts: int = _DEFAULT_POLL_MAX_ATTEMPTS
 
@@ -60,18 +63,18 @@ class AigcCreationTool:
         content_type: str,
         config: AigcToolConfig | None = None,
         hitl_schema_builder: Callable[[list[str]], dict[str, Any]] | None = None,
+        text_content_key: str | None = None,
     ) -> None:
         cfg = config or AigcToolConfig()
         self._scene = scene
         self._content_type = content_type
         self._api_url = cfg.api_url or _DEFAULT_CREATE_URL
         self._query_url = cfg.query_url or _DEFAULT_QUERY_URL
-        self._uid = cfg.uid
-        self._device_id = cfg.device_id
-        self._channel = cfg.channel
+        self._auth = cfg.auth or AigcAuth()
         self._poll_interval = cfg.poll_interval
         self._poll_max_attempts = cfg.poll_max_attempts
         self._hitl_schema_builder = hitl_schema_builder
+        self._text_content_key = text_content_key
 
         self.definition = ToolDefinition(
             name=name,
@@ -83,8 +86,8 @@ class AigcCreationTool:
         self, tool_call_id: str, params: dict[str, Any], ctx: ToolContext
     ) -> ToolResult:
         del tool_call_id  # unused
-        # 1. Resolve auth
-        auth_headers = self._resolve_auth(ctx.metadata)
+        # 1. Resolve auth (headers + cookies)
+        headers, cookies = self._resolve_auth(ctx.metadata)
 
         # 2. Check required params
         required = self.definition.parameters.get("required", [])
@@ -100,13 +103,11 @@ class AigcCreationTool:
             )
 
         # 3. Build payload and create task
-        payload = self._build_payload(params, auth_headers)
+        payload = self._build_payload(params)
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=30.0, cookies=cookies) as client:
                 logger.info("Creating AIGC task: scene=%s", self._scene)
-                resp = await client.post(
-                    self._api_url, headers=auth_headers, json=payload
-                )
+                resp = await client.post(self._api_url, headers=headers, json=payload)
                 resp.raise_for_status()
                 data = resp.json()
                 logger.debug("Create response: %s", data)
@@ -118,7 +119,7 @@ class AigcCreationTool:
                     )
 
                 # 4. Poll for result
-                result = await self._poll_result(client, auth_headers, task_id, ctx)
+                result = await self._poll_result(client, headers, task_id, ctx)
                 return ToolResult(content=[TextContent(text=result)])
 
         except httpx.HTTPStatusError as exc:
@@ -132,26 +133,31 @@ class AigcCreationTool:
                 details={"error": str(exc)},
             )
 
-    def _resolve_auth(self, metadata: dict[str, Any]) -> dict[str, str]:
-        """Resolve auth from metadata > constructor > env > defaults."""
-        auth = metadata.get("aigc_auth", {})
-        return {
-            "Content-Type": "application/json; charset=utf-8",
-            "uid": auth.get("uid") or self._uid or os.environ.get("MIGU_UID") or _DEFAULT_UID,
-            "deviceid": auth.get("deviceid")
-            or self._device_id
-            or os.environ.get("MIGU_DEVICE_ID")
-            or _DEFAULT_DEVICE_ID,
-            "channel": auth.get("channel")
-            or self._channel
+    def _resolve_auth(
+        self, metadata: dict[str, Any]
+    ) -> tuple[dict[str, str], dict[str, str]]:
+        """Resolve headers + cookies from metadata > constructor > env > defaults."""
+        meta_auth = metadata.get("aigc_auth") or {}
+        channel = (
+            meta_auth.get("channel")
+            or self._auth.channel
             or os.environ.get("MIGU_CHANNEL")
-            or _DEFAULT_CHANNEL,
-            "pacmtoken": auth.get("pacmtoken") or os.environ.get("MIGU_PACM_TOKEN") or "",
+            or _DEFAULT_CHANNEL
+        )
+        pacmtoken = (
+            meta_auth.get("pacmtoken")
+            or self._auth.pacmtoken
+            or os.environ.get("MIGU_PACM_TOKEN")
+            or _DEFAULT_PACM_TOKEN
+        )
+        headers = {
+            "content-type": "application/json",
+            "channel": channel,
         }
+        cookies = {"pacmtoken": pacmtoken}
+        return headers, cookies
 
-    def _build_payload(
-        self, params: dict[str, Any], auth_headers: dict[str, str]
-    ) -> dict[str, Any]:
+    def _build_payload(self, params: dict[str, Any]) -> dict[str, Any]:
         # inputMeta receives all params except known list fields
         input_meta: dict[str, Any] = {}
         for key, val in params.items():
@@ -159,8 +165,12 @@ class AigcCreationTool:
                 continue
             input_meta[key] = val
 
-        # Build aigcInputContentList from image inputs
+        # Build aigcInputContentList from image inputs and/or text content
         content_list: list[dict[str, Any]] = []
+        if self._text_content_key:
+            text_val = params.get(self._text_content_key)
+            if text_val:
+                content_list.append({"contentType": "text", "content": text_val})
         for img_id in params.get("input_images", []):
             content_list.append(
                 {
@@ -171,20 +181,17 @@ class AigcCreationTool:
                 }
             )
 
-        return {
+        payload: dict[str, Any] = {
             "scene": self._scene,
-            "taskSessionId": _generate_session_id(),
             "aigcContentResultInput": {"contentType": self._content_type},
-            "ext": {"rcToken": auth_headers.get("pacmtoken", "")},
             "inputContent": {
                 "inputMeta": input_meta,
                 "aigcInputContentList": content_list,
             },
         }
+        return payload
 
     def _extract_task_id(self, data: dict[str, Any]) -> str | None:
-        if not isinstance(data, dict):
-            return None
         if "taskId" in data:
             return str(data["taskId"])
         for key in ("data", "result", "body"):
@@ -239,8 +246,6 @@ class AigcCreationTool:
         return f"轮询超时，任务ID: {task_id}"
 
     def _extract_status(self, data: dict[str, Any]) -> str | None:
-        if not isinstance(data, dict):
-            return None
         for key in ("status", "taskStatus", "state", "taskState"):
             if key in data:
                 val = data[key]
@@ -258,8 +263,6 @@ class AigcCreationTool:
 
     def _extract_result_urls(self, data: dict[str, Any]) -> list[str]:
         urls: list[str] = []
-        if not isinstance(data, dict):
-            return urls
         for root in (data, data.get("data"), data.get("result"), data.get("body")):
             if not isinstance(root, dict):
                 continue
@@ -286,8 +289,6 @@ class AigcCreationTool:
         return list(dict.fromkeys(urls))
 
     def _extract_error(self, data: dict[str, Any]) -> str | None:
-        if not isinstance(data, dict):
-            return None
         for key in ("error", "errorMessage", "errMsg", "message", "msg"):
             if key in data:
                 val = data[key]
@@ -342,9 +343,7 @@ def create_nolo_video_tool(
     *,
     api_url: str | None = None,
     query_url: str | None = None,
-    uid: str | None = None,
-    device_id: str | None = None,
-    channel: str | None = None,
+    auth: AigcAuth | None = None,
 ) -> AigcCreationTool:
     """Create nolo scene video generation tool."""
     return AigcCreationTool(
@@ -380,11 +379,66 @@ def create_nolo_video_tool(
             "required": ["templateId", "input_images"],
         },
         hitl_schema_builder=_nolo_hitl_schema,
-        config=AigcToolConfig(
-            api_url=api_url,
-            query_url=query_url,
-            uid=uid,
-            device_id=device_id,
-            channel=channel,
-        ),
+        config=AigcToolConfig(api_url=api_url, query_url=query_url, auth=auth),
+    )
+
+
+def _music_hitl_schema(missing: list[str]) -> dict[str, Any]:
+    """Build HITL input schema for music creation."""
+    fields: list[dict[str, Any]] = []
+    if "song_name" in missing:
+        fields.append(
+            {"name": "song_name", "label": "歌曲名称", "type": "text", "required": True}
+        )
+    if "lyrics" in missing:
+        fields.append(
+            {"name": "lyrics", "label": "歌词", "type": "textarea", "required": True}
+        )
+    if "style" in missing:
+        fields.append(
+            {
+                "name": "style",
+                "label": "风格",
+                "type": "text",
+                "required": True,
+                "placeholder": "如：摇滚，动感，金属，男",
+            }
+        )
+    return {"type": "music_form", "title": "音乐创作信息", "fields": fields}
+
+
+def create_music_tool(
+    *,
+    api_url: str | None = None,
+    query_url: str | None = None,
+    auth: AigcAuth | None = None,
+) -> AigcCreationTool:
+    """Create Migu music (AI_MGYY_MXG_MUSIC) generation tool."""
+    return AigcCreationTool(
+        name="create_music",
+        description="根据歌词与风格生成音乐音频。",
+        scene="AI_MGYY_MXG_MUSIC",
+        content_type="audio",
+        parameters={
+            "type": "object",
+            "properties": {
+                "song_name": {"type": "string", "description": "歌曲名称"},
+                "lyrics": {
+                    "type": "string",
+                    "description": "完整歌词文本，支持 [Intro]/[Verse]/[Chorus]/[Outro] 等标记",
+                },
+                "style": {
+                    "type": "string",
+                    "description": "音乐风格描述，如：摇滚，动感，金属，男",
+                },
+                "status": {
+                    "type": "boolean",
+                    "description": "状态标记（可选，默认 true）",
+                },
+            },
+            "required": ["song_name", "lyrics", "style"],
+        },
+        hitl_schema_builder=_music_hitl_schema,
+        text_content_key="lyrics",
+        config=AigcToolConfig(api_url=api_url, query_url=query_url, auth=auth),
     )

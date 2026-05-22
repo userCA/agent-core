@@ -15,10 +15,10 @@ from agent_core.core.content import TextContent
 from agent_core.core.human_input import RequiresHumanInput
 from agent_core.core.tool_runner import _run_single_tool
 from agent_core.tools.aigc_creation import (
+    AigcAuth,
     AigcCreationTool,
     AigcToolConfig,
     create_nolo_video_tool,
-    _generate_session_id,
 )
 from agent_core.tools.base import ToolContext, ToolDefinition, ToolRegistry, ToolResult
 
@@ -35,26 +35,24 @@ def test_resolve_auth_priority():
         parameters={"type": "object", "properties": {}},
         scene="test",
         content_type="video",
-        config=AigcToolConfig(uid="ctor_uid", device_id="ctor_dev", channel="ctor_ch"),
+        config=AigcToolConfig(auth=AigcAuth(channel="ctor_ch", pacmtoken="ctor_token")),
     )
 
     # metadata wins
-    auth = tool._resolve_auth(
-        {"aigc_auth": {"uid": "meta_uid", "deviceid": "meta_dev", "channel": "meta_ch", "pacmtoken": "meta_token"}}
+    headers, cookies = tool._resolve_auth(
+        {"aigc_auth": {"channel": "meta_ch", "pacmtoken": "meta_token"}}
     )
-    assert auth["uid"] == "meta_uid"
-    assert auth["deviceid"] == "meta_dev"
-    assert auth["channel"] == "meta_ch"
-    assert auth["pacmtoken"] == "meta_token"
+    assert headers["channel"] == "meta_ch"
+    assert headers["content-type"] == "application/json"
+    assert cookies["pacmtoken"] == "meta_token"
 
     # constructor wins when no metadata
-    auth = tool._resolve_auth({})
-    assert auth["uid"] == "ctor_uid"
-    assert auth["deviceid"] == "ctor_dev"
-    assert auth["channel"] == "ctor_ch"
+    headers, cookies = tool._resolve_auth({})
+    assert headers["channel"] == "ctor_ch"
+    assert cookies["pacmtoken"] == "ctor_token"
 
     # env wins when no metadata/constructor
-    with patch.dict(os.environ, {"MIGU_UID": "env_uid", "MIGU_DEVICE_ID": "env_dev", "MIGU_CHANNEL": "env_ch", "MIGU_PACM_TOKEN": "env_token"}):
+    with patch.dict(os.environ, {"MIGU_CHANNEL": "env_ch", "MIGU_PACM_TOKEN": "env_token"}):
         tool2 = AigcCreationTool(
             name="test",
             description="test",
@@ -62,11 +60,9 @@ def test_resolve_auth_priority():
             scene="test",
             content_type="video",
         )
-        auth = tool2._resolve_auth({})
-        assert auth["uid"] == "env_uid"
-        assert auth["deviceid"] == "env_dev"
-        assert auth["channel"] == "env_ch"
-        assert auth["pacmtoken"] == "env_token"
+        headers, cookies = tool2._resolve_auth({})
+        assert headers["channel"] == "env_ch"
+        assert cookies["pacmtoken"] == "env_token"
 
 
 # ---------------------------------------------------------------------------
@@ -113,16 +109,15 @@ def test_no_hitl_when_builder_none():
 
 def test_build_payload():
     tool = create_nolo_video_tool()
-    auth = {"uid": "u1", "deviceid": "d1", "channel": "c1", "pacmtoken": "t1"}
     payload = tool._build_payload(
         {"templateId": "999", "aiTemplateName": "测试模板", "input_images": ["img1", "img2"]},
-        auth,
     )
 
     # Core fields
     assert payload["scene"] == "nolo"
     assert payload["aigcContentResultInput"]["contentType"] == "video"
-    assert payload["ext"]["rcToken"] == "t1"
+    assert "ext" not in payload
+    assert "taskSessionId" not in payload
 
     # inputContent — params directly mapped into inputMeta
     input_meta = payload["inputContent"]["inputMeta"]
