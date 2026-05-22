@@ -1,63 +1,63 @@
-# show_widget Tool Design
+# show_widget 工具设计
 
-**Date:** 2026-05-22
-**Status:** Approved
+**日期:** 2026-05-22
+**状态:** 已确认
 
-## Summary
+## 概述
 
-Add `show_widget` as a standalone tool in `agent_core/tools/widgets/`. The tool accepts an HTML fragment from the LLM, returns it as structured metadata in `ToolResult.details`, and the `scene/http_sse` frontend renders it in an iframe with CSP isolation. First version is display-only; interaction (`sendPrompt`) is pre-wired but not activated.
+在 `agent_core/tools/widgets/` 下新增 `show_widget` 独立工具。该工具接收 LLM 生成的 HTML 片段,通过 `ToolResult.display` 返回结构化渲染元数据,由 `scene/http_sse` 前端在 iframe(`sandbox="allow-scripts"`,opaque origin)+ 严格 CSP 中渲染。首版为纯展示,`sendPrompt` 交互仅预留 postMessage 协议入口,未激活。
 
-No existing capabilities are modified.
+不修改任何现有能力。
 
-## Architecture
+## 架构
 
 ```
 agent_core/tools/widgets/
-├── __init__.py          # exports ShowWidgetTool
-├── tool.py              # ShowWidgetTool implementation
-└── spec.py              # WIDGET_SPEC constant (injected into description)
+├── __init__.py          # 导出 ShowWidgetTool
+├── spec.py              # WIDGET_SPEC 常量(注入 description)
+└── tool.py              # ShowWidgetTool 实现
 
-scene/http_sse/events.py  # ~4 lines: transparent widget details passthrough
-scene/http_sse/static/index.html  # ~60 lines: renderWidget + handleWidgetMessage
+scene/http_sse/events.py                  # ~4 行: widget display 透传
+scene/http_sse/static/index.html           # ~60 行: renderWidget + handleWidgetMessage
 ```
 
-## Data Flow
+## 数据流
 
 ```
-LLM calls show_widget(html=..., title=..., height=...)
+LLM 调用 show_widget(html=..., title=..., height=...)
   → ShowWidgetTool.execute()
-    → validate HTML (reject <html>/<head>/<body>/<!DOCTYPE>, size limit 50KB)
-    → return ToolResult(
+    → 校验 HTML(拒绝 <html>/<head>/<body>/<!DOCTYPE>, 大小限制 50KB)
+    → 返回 ToolResult(
         content=[TextContent(text="[widget rendered: {title}]")],
-        details={"widget": {"version": 1, "html": ..., "title": ..., "height": ...}}
+        display={"widget": {"version": 1, "html": ..., "title": ..., "height": ...}}
       )
-  → SSE: tool_end event carries "widget" key
-  → Frontend: detect widget key → create iframe srcdoc → render
+  → SSE: tool_end 事件携带 "display.widget" 键
+  → 前端检测到 display.widget → 创建 iframe srcdoc → 渲染
 ```
 
-- `content[0].text` is a placeholder for the LLM context (no HTML pollution).
-- `details["widget"]` is consumed only by the frontend.
+- `content[0].text` 是供 LLM 上下文使用的占位符(不污染 HTML)。
+- `display["widget"]` 仅前端消费,不进入 LLM 上下文。
 
-## Tool API
+## 工具 API
 
 ```python
 ShowWidgetTool(
     name="show_widget",
-    description=<WIDGET_SPEC全文>,
+    description=<WIDGET_SPEC 全文>,
     parameters={
         "type": "object",
         "properties": {
             "html": {
                 "type": "string",
-                "description": "Complete HTML fragment following the spec"
+                "description": "完整 HTML 片段,需遵守设计规范"
             },
             "title": {
                 "type": "string",
-                "description": "Optional display title"
+                "description": "可选展示标题"
             },
             "height": {
                 "type": "integer",
-                "description": "Optional iframe height in px (default 400, max 1200)"
+                "description": "可选 iframe 高度(px),默认 400,最大 1200"
             }
         },
         "required": ["html"]
@@ -65,75 +65,96 @@ ShowWidgetTool(
 )
 ```
 
-### Return Structure
+### 返回结构
 
 ```python
 ToolResult(
-    content=[TextContent(text=f"[widget rendered: {title or 'untitled'}]")],
-    details={
+    content=[TextContent(text=f"[widget rendered: {title or '未命名'}]")],
+    display={
         "widget": {
             "version": 1,
-            "html": <validated html>,
+            "html": <校验后的 html>,
             "title": title,
-            "height": min(height or 400, 1200)
+            "height": min(height or 400, 1200),
         }
     }
 )
 ```
 
-### Validation (backend, lightweight)
+### 校验(后端轻量)
 
-- HTML size: reject > 50KB
-- Reject full-page tags: `<html>`, `<head>`, `<body>`, `<!DOCTYPE>`
-- No HTML sanitization (trust iframe sandbox + CSP)
+| 检查项 | 行为 |
+|---|---|
+| HTML 大小 > 50KB | 返回错误占位 + `display.widget.error` |
+| 包含 `<html>` / `<head>` / `<body>` / `<!DOCTYPE>` | 同上 |
+| 正常输入 | 正常返回,`display` 含 widget 元数据 |
+
+**注意 1**: 不做 HTML 深度清洗。安全由 iframe sandbox + CSP 兜底,不重复造轮子。
+
+**注意 2**: `ToolResult` 没有 `is_error` 字段(那是 `ToolExecutionEnd` 事件层的属性,由 loop 根据异常推断)。校验失败不抛异常,而是通过 `display.widget.error` 传递错误,前端据此渲染错误提示。
+
+**错误返回示例**:
+```python
+ToolResult(
+    content=[TextContent(text="[widget 渲染失败: 包含禁止标签 <body>]")],
+    display={
+        "widget": {
+            "version": 1,
+            "error": "contains_forbidden_tag",
+            "tag": "body",
+        }
+    }
+)
+```
 
 ## WIDGET_SPEC
 
-Injected directly into `ToolDefinition.description` (no separate read_spec call — avoids LLM skipping it).
+直接注入 `ToolDefinition.description`,不通过独立 `read_spec` 调用(避免 LLM 跳过)。
 
 ```
-## show_widget 设计规范（必须遵守）
+## show_widget 设计规范(必须遵守)
 
 ### 1. 禁止项
-- ❌ 渐变（streaming 时闪烁）
+- ❌ 渐变(streaming 时闪烁)
 - ❌ box-shadow / blur / glow
-- ❌ position: fixed（会逃出容器）
+- ❌ position: fixed(会逃出容器)
 - ❌ 字体小于 11px
 - ❌ <html> / <head> / <body> / <!DOCTYPE>
 - ❌ HTML 注释 <!-- -->
 
-### 2. 代码顺序（强制）
+### 2. 代码顺序(强制)
 <style> → HTML 结构 → <script>
-先到先渲染，JS 必须在 DOM 之后。
+先到先渲染,JS 必须在 DOM 之后。
 
-### 3. 坐标系（SVG 模式）
-viewBox="0 0 680 H"，width="100%"
-宽度 680 固定，H 按内容自适应。所有 x 坐标基于 680。
+### 3. 坐标系(SVG 模式)
+viewBox="0 0 680 H", width="100%"
+宽度 680 固定,H 按内容自适应。所有 x 坐标基于 680。
 
-### 4. CSS 变量（主题适配）
-使用宿主注入的变量，不硬编码颜色：
+### 4. CSS 变量(主题适配)
+使用宿主注入的变量,不硬编码颜色。Framework 定义一组规范变量名,前端渲染时**把宿主实际变量值映射到规范名后注入 iframe**(这样 framework 契约稳定,scene 各自的命名互不影响):
+
 - --color-background-primary / secondary
 - --color-text-primary / secondary
-- --color-border-primary / secondary / tertiary
+- --color-border-primary / secondary
 - --color-accent-primary
 
 ### 5. 外部资源
-仅允许以下 CDN：
+仅允许以下 CDN:
 - cdnjs.cloudflare.com
 - esm.sh
 - cdn.jsdelivr.net
 - unpkg.com
 
 ### 6. 复杂度预算
-- 色系：最多 2 种
-- 横向节点：最多 4 个（每个约 140px）
-- 副标题：不超过 5 个词
-- HTML 总大小：不超过 50KB
+- 色系:最多 2 种
+- 横向节点:最多 4 个(每个约 140px)
+- 副标题:不超过 5 个词
+- HTML 总大小:不超过 50KB
 ```
 
-## Frontend Integration
+## 前端集成
 
-### SSE Event Change (events.py)
+### SSE 事件改动(events.py)
 
 ```python
 if isinstance(evt, ToolExecutionEnd):
@@ -143,75 +164,167 @@ if isinstance(evt, ToolExecutionEnd):
         "result": _extract_result_text(evt.result),
         "is_error": evt.is_error,
     }
-    # Transparent passthrough for widget details
-    if hasattr(evt.result, 'details') and evt.result.details and 'widget' in evt.result.details:
-        result_dict["widget"] = evt.result.details["widget"]
+    # 透传 display 字段(含 widget 元数据,success 和 error 都透传)
+    if (
+        hasattr(evt.result, "display")
+        and evt.result.display
+        and "widget" in evt.result.display
+    ):
+        result_dict["display"] = evt.result.display
     return result_dict
 ```
 
-### Frontend Rendering (index.html)
+### 前端渲染(index.html)
 
-On `tool_end` with `widget` key:
+收到 `tool_end` 事件且 `display?.widget` 存在时:
 
-1. Create container div with title label
-2. Create `<iframe sandbox="allow-scripts allow-same-origin">`
-3. Build srcdoc: CSP meta tag + CSS variables from host + HTML content
-4. Inject into chat stream
-5. Register `message` event listener for future `sendPrompt` support
+1. 创建容器 div + 标题标签
+2. 创建 `<iframe sandbox="allow-scripts">`(**不带 `allow-same-origin`**)
+3. 构建 srcdoc: CSP meta + 映射后的 CSS 变量 + HTML 内容
+4. 插入聊天流
+5. 注册 `message` 事件监听器(预留 v2 sendPrompt 接口)
 
-**CSP policy** (injected via `<meta>` in srcdoc):
+**CSP 策略**(通过 srcdoc 内 `<meta>` 注入):
 ```
-default-src 'unsafe-inline' 'unsafe-eval';
-script-src 'unsafe-inline' 'unsafe-eval' cdnjs.cloudflare.com esm.sh cdn.jsdelivr.net unpkg.com;
-style-src 'unsafe-inline' cdnjs.cloudflare.com cdn.jsdelivr.net unpkg.com;
+default-src 'none';
+script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://esm.sh https://cdn.jsdelivr.net https://unpkg.com;
+style-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com;
 img-src * data:;
+font-src https://cdnjs.cloudflare.com https://cdn.jsdelivr.net data:;
+connect-src 'none';
 ```
 
-**CSS variable injection**: Extract a static mapping of core variables from the host page and inject as `:root{...}` in the srcdoc.
+**说明**:
+- `default-src 'none'` 比 `'unsafe-inline'` 更严格(白名单制,显式开放各资源类型)
+- **不允许 `'unsafe-eval'`** — Chart.js / D3 / Mermaid 等主流库无需 eval。少数模板编译类库(如 Vue runtime compiler)受影响,这是已知 tradeoff
+- `connect-src 'none'` — 禁止 widget 发起 fetch/WebSocket(防止数据外泄)
+- 若 v2+ 需要 fetch,再按场景放开
 
-**PostMessage protocol** (v1: listener registered, handler empty):
+**CSS 变量注入**:
+
+宿主(`scene/http_sse/static/index.html`)使用的是 `--bg-primary` / `--text-primary` 等命名,但 framework 给 LLM 的规范是 `--color-background-primary` 等。前端渲染时**做一次映射**:
+
+```js
+// 宿主实际变量名 → framework 规范变量名
+const VAR_MAPPING = {
+  '--color-background-primary': '--bg-primary',
+  '--color-background-secondary': '--bg-secondary',
+  '--color-text-primary': '--text-primary',
+  '--color-text-secondary': '--text-secondary',
+  '--color-border-primary': '--border',
+  '--color-border-secondary': '--border',
+  '--color-accent-primary': '--accent',
+};
+
+const FALLBACKS = {
+  '--color-background-primary': '#ffffff',
+  '--color-background-secondary': '#f5f5f5',
+  '--color-text-primary': '#1a1a1a',
+  '--color-text-secondary': '#666666',
+  '--color-border-primary': '#e0e0e0',
+  '--color-border-secondary': '#cccccc',
+  '--color-accent-primary': '#0066cc',
+};
+
+function buildCssVars() {
+  const rootStyle = getComputedStyle(document.documentElement);
+  const lines = [];
+  for (const [specName, hostName] of Object.entries(VAR_MAPPING)) {
+    const value = rootStyle.getPropertyValue(hostName).trim() || FALLBACKS[specName];
+    lines.push(`${specName}: ${value};`);
+  }
+  return lines.join(' ');
+}
+```
+
+注入方式:srcdoc 内内联 `<style>:root{${cssVars}}</style>`。映射表是 scene 层的实现细节,framework 不感知。
+
+**iframe 隔离说明**:
+
+`sandbox="allow-scripts"`(**不带 `allow-same-origin`**)的安全特性:
+- iframe origin 为 `null`(opaque origin)
+- 无法访问宿主 `document` / `localStorage` / `cookie`
+- 无法通过 `parent.document` 移除 sandbox 属性
+- 与宿主通信**只能通过 `postMessage`**(这是设计意图)
+- CDN 库可正常加载并执行(srcdoc 内的脚本不受 origin 限制)
+
+**为什么不开 `allow-same-origin`**:
+官方文档明确警告 `allow-scripts + allow-same-origin` 组合**等于没有沙箱** — iframe 内脚本可读取宿主任意数据并移除 sandbox 属性。我们不能为了便利牺牲沙箱本质。`postMessage` 协议(v2 启用)足以覆盖回传需求。
+
+**postMessage `origin` 校验**:
+v2 实现 sendPrompt 时,宿主监听 `message` 事件必须检查 `event.source` 是 widget iframe 的 contentWindow(因为 origin 为 `null`,无法用 origin 字段校验,改用 source 引用比对)。
+
+**PostMessage 协议**(v1: 监听器注册,处理函数空实现):
+
 ```js
 // Widget → Host
 { type: "send_prompt", text: "..." }
+
+const widgetFrames = new WeakSet();
+function registerWidget(iframe) { widgetFrames.add(iframe.contentWindow); }
+
+function handleWidgetMessage(e) {
+  if (!widgetFrames.has(e.source)) return;  // 必须用 source 校验
+  if (e.data?.type === "send_prompt") {
+    // v2 激活: 调用 sendMessage(e.data.text)
+  }
+}
+window.addEventListener("message", handleWidgetMessage);
 ```
 
-## Testing
+**错误降级渲染**:
+
+前端检测到 `display.widget.error` 时,不创建 iframe,直接渲染错误提示卡片:
+
+```
+┌────────────────────────────────────┐
+│ ⚠ Widget 渲染失败                  │
+│ 原因: contains_forbidden_tag (body) │
+└────────────────────────────────────┘
+```
+
+iframe 加载失败(如 srcdoc 解析异常)由前端 `iframe.onerror` 兜底,同样降级为错误提示。
+
+## 测试
 
 `tests/tools/test_show_widget.py`:
 
-1. Normal render: `show_widget(html="<div>hi</div>")` → details contains widget with html
-2. Validation rejection: input with `<body>`/`<!DOCTYPE>`/`<html>` → is_error=True
-3. Size limit: >50KB HTML → rejected
-4. Placeholder text: `content[0].text` is `[widget rendered: ...]`
-5. SSE passthrough: simulated ToolExecutionEnd → output contains `widget` key
-6. No pollution: normal tool_end events do not contain `widget` key
+1. **正常渲染**: `show_widget(html="<div>hi</div>")` → `display["widget"]["html"] == "<div>hi</div>"`,`display["widget"].get("error") is None`
+2. **禁止标签拦截**: 输入含 `<body>` → `display["widget"]["error"] == "contains_forbidden_tag"`,`tag == "body"`
+3. **大小限制**: HTML > 50KB → `display["widget"]["error"] == "size_exceeded"`
+4. **占位文本**: `content[0].text` 以 `[widget rendered:` 或 `[widget 渲染失败:` 开头
+5. **SSE 透传(成功)**: 模拟 ToolExecutionEnd → `agent_event_to_sse_json` 输出含 `display.widget.html`
+6. **SSE 透传(错误)**: error 情况下 `display.widget.error` 也能透传
+7. **无污染**: 普通 tool(如 read_file)的 tool_end 事件不含 `display` 键(回归测试)
 
-Frontend: manual verification only (start http_sse, prompt LLM to call show_widget).
+前端:手动验证(启动 http_sse,让 LLM 调用 show_widget;另测一个 `<body>` 错误用例确认降级渲染)。
 
-## Files Changed
+## 改动文件
 
-| File | Action | Lines |
+| 文件 | 操作 | 约行数 |
 |---|---|---|
-| `agent_core/tools/widgets/__init__.py` | New | ~5 |
-| `agent_core/tools/widgets/spec.py` | New | ~50 |
-| `agent_core/tools/widgets/tool.py` | New | ~80 |
-| `scene/http_sse/events.py` | Modify | +4 |
-| `scene/http_sse/static/index.html` | Modify | +60 |
-| `tests/tools/test_show_widget.py` | New | ~80 |
+| `agent_core/tools/widgets/__init__.py` | 新建 | ~5 |
+| `agent_core/tools/widgets/spec.py` | 新建 | ~50 |
+| `agent_core/tools/widgets/tool.py` | 新建 | ~90 |
+| `scene/http_sse/events.py` | 修改 | +4 |
+| `scene/http_sse/static/index.html` | 修改 | +80 |
+| `tests/tools/test_show_widget.py` | 新建 | ~90 |
 
-## Evolution Roadmap
+## 演进路线
 
-| Phase | Content | Trigger |
+| 阶段 | 内容 | 触发条件 |
 |---|---|---|
-| **v1 (this)** | Display-only; iframe + CSP; one-shot HTML; pre-wired postMessage listener | — |
-| **v2** | Activate `sendPrompt`: postMessage → host calls `Agent.prompt()` | v1 stable |
-| **v3** | Structured widget types (chart/form/video_player): `kind` param, dedicated frontend components, lower token cost | After high-frequency widget patterns emerge |
-| **v4** | Streaming token-by-token render (`ctx.on_update`); bidirectional RPC (widget queries agent) | Demand-driven |
+| **v1(本次)** | 纯展示;iframe + CSP;一次性 HTML;预留 postMessage 监听器 | — |
+| **v2** | 激活 `sendPrompt`: postMessage → 宿主调用 `Agent.prompt()` | v1 稳定后 |
+| **v3** | 结构化 widget 类型(chart/form/video_player): `kind` 参数 + 专用前端组件,降低 token 消耗 | 高频 widget 模式出现 |
+| **v4** | 流式 token-by-token 渲染(`ctx.on_update`);双向 RPC(widget 查询 Agent) | 需求驱动 |
 
-## Out of Scope (v1)
+## 不在首版范围
 
-- HTML sanitization (trust iframe + CSP)
-- Widget persistence (session store handles details generically)
-- Fine-grained CSS variable extraction (static mapping is sufficient)
-- Inter-widget communication
-- CLI / voice_ws scene adaptation
+- HTML 深度清洗(信任 iframe sandbox + 严格 CSP)
+- widget 持久化(session store 通用处理 display 字段)
+- 需要 `unsafe-eval` 的模板编译类库(Vue runtime compiler 等)
+- widget 间通信
+- widget 发起 fetch/WebSocket(CSP `connect-src 'none'`)
+- CLI / voice_ws 场景适配
+- sendPrompt 实际激活(v2)
