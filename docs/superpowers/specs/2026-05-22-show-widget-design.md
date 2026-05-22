@@ -43,7 +43,8 @@ LLM 调用 show_widget(html=..., title=..., height=...)
 ```python
 ShowWidgetTool(
     name="show_widget",
-    description=<WIDGET_SPEC 全文>,
+    description=<短描述,~50 字: "渲染一个交互式 HTML widget 到聊天界面。适合可视化、图表、流程图、富展示场景。详细规范见 prompt_snippet。">,
+    prompt_snippet=<WIDGET_SPEC 全文>,
     parameters={
         "type": "object",
         "properties": {
@@ -64,6 +65,11 @@ ShowWidgetTool(
     }
 )
 ```
+
+**为什么拆 description / prompt_snippet**:
+- `description` 字段会随**每个工具调用**发送给模型,WIDGET_SPEC 全文(~600 tokens)放这里会污染所有不相关的工具调用上下文
+- `prompt_snippet` 由 `SystemPromptBuilder` 拼进系统提示,只在该工具被激活时注入,可以借助 prompt cache 摊薄成本
+- 模型仍能完整看到规范,但成本结构更健康
 
 ### 返回结构
 
@@ -109,7 +115,7 @@ ToolResult(
 
 ## WIDGET_SPEC
 
-直接注入 `ToolDefinition.description`,不通过独立 `read_spec` 调用(避免 LLM 跳过)。
+通过 `ToolDefinition.prompt_snippet` 注入到系统提示(由 `SystemPromptBuilder` 拼装),不通过独立 `read_spec` 调用(避免 LLM 跳过)。
 
 ```
 ## show_widget 设计规范(必须遵守)
@@ -176,13 +182,42 @@ if isinstance(evt, ToolExecutionEnd):
 
 ### 前端渲染(index.html)
 
-收到 `tool_end` 事件且 `display?.widget` 存在时:
+**渲染位置决策**: widget 作为**独立块**插入到当前 assistant message 的 `.final-content` 容器内(与 `renderHitlCard` 走同样的路径,参考 `index.html:2247-2250`),而不是塞进 tool step 气泡里。理由:
+- widget 体积大(默认 400px 高),塞进紧凑的 tool step 列表会破坏视觉节奏
+- HITL 表单卡片已经采用同样的"插入 assistant message"模式,保持一致
 
-1. 创建容器 div + 标题标签
-2. 创建 `<iframe sandbox="allow-scripts">`(**不带 `allow-same-origin`**)
-3. 构建 srcdoc: CSP meta + 映射后的 CSS 变量 + HTML 内容
-4. 插入聊天流
-5. 注册 `message` 事件监听器(预留 v2 sendPrompt 接口)
+收到 `tool_end` 事件且 `data.tool_name === "show_widget"` 时,**先于现有的 `tool_end` 处理逻辑**做分支:
+
+```js
+if (data.event === 'tool_end' && data.display?.widget) {
+    // 1. 让现有 tool step 仍标记为 done(用占位文本)
+    const toolStep = steps.findLast(s => s.type === 'tool' && s.status === 'running');
+    if (toolStep) {
+        toolStep.detail = '[widget rendered]';
+        toolStep.status = 'done';
+        if (stepTimers[steps.indexOf(toolStep)]) {
+            clearInterval(stepTimers[steps.indexOf(toolStep)]);
+        }
+        renderSteps();
+    }
+    // 2. 在 assistant 消息块内插入 widget 卡片
+    ensureAssistantMsg();
+    renderWidget(data.display.widget);
+    return;  // 跳过下方默认的 tool_end 处理
+}
+```
+
+**renderWidget 流程**:
+
+1. 检测 `widget.error` → 直接渲染错误卡片,不创建 iframe
+2. 否则创建容器 div + 标题标签
+3. 创建 `<iframe sandbox="allow-scripts">`(**不带 `allow-same-origin`**)
+4. 构建 srcdoc: CSP meta + 映射后的 CSS 变量 + HTML 内容
+5. `iframe.onload` 检查 `contentDocument.documentElement` 是否正常
+   - 正常: 再做一次 `smoothScrollToBottom()`(CDN 库可能延迟撑开内容)
+   - 异常: 移除 iframe,降级为错误卡片
+6. 插入到 `assistantMsg.querySelector('.final-content')`
+7. **页面初始化时**(不在这里)调用一次 `window.addEventListener("message", handleWidgetMessage)`
 
 **CSP 策略**(通过 srcdoc 内 `<meta>` 注入):
 ```
@@ -297,11 +332,12 @@ window.addEventListener("message", handleWidgetMessage);
 2. **禁止标签拦截**: 输入含 `<body>` → `display["widget"]["error"] == "contains_forbidden_tag"`,`tag == "body"`
 3. **大小限制**: HTML > 50KB → `display["widget"]["error"] == "size_exceeded"`
 4. **占位文本**: `content[0].text` 以 `[widget rendered:` 或 `[widget 渲染失败:` 开头
-5. **SSE 透传(成功)**: 模拟 ToolExecutionEnd → `agent_event_to_sse_json` 输出含 `display.widget.html`
-6. **SSE 透传(错误)**: error 情况下 `display.widget.error` 也能透传
-7. **无污染**: 普通 tool(如 read_file)的 tool_end 事件不含 `display` 键(回归测试)
+5. **height 边界**: `height=2000` → 实际存储为 1200;`height=None` → 400
+6. **SSE 透传**: 模拟成功和错误两种 `ToolExecutionEnd` → `agent_event_to_sse_json` 输出均含 `display.widget`
+7. **无污染**: 普通 tool(如 read_file)的 `tool_end` 事件不含 `display` 键(回归测试)
+8. **ToolDefinition 形态**: `tool.definition.description` 短(<200 字),`tool.definition.prompt_snippet` 含 WIDGET_SPEC 全文
 
-前端:手动验证(启动 http_sse,让 LLM 调用 show_widget;另测一个 `<body>` 错误用例确认降级渲染)。
+前端:手动验证(启动 http_sse,让 LLM 调用 show_widget;另测一个 `<body>` 错误用例确认降级渲染;测一次含 CDN script 的 widget 确认 iframe.onload 后滚动正常)。
 
 ## 改动文件
 
@@ -310,9 +346,17 @@ window.addEventListener("message", handleWidgetMessage);
 | `agent_core/tools/widgets/__init__.py` | 新建 | ~5 |
 | `agent_core/tools/widgets/spec.py` | 新建 | ~50 |
 | `agent_core/tools/widgets/tool.py` | 新建 | ~90 |
+| `scene/http_sse/chat_assistant.py` | 修改 | +2(import + register) |
 | `scene/http_sse/events.py` | 修改 | +4 |
-| `scene/http_sse/static/index.html` | 修改 | +80 |
+| `scene/http_sse/static/index.html` | 修改 | +100 |
 | `tests/tools/test_show_widget.py` | 新建 | ~90 |
+
+**chat_assistant.py 改动示例**:
+```python
+from agent_core.tools.widgets import ShowWidgetTool
+# ...
+tool_registry.register(ShowWidgetTool())
+```
 
 ## 演进路线
 
