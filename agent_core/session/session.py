@@ -66,6 +66,46 @@ class AgentSession:
                 store=self._store,
             )
             self._ext_runner = ExtensionRunner(self._extensions, ext_ctx)
+
+        # Chain Extension before_tool_call hooks after any scene-layer hook
+        if self._ext_runner is not None:
+            existing = getattr(self._agent, "_before_tool_call", None)
+
+            async def _chained_before(call_ctx: dict[str, Any]) -> dict[str, Any] | None:
+                result = None
+                if existing is not None:
+                    result = await existing(call_ctx)
+                    if result and result.get("block"):
+                        return result
+
+                ext_result = await self._ext_runner.before_tool_call(call_ctx)
+                if ext_result and ext_result.get("block"):
+                    return ext_result
+
+                merged: dict[str, Any] = {}
+                for r in (result, ext_result):
+                    if r and r.get("inject_metadata"):
+                        merged.update(r["inject_metadata"])
+                return {"inject_metadata": merged} if merged else None
+
+            self._agent._before_tool_call = _chained_before
+
+        # Chain Extension.transform_context
+        if self._extensions:
+            ext_transforms = [getattr(e, "transform_context", None) for e in self._extensions]
+            ext_transforms = [t for t in ext_transforms if callable(t)]
+            if ext_transforms:
+                existing_transform = getattr(self._agent, "_transform_context", None)
+
+                async def _chained_transform(llm_messages, signal):
+                    current = llm_messages
+                    if existing_transform is not None:
+                        current = await existing_transform(current, signal)
+                    for t in ext_transforms:
+                        current = await t(current, signal)
+                    return current
+
+                self._agent._transform_context = _chained_transform
         self._started = True
 
     # ---------- external listeners ----------
