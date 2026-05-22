@@ -91,26 +91,26 @@ ToolResult(
 
 | 检查项 | 行为 |
 |---|---|
-| HTML 大小 > 50KB | 返回错误占位 + `display.widget.error` |
-| 包含 `<html>` / `<head>` / `<body>` / `<!DOCTYPE>` | 同上 |
+| HTML 大小 > 50KB | `raise ValueError("html size exceeds 50KB limit (got {n} bytes)")` |
+| 包含 `<html>` / `<head>` / `<body>` / `<!DOCTYPE>` | `raise ValueError("html contains forbidden tag <{tag}>; 请删除后重新调用 show_widget")` |
 | 正常输入 | 正常返回,`display` 含 widget 元数据 |
 
 **注意 1**: 不做 HTML 深度清洗。安全由 iframe sandbox + CSP 兜底,不重复造轮子。
 
-**注意 2**: `ToolResult` 没有 `is_error` 字段(那是 `ToolExecutionEnd` 事件层的属性,由 loop 根据异常推断)。校验失败不抛异常,而是通过 `display.widget.error` 传递错误,前端据此渲染错误提示。
+**注意 2**: 校验失败时**直接 `raise ValueError`**(带明确的修复指令文案)。`agent_core` 的 loop 捕获工具异常后会:
+- 生成 `ToolExecutionEnd` 事件,`is_error=True`,`result` 含异常信息文本
+- 该错误进入 LLM 上下文,LLM 据此**自行重试**(删除禁止标签后重新调用)
+- 由于没有正常的 `ToolResult` 返回,`display` 字段不再透传,前端不渲染错误卡片;错误的可见反馈来自普通的 tool-error step
 
-**错误返回示例**:
+`ToolResult` 没有 `is_error` 字段(那是 `ToolExecutionEnd` 事件层的属性,由 loop 根据异常推断),因此我们用 raise 而不是返回错误 `ToolResult`。
+
+**错误处理示例**(工具内部):
 ```python
-ToolResult(
-    content=[TextContent(text="[widget 渲染失败: 包含禁止标签 <body>]")],
-    display={
-        "widget": {
-            "version": 1,
-            "error": "contains_forbidden_tag",
-            "tag": "body",
-        }
-    }
-)
+if "<body>" in html.lower():
+    raise ValueError(
+        "html contains forbidden tag <body>; "
+        "请删除 <body> 后重新调用 show_widget"
+    )
 ```
 
 ## WIDGET_SPEC
@@ -129,7 +129,7 @@ ToolResult(
 - ❌ HTML 注释 <!-- -->
 
 ### 2. 代码顺序(强制)
-<style> → HTML 结构 → <script>
+直接以 `<style>` 起始,紧接 HTML 结构,最后 `<script>`;不要写 `<head>` 包裹。
 先到先渲染,JS 必须在 DOM 之后。
 
 ### 3. 坐标系(SVG 模式)
@@ -151,6 +151,8 @@ viewBox="0 0 680 H", width="100%"
 - cdn.jsdelivr.net
 - unpkg.com
 
+- ❌ 不要引用 Google Fonts (fonts.gstatic.com / fonts.googleapis.com)。CSP 已禁止;需要图标请用 cdnjs 上的 Material Icons / Font Awesome UMD 包
+
 ### 6. 复杂度预算
 - 色系:最多 2 种
 - 横向节点:最多 4 个(每个约 140px)
@@ -170,7 +172,7 @@ if isinstance(evt, ToolExecutionEnd):
         "result": _extract_result_text(evt.result),
         "is_error": evt.is_error,
     }
-    # 透传 display 字段(含 widget 元数据,success 和 error 都透传)
+    # 透传 display 字段(仅成功路径会有 widget;失败走 raise,无 ToolResult)
     if (
         hasattr(evt.result, "display")
         and evt.result.display
@@ -186,10 +188,10 @@ if isinstance(evt, ToolExecutionEnd):
 - widget 体积大(默认 400px 高),塞进紧凑的 tool step 列表会破坏视觉节奏
 - HITL 表单卡片已经采用同样的"插入 assistant message"模式,保持一致
 
-收到 `tool_end` 事件且 `data.tool_name === "show_widget"` 时,**先于现有的 `tool_end` 处理逻辑**做分支:
+收到 `tool_end` 事件且 `data.tool_name === "show_widget"` 时,**先于现有的 `tool_end` 处理逻辑**做分支(以 `else if` 链形式嵌入现有 SSE 事件分发器):
 
 ```js
-if (data.event === 'tool_end' && data.display?.widget) {
+} else if (data.event === 'tool_end' && data.display?.widget) {
     // 1. 让现有 tool step 仍标记为 done(用占位文本)
     const toolStep = steps.findLast(s => s.type === 'tool' && s.status === 'running');
     if (toolStep) {
@@ -203,21 +205,22 @@ if (data.event === 'tool_end' && data.display?.widget) {
     // 2. 在 assistant 消息块内插入 widget 卡片
     ensureAssistantMsg();
     renderWidget(data.display.widget);
-    return;  // 跳过下方默认的 tool_end 处理
+} else if (data.event === 'tool_end') {
+    // …现有 tool_end 处理逻辑保持不动…
 }
 ```
 
 **renderWidget 流程**:
 
-1. 检测 `widget.error` → 直接渲染错误卡片,不创建 iframe
-2. 否则创建容器 div + 标题标签
-3. 创建 `<iframe sandbox="allow-scripts">`(**不带 `allow-same-origin`**)
-4. 构建 srcdoc: CSP meta + 映射后的 CSS 变量 + HTML 内容
-5. `iframe.onload` 检查 `contentDocument.documentElement` 是否正常
-   - 正常: 再做一次 `smoothScrollToBottom()`(CDN 库可能延迟撑开内容)
-   - 异常: 移除 iframe,降级为错误卡片
-6. 插入到 `assistantMsg.querySelector('.final-content')`
+1. 创建容器 div + 标题标签(成功路径下才会被调用;失败走 raise → tool-error step)
+2. 创建 `<iframe sandbox="allow-scripts">`(**不带 `allow-same-origin`**)
+3. 构建 srcdoc: CSP meta + 映射后的 CSS 变量 + HTML 内容
+4. `iframe.onload` 后做一次 `smoothScrollToBottom()`(CDN 库可能延迟撑开内容)
+5. 插入到 `assistantMsg.querySelector('.final-content')`
+6. 调用 `registerWidget(iframe)` 注册到 `widgetFrames`,供 v2 sendPrompt 校验来源
 7. **页面初始化时**(不在这里)调用一次 `window.addEventListener("message", handleWidgetMessage)`
+
+**渲染位置补充**: 若当前没有 assistant 气泡(LLM 直接调用 widget 无文本),由 `ensureAssistantMsg()` 创建一个新气泡承载 widget。此时 `usage-info` 仍贴在该气泡末尾,视觉上 widget 即气泡主体。这是已知 tradeoff,v1 接受。
 
 **CSP 策略**(通过 srcdoc 内 `<meta>` 注入):
 ```
@@ -234,6 +237,7 @@ connect-src 'none';
 - **不允许 `'unsafe-eval'`** — Chart.js / D3 / Mermaid 等主流库无需 eval。少数模板编译类库(如 Vue runtime compiler)受影响,这是已知 tradeoff
 - `connect-src 'none'` — 禁止 widget 发起 fetch/WebSocket(防止数据外泄)
 - `img-src https:` — 只允许 HTTPS 图片,阻止 HTTP 追踪像素和明文资源
+- **`script-src` 同时管控 ES Module 的 `import` 子加载**。若 LLM 使用 esm.sh 的 ESM 模式,所有 `import` 链路上的资源都必须在 `script-src` 白名单内。esm.sh 的 import 链可能跨多个域名(transitive deps),实际命中白名单的概率较低。**推荐 LLM 使用 cdnjs / jsdelivr 的 UMD 版本以简化加载链**
 - 若 v2+ 需要 fetch,再按场景放开
 
 **CSS 变量注入**:
@@ -311,33 +315,28 @@ function handleWidgetMessage(e) {
 window.addEventListener("message", handleWidgetMessage);
 ```
 
-**错误降级渲染**:
+**错误降级**:
 
-前端检测到 `display.widget.error` 时,不创建 iframe,直接渲染错误提示卡片:
+v1 不做 iframe 内部错误检测(`srcdoc` 模式无法可靠检测内容错误:`onerror` 不触发,`documentElement` 即使 srcdoc 为空字符串也存在,检查恒为 true)。错误的可见反馈走两条路径:
+1. **后端校验失败**: 工具 `raise ValueError` → loop 转为 `is_error=True` 的 `ToolExecutionEnd` → 前端走普通 tool-error step → LLM 看到错误自动重试
+2. **iframe 内部运行时错误**(CDN 404、JS 异常等): v1 不处理,用户在浏览器 devtools 中可见
 
-```
-┌────────────────────────────────────┐
-│ ⚠ Widget 渲染失败                  │
-│ 原因: contains_forbidden_tag (body) │
-└────────────────────────────────────┘
-```
-
-**注意**: `srcdoc` 模式下 `iframe.onerror` 不会触发(没有网络请求)。错误检测通过 `iframe.onload` 完成,在 load 后检查 `contentDocument` 是否正常(如 `documentElement` 是否存在)。若检查失败,降级渲染错误提示并移除 iframe。
+后端校验是唯一防线。仅在 `iframe.onload` 后调用一次 `smoothScrollToBottom()` 应对 CDN 异步加载导致的高度变化。
 
 ## 测试
 
 `tests/tools/test_show_widget.py`:
 
-1. **正常渲染**: `show_widget(html="<div>hi</div>")` → `display["widget"]["html"] == "<div>hi</div>"`,`display["widget"].get("error") is None`
-2. **禁止标签拦截**: 输入含 `<body>` → `display["widget"]["error"] == "contains_forbidden_tag"`,`tag == "body"`
-3. **大小限制**: HTML > 50KB → `display["widget"]["error"] == "size_exceeded"`
-4. **占位文本**: `content[0].text` 以 `[widget rendered:` 或 `[widget 渲染失败:` 开头
+1. **正常渲染**: `show_widget(html="<div>hi</div>")` → `display["widget"]["html"] == "<div>hi</div>"`
+2. **禁止标签拦截**: 输入含 `<body>` → `pytest.raises(ValueError, match="forbidden tag")`,异常信息含 "请删除"
+3. **大小限制**: HTML > 50KB → `pytest.raises(ValueError, match="size exceeds")`
+4. **占位文本**: 正常路径下 `content[0].text` 以 `[widget rendered:` 开头
 5. **height 边界**: `height=2000` → 实际存储为 1200;`height=None` → 400
-6. **SSE 透传**: 模拟成功和错误两种 `ToolExecutionEnd` → `agent_event_to_sse_json` 输出均含 `display.widget`
+6. **SSE 透传**: 模拟成功 `ToolExecutionEnd` → `agent_event_to_sse_json` 输出含 `display.widget`;模拟异常路径(loop 生成的 `is_error=True` 事件)→ 不含 `display`
 7. **无污染**: 普通 tool(如 read_file)的 `tool_end` 事件不含 `display` 键(回归测试)
 8. **ToolDefinition 形态**: `tool.definition.description` 短(<200 字),`tool.definition.prompt_snippet` 含 WIDGET_SPEC 全文
 
-前端:手动验证(启动 http_sse,让 LLM 调用 show_widget;另测一个 `<body>` 错误用例确认降级渲染;测一次含 CDN script 的 widget 确认 iframe.onload 后滚动正常)。
+前端:手动验证(启动 http_sse,让 LLM 调用 show_widget;另测一个 `<body>` 错误用例确认 LLM 收到错误后会重试;测一次含 CDN script 的 widget 确认 iframe.onload 后滚动正常)。
 
 ## 改动文件
 
