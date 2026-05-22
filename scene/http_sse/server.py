@@ -20,6 +20,7 @@ from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
 
 from scene.http_sse.events import agent_event_to_sse_json
 from scene.http_sse.manager import SessionManager
+from scene.http_sse.request_context import current_request_headers
 
 
 class ChatRequest(BaseModel):
@@ -99,6 +100,7 @@ async def _event_stream(
 @app.post("/chat/stream")
 async def chat_stream(request: Request, chat_request: ChatRequest) -> StreamingResponse:
     session_id = request.query_params.get("session_id")
+    current_request_headers.set(dict(request.headers))
     return StreamingResponse(
         _event_stream(session_id, chat_request.message),
         media_type="text/event-stream",

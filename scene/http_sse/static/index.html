@@ -837,7 +837,8 @@
         }
 
         .hitl-field input[type="text"],
-        .hitl-field textarea {
+        .hitl-field textarea,
+        .hitl-field select {
             padding: 0.6rem 0.8rem;
             border: 1px solid var(--border);
             border-radius: 8px;
@@ -850,8 +851,37 @@
         }
 
         .hitl-field input[type="text"]:focus,
-        .hitl-field textarea:focus {
+        .hitl-field textarea:focus,
+        .hitl-field select:focus {
             border-color: rgba(99, 102, 241, 0.5);
+        }
+
+        .hitl-field select {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a0a0b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            padding-right: 2rem;
+            cursor: pointer;
+        }
+
+        .hitl-field select option {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .hitl-select-preview {
+            display: none;
+            margin-top: 0.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            max-width: 200px;
+            max-height: 120px;
+            object-fit: cover;
+        }
+
+        .hitl-select-preview.show {
+            display: block;
         }
 
         .hitl-field textarea {
@@ -884,6 +914,67 @@
         .hitl-upload-btn:hover {
             border-color: rgba(99, 102, 241, 0.5);
             color: var(--text-primary);
+        }
+
+        .hitl-image-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .hitl-image-thumb {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+        }
+        .hitl-image-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .hitl-image-remove {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.65);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            cursor: pointer;
+            border: none;
+            line-height: 1;
+        }
+        .hitl-image-remove:hover {
+            background: rgba(239, 68, 68, 0.9);
+        }
+        .hitl-image-hint {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            margin-top: 0.3rem;
+            opacity: 0.7;
+        }
+
+        .hitl-required {
+            color: #f87171;
+            margin-left: 0.2rem;
+        }
+        .hitl-field-error {
+            border-color: rgba(239, 68, 68, 0.55) !important;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12);
+        }
+        .hitl-error-text {
+            color: #fca5a5;
+            font-size: 0.78rem;
+            margin-top: 0.35rem;
         }
 
         .hitl-image-preview {
@@ -1051,6 +1142,14 @@
             margin: 0.4rem 0;
             border-radius: 8px;
         }
+        .result-video {
+            display: block;
+            width: 100%;
+            max-width: 400px;
+            margin: 0.4rem 0;
+            border-radius: 8px;
+            background: #000;
+        }
         .result-image {
             max-width: 100%;
             max-height: 400px;
@@ -1106,6 +1205,72 @@
         .result-link:hover {
             text-decoration: underline;
         }
+
+        /* Auth modal */
+        .auth-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .auth-modal.show { display: flex; }
+        .auth-modal-body {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.5rem;
+            width: 380px;
+            max-width: 92vw;
+            box-shadow: var(--shadow);
+            animation: slideIn 0.25s ease-out;
+        }
+        .auth-modal-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+        }
+        .auth-modal-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            line-height: 1.5;
+        }
+        .auth-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            margin-bottom: 0.7rem;
+        }
+        .auth-field label {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+        .auth-field input {
+            padding: 0.55rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.82rem;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+        .auth-field input:focus {
+            border-color: rgba(99, 102, 241, 0.5);
+        }
+        .auth-modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        .auth-modal-actions button {
+            flex: 1;
+        }
     </style>
 </head>
 <body>
@@ -1120,6 +1285,7 @@
                 <span>在线</span>
             </div>
             <button class="btn btn-danger" id="cancel-btn" style="display:none;">⏹ 取消</button>
+            <button class="btn" id="auth-btn" title="设置 AIGC 认证 Header">🔑 认证</button>
             <button class="btn" id="new-session-btn">新会话</button>
         </div>
     </header>
@@ -1138,6 +1304,21 @@
     </div>
 
     <div id="pending-bubbles" class="pending-bubbles"></div>
+
+    <div id="auth-modal" class="auth-modal">
+        <div class="auth-modal-body">
+            <div class="auth-modal-title">设置 AIGC 认证</div>
+            <div class="auth-modal-desc">用于触发 <code>create_*</code> 工具时附加到 HTTP header。保存在浏览器本地。</div>
+            <div class="auth-field"><label>uid</label><input id="auth-uid" autocomplete="off"></div>
+            <div class="auth-field"><label>deviceid</label><input id="auth-deviceid" autocomplete="off"></div>
+            <div class="auth-field"><label>channel</label><input id="auth-channel" autocomplete="off" placeholder="014000D"></div>
+            <div class="auth-field"><label>pacmtoken</label><input id="auth-pacmtoken" autocomplete="off"></div>
+            <div class="auth-modal-actions">
+                <button class="btn" id="auth-cancel">取消</button>
+                <button class="btn btn-primary" id="auth-save">保存</button>
+            </div>
+        </div>
+    </div>
 
     <div id="input-area">
         <div class="input-wrapper">
@@ -1161,8 +1342,71 @@
         const sendBtn = document.getElementById('send-btn');
         const cancelBtn = document.getElementById('cancel-btn');
         const newSessionBtn = document.getElementById('new-session-btn');
+        const authBtn = document.getElementById('auth-btn');
+        const authModal = document.getElementById('auth-modal');
         const welcome = document.getElementById('welcome');
         const pendingBubblesEl = document.getElementById('pending-bubbles');
+
+        const AUTH_KEYS = ['uid', 'deviceid', 'channel', 'pacmtoken'];
+        const AUTH_STORAGE_KEY = 'aigc_auth';
+
+        function loadAuth() {
+            try {
+                return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || '{}');
+            } catch {
+                return {};
+            }
+        }
+
+        function saveAuth(obj) {
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(obj));
+            refreshAuthBadge();
+        }
+
+        function buildAuthHeaders() {
+            const auth = loadAuth();
+            const headers = {};
+            AUTH_KEYS.forEach(k => {
+                if (auth[k]) headers[k] = auth[k];
+            });
+            return headers;
+        }
+
+        function refreshAuthBadge() {
+            const auth = loadAuth();
+            const hasAny = AUTH_KEYS.some(k => auth[k]);
+            authBtn.textContent = hasAny ? '🔑 已认证' : '🔑 认证';
+            authBtn.style.background = hasAny ? 'rgba(16, 185, 129, 0.15)' : '';
+            authBtn.style.borderColor = hasAny ? 'rgba(16, 185, 129, 0.35)' : '';
+        }
+
+        function openAuthModal() {
+            const auth = loadAuth();
+            AUTH_KEYS.forEach(k => {
+                document.getElementById('auth-' + k).value = auth[k] || '';
+            });
+            authModal.classList.add('show');
+        }
+
+        function closeAuthModal() {
+            authModal.classList.remove('show');
+        }
+
+        authBtn.addEventListener('click', openAuthModal);
+        document.getElementById('auth-cancel').addEventListener('click', closeAuthModal);
+        document.getElementById('auth-save').addEventListener('click', () => {
+            const obj = {};
+            AUTH_KEYS.forEach(k => {
+                const v = document.getElementById('auth-' + k).value.trim();
+                if (v) obj[k] = v;
+            });
+            saveAuth(obj);
+            closeAuthModal();
+        });
+        authModal.addEventListener('click', (e) => {
+            if (e.target === authModal) closeAuthModal();
+        });
+        refreshAuthBadge();
 
         // Example chips
         document.querySelectorAll('.example-chip').forEach(chip => {
@@ -1229,37 +1473,136 @@
 
                 const label = document.createElement('label');
                 label.textContent = field.label || field.name;
+                if (field.required) {
+                    const star = document.createElement('span');
+                    star.className = 'hitl-required';
+                    star.textContent = '*';
+                    label.appendChild(star);
+                }
                 fieldWrap.appendChild(label);
 
-                if (field.type === 'image_upload') {
+                if (field.type === 'select') {
+                    const select = document.createElement('select');
+                    const placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = field.placeholder || '请选择…';
+                    placeholder.disabled = true;
+                    placeholder.selected = true;
+                    select.appendChild(placeholder);
+
+                    const preview = document.createElement('img');
+                    preview.className = 'hitl-select-preview';
+                    preview.alt = 'preview';
+
+                    const optMap = {};
+                    (field.options || []).forEach(opt => {
+                        const o = document.createElement('option');
+                        o.value = opt.value;
+                        o.textContent = opt.label || opt.value;
+                        select.appendChild(o);
+                        optMap[opt.value] = opt;
+                    });
+
+                    select.addEventListener('change', (e) => {
+                        fieldValues[field.name] = e.target.value;
+                        const opt = optMap[e.target.value];
+                        if (opt && opt.preview_url) {
+                            preview.src = opt.preview_url;
+                            preview.classList.add('show');
+                        } else {
+                            preview.classList.remove('show');
+                        }
+                    });
+
+                    fieldWrap.appendChild(select);
+                    fieldWrap.appendChild(preview);
+                } else if (field.type === 'image_upload') {
+                    const max = field.max || 1;
+                    const accept = Array.isArray(field.accept) && field.accept.length
+                        ? field.accept.join(',')
+                        : 'image/*';
+                    fieldValues[field.name] = [];
+
                     const uploadWrap = document.createElement('div');
                     uploadWrap.className = 'hitl-image-upload';
 
                     const fileInput = document.createElement('input');
                     fileInput.type = 'file';
-                    fileInput.accept = 'image/*';
-                    fileInput.dataset.name = field.name;
+                    fileInput.accept = accept;
+                    fileInput.multiple = max > 1;
 
                     const uploadBtn = document.createElement('label');
                     uploadBtn.className = 'hitl-upload-btn';
-                    uploadBtn.textContent = '📎 选择图片';
+                    const updateBtnText = () => {
+                        const count = fieldValues[field.name].length;
+                        uploadBtn.firstChild ? uploadBtn.firstChild.remove() : null;
+                        uploadBtn.insertBefore(
+                            document.createTextNode(
+                                count > 0
+                                    ? `📎 已选 ${count}/${max}，继续添加`
+                                    : `📎 选择图片（最多 ${max} 张）`
+                            ),
+                            uploadBtn.firstChild,
+                        );
+                    };
                     uploadBtn.appendChild(fileInput);
+                    updateBtnText();
 
-                    const preview = document.createElement('img');
-                    preview.className = 'hitl-image-preview';
-                    preview.style.display = 'none';
+                    const grid = document.createElement('div');
+                    grid.className = 'hitl-image-grid';
+
+                    const hint = document.createElement('div');
+                    hint.className = 'hitl-image-hint';
+
+                    const renderGrid = () => {
+                        grid.innerHTML = '';
+                        fieldValues[field.name].forEach((b64, idx) => {
+                            const thumb = document.createElement('div');
+                            thumb.className = 'hitl-image-thumb';
+                            const img = document.createElement('img');
+                            img.src = b64;
+                            thumb.appendChild(img);
+                            const remove = document.createElement('button');
+                            remove.type = 'button';
+                            remove.className = 'hitl-image-remove';
+                            remove.textContent = '×';
+                            remove.addEventListener('click', () => {
+                                fieldValues[field.name].splice(idx, 1);
+                                renderGrid();
+                                updateBtnText();
+                                hint.textContent = '';
+                            });
+                            thumb.appendChild(remove);
+                            grid.appendChild(thumb);
+                        });
+                    };
 
                     fileInput.addEventListener('change', async (e) => {
-                        const file = e.target.files[0];
-                        if (!file) return;
-                        const base64 = await fileToBase64(file);
-                        fieldValues[field.name] = base64;
-                        preview.src = base64;
-                        preview.style.display = 'block';
+                        const files = Array.from(e.target.files || []);
+                        const remaining = max - fieldValues[field.name].length;
+                        if (remaining <= 0) {
+                            hint.textContent = `已达上限 ${max} 张`;
+                            fileInput.value = '';
+                            return;
+                        }
+                        const toAdd = files.slice(0, remaining);
+                        if (files.length > toAdd.length) {
+                            hint.textContent = `已截取前 ${toAdd.length} 张（上限 ${max}）`;
+                        } else {
+                            hint.textContent = '';
+                        }
+                        for (const f of toAdd) {
+                            const b64 = await fileToBase64(f);
+                            fieldValues[field.name].push(b64);
+                        }
+                        fileInput.value = '';
+                        renderGrid();
+                        updateBtnText();
                     });
 
                     uploadWrap.appendChild(uploadBtn);
-                    uploadWrap.appendChild(preview);
+                    uploadWrap.appendChild(hint);
+                    uploadWrap.appendChild(grid);
                     fieldWrap.appendChild(uploadWrap);
                 } else if (field.type === 'audio_record') {
                     const audioWrap = document.createElement('div');
@@ -1358,8 +1701,41 @@
 
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
+
+                // Clear previous errors
+                form.querySelectorAll('.hitl-error-text').forEach(el => el.remove());
+                form.querySelectorAll('.hitl-field-error').forEach(el => el.classList.remove('hitl-field-error'));
+
+                // Validate required fields
+                const missing = [];
+                fields.forEach((field, idx) => {
+                    if (!field.required) return;
+                    const v = fieldValues[field.name];
+                    const empty = v === undefined || v === null || v === ''
+                        || (Array.isArray(v) && v.length === 0);
+                    if (empty) {
+                        missing.push(field.label || field.name);
+                        const fw = form.querySelectorAll('.hitl-field')[idx];
+                        if (fw) {
+                            const ctrl = fw.querySelector('select, input, textarea, .hitl-upload-btn');
+                            if (ctrl) ctrl.classList.add('hitl-field-error');
+                            const err = document.createElement('div');
+                            err.className = 'hitl-error-text';
+                            err.textContent = '必填';
+                            fw.appendChild(err);
+                        }
+                    }
+                });
+                if (missing.length > 0) {
+                    statusDiv.style.display = 'block';
+                    statusDiv.style.color = 'var(--error)';
+                    statusDiv.textContent = `请填写: ${missing.join('、')}`;
+                    return;
+                }
+
                 submitBtn.disabled = true;
                 statusDiv.style.display = 'block';
+                statusDiv.style.color = '';
                 statusDiv.textContent = '提交中...';
 
                 try {
@@ -1478,6 +1854,10 @@
             if (/^https?:\/\/.*\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i.test(trimmed)) {
                 return `<audio class="result-audio" controls src="${escapeHtml(trimmed)}"></audio>`;
             }
+            // Video URL
+            if (/^https?:\/\/.*\.(mp4|mov|webm|m3u8)(\?.*)?$/i.test(trimmed)) {
+                return `<video class="result-video" controls preload="metadata" src="${escapeHtml(trimmed)}"></video>`;
+            }
             // Image URL
             if (/^https?:\/\/.*\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(trimmed)) {
                 return `<img class="result-image" src="${escapeHtml(trimmed)}" alt="result" loading="lazy">`;
@@ -1570,7 +1950,6 @@
                     if (!extractedThinkContents.has(thinkContent)) {
                         extractedThinkContents.add(thinkContent);
                         steps.push({ type: 'think', label: '思考过程', detail: thinkContent, status: 'done', isError: false });
-                        thinkRegex.lastIndex = 0;
                     }
                 }
             }
@@ -1757,7 +2136,7 @@
             try {
                 const response = await fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...buildAuthHeaders() },
                     body: JSON.stringify({ message: text }),
                 });
 

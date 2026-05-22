@@ -13,7 +13,7 @@
 | 2026-05-14 | 7. CLI `.env` 加载修复  8. CLI 错误可见性  9. CLI 四优化  10. Skill 调用验证  11. CLI 输出规范化  12. SSE Chat 前端重构  13. HTTP 400 + think 闪现修复 | [2026-05-14.md](development-log/2026-05-14.md) |
 | 2026-05-15 | 14. Turn 级 Human-in-the-Loop 机制（工具暂停 → 前端卡片输入 → loop 恢复） | [2026-05-15.md](development-log/2026-05-15.md) |
 | 2026-05-18 | 18. agent-core 架构优化：工具可插拔性、资源发现加载、系统提示词构建 | [2026-05-18.md](development-log/2026-05-18.md) |
-| 2026-05-22 | 19. Memory & Retrieval 基础子系统：Protocol + 内存适配器 + Extension/Tool 桥接 | [2026-05-22.md](development-log/2026-05-22.md) |
+| 2026-05-22 | 19. Memory & Retrieval 基础子系统：Protocol + 内存适配器 + Extension/Tool 桥接  20. AIGC 视频生成工具 + HTTP/SSE 请求级鉴权透传 | [2026-05-22.md](development-log/2026-05-22.md) |
 
 ---
 

@@ -167,6 +167,8 @@ async def _run_single_tool(
         )
         return tool_call, result, True
 
+    _extra_metadata: dict[str, Any] = {}
+
     if before is not None:
         try:
             hook_result = await before(
@@ -181,6 +183,8 @@ async def _run_single_tool(
                     ]
                 )
                 return tool_call, result, True
+            if hook_result and hook_result.get("inject_metadata"):
+                _extra_metadata.update(hook_result["inject_metadata"])
         except Exception as exc:
             logger.debug("before_tool_call hook failed: %s", exc)
 
@@ -188,6 +192,7 @@ async def _run_single_tool(
         signal=abort_event,
         mutation_queue=mutation_queue,
         on_update=on_update,
+        metadata=_extra_metadata,
     )
     try:
         result = await tool.execute(

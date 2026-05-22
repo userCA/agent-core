@@ -28,13 +28,38 @@ from agent_core.prompts.builder import SystemPromptBuilder
 from agent_core.resources.loader import ResourceLoader
 from agent_core.resources.types import Skill
 from agent_core.tools.base import Tool, ToolRegistry
+from agent_core.tools.aigc_creation import create_nolo_video_tool
 from agent_core.tools.local import create_all_tools
 from agent_core.tools.music import create_text_to_music_tool
+
+from scene.http_sse.request_context import current_request_headers
 
 
 def _generate_session_id() -> str:
     import time
     return f"scene-{int(time.time() * 1000)}"
+
+
+async def _auth_before_tool_call(info: dict[str, Any]) -> dict[str, Any] | None:
+    """Inject AIGC auth headers into ToolContext.metadata."""
+    tool_call = info.get("tool_call")
+    if tool_call is None:
+        return None
+    name = getattr(tool_call, "name", "")
+    if not name.startswith("create_"):
+        return None
+
+    headers = current_request_headers.get({})
+    return {
+        "inject_metadata": {
+            "aigc_auth": {
+                "uid": headers.get("uid"),
+                "deviceid": headers.get("deviceid"),
+                "channel": headers.get("channel"),
+                "pacmtoken": headers.get("pacmtoken"),
+            }
+        }
+    }
 
 EventHandler = Callable[[AgentEvent], Awaitable[None] | None]
 
@@ -97,6 +122,7 @@ class ChatAssistant:
         for tool in local_tools.values():
             tool_registry.register(tool)
         tool_registry.register(create_text_to_music_tool())
+        tool_registry.register(create_nolo_video_tool())
         if tools:
             for tool in tools:
                 tool_registry.register(tool)
@@ -159,6 +185,7 @@ class ChatAssistant:
             auth_source=auth_source,
             tool_registry=tool_registry,
             tool_execution="sequential",
+            before_tool_call=_auth_before_tool_call,
         )
 
         assistant = cls(
