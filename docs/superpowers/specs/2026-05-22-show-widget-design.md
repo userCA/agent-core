@@ -189,7 +189,7 @@ if isinstance(evt, ToolExecutionEnd):
 default-src 'none';
 script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://esm.sh https://cdn.jsdelivr.net https://unpkg.com;
 style-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com;
-img-src * data:;
+img-src https: data:;
 font-src https://cdnjs.cloudflare.com https://cdn.jsdelivr.net data:;
 connect-src 'none';
 ```
@@ -198,6 +198,7 @@ connect-src 'none';
 - `default-src 'none'` 比 `'unsafe-inline'` 更严格(白名单制,显式开放各资源类型)
 - **不允许 `'unsafe-eval'`** — Chart.js / D3 / Mermaid 等主流库无需 eval。少数模板编译类库(如 Vue runtime compiler)受影响,这是已知 tradeoff
 - `connect-src 'none'` — 禁止 widget 发起 fetch/WebSocket(防止数据外泄)
+- `img-src https:` — 只允许 HTTPS 图片,阻止 HTTP 追踪像素和明文资源
 - 若 v2+ 需要 fetch,再按场景放开
 
 **CSS 变量注入**:
@@ -217,13 +218,14 @@ const VAR_MAPPING = {
 };
 
 const FALLBACKS = {
-  '--color-background-primary': '#ffffff',
-  '--color-background-secondary': '#f5f5f5',
-  '--color-text-primary': '#1a1a1a',
-  '--color-text-secondary': '#666666',
-  '--color-border-primary': '#e0e0e0',
-  '--color-border-secondary': '#cccccc',
-  '--color-accent-primary': '#0066cc',
+  // 暗色主题 fallback(匹配宿主 #0f0f23 背景),避免亮色卡片突兀出现在暗色页面上
+  '--color-background-primary': '#0f0f23',
+  '--color-background-secondary': '#1a1a2e',
+  '--color-text-primary': '#e8e8f0',
+  '--color-text-secondary': '#a0a0b8',
+  '--color-border-primary': 'rgba(255,255,255,0.1)',
+  '--color-border-secondary': 'rgba(255,255,255,0.06)',
+  '--color-accent-primary': '#6366f1',
 };
 
 function buildCssVars() {
@@ -254,7 +256,7 @@ function buildCssVars() {
 **postMessage `origin` 校验**:
 v2 实现 sendPrompt 时,宿主监听 `message` 事件必须检查 `event.source` 是 widget iframe 的 contentWindow(因为 origin 为 `null`,无法用 origin 字段校验,改用 source 引用比对)。
 
-**PostMessage 协议**(v1: 监听器注册,处理函数空实现):
+**PostMessage 协议**(v1: 监听器在**页面初始化时注册一次**,处理函数空实现):
 
 ```js
 // Widget → Host
@@ -269,6 +271,8 @@ function handleWidgetMessage(e) {
     // v2 激活: 调用 sendMessage(e.data.text)
   }
 }
+
+// ⚠ 只在页面初始化时注册一次,不在每次收到 widget 事件时重复注册
 window.addEventListener("message", handleWidgetMessage);
 ```
 
@@ -283,7 +287,7 @@ window.addEventListener("message", handleWidgetMessage);
 └────────────────────────────────────┘
 ```
 
-iframe 加载失败(如 srcdoc 解析异常)由前端 `iframe.onerror` 兜底,同样降级为错误提示。
+**注意**: `srcdoc` 模式下 `iframe.onerror` 不会触发(没有网络请求)。错误检测通过 `iframe.onload` 完成,在 load 后检查 `contentDocument` 是否正常(如 `documentElement` 是否存在)。若检查失败,降级渲染错误提示并移除 iframe。
 
 ## 测试
 
@@ -328,3 +332,5 @@ iframe 加载失败(如 srcdoc 解析异常)由前端 `iframe.onerror` 兜底,�
 - widget 发起 fetch/WebSocket(CSP `connect-src 'none'`)
 - CLI / voice_ws 场景适配
 - sendPrompt 实际激活(v2)
+- **iframe 高度自适应**(height 是静态值,JS 动态加载内容不会自动撑开)
+- **`<a>` 链接点击行为**(在 iframe 内导航,替换当前 widget 内容;`target="_top"` 和 `target="_blank"` 因 sandbox 限制而失败)
