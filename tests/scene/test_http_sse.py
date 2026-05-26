@@ -53,7 +53,12 @@ def test_thinking_delta():
 def test_tool_start():
     evt = ToolExecutionStart(tool_call_id="tc1", tool_name="ls", args={"path": "/tmp"})
     result = agent_event_to_sse_json(evt)
-    assert result == {"event": "tool_start", "tool_name": "ls", "args": {"path": "/tmp"}}
+    assert result == {
+        "event": "tool_start",
+        "tool_name": "ls",
+        "tool_call_id": "tc1",
+        "args": {"path": "/tmp"},
+    }
 
 
 def test_tool_end():
@@ -64,6 +69,7 @@ def test_tool_end():
     assert result == {
         "event": "tool_end",
         "tool_name": "ls",
+        "tool_call_id": "tc1",
         "result": "file.txt",
         "is_error": False,
     }

@@ -1,0 +1,54 @@
+import React from 'react';
+import { useChatStore } from '../../stores/chat-store';
+import { useSessionStore } from '../../stores/session-store';
+import { useUIStore } from '../../stores/ui-store';
+import './Header.css';
+
+interface Props {
+  onAbort: () => void;
+}
+
+export default function Header({ onAbort }: Props) {
+  const isStreaming = useChatStore((s) => s.isStreaming);
+  const hasAuth = useSessionStore((s) => s.hasAuth);
+  const setAuthModalOpen = useUIStore((s) => s.setAuthModalOpen);
+  const reset = useChatStore((s) => s.reset);
+  const clearSession = useSessionStore((s) => s.clearSession);
+  const setWelcomeVisible = useUIStore((s) => s.setWelcomeVisible);
+  const setInputValue = useUIStore((s) => s.setInputValue);
+
+  const handleNewSession = () => {
+    clearSession();
+    reset();
+    setInputValue('');
+    setWelcomeVisible(true);
+  };
+
+  return (
+    <header className="app-header">
+      <div className="logo">
+        <pre className="logo-art">{`  /\\_/\\   咪兔
+ ( o.o )  你的AI伙伴
+ ( > < )
+`}</pre>
+      </div>
+      <div className="header-actions">
+        <span className="status-badge">
+          <span className={`status-dot ${isStreaming ? 'pulse' : ''}`} />
+          {isStreaming ? '[#] running' : '[x] ready'}
+        </span>
+        {isStreaming && (
+          <button className="btn btn-danger" onClick={onAbort}>
+            [!] cancel
+          </button>
+        )}
+        <button className="btn" onClick={() => setAuthModalOpen(true)}>
+          {hasAuth ? '[key] authed' : '[key] auth'}
+        </button>
+        <button className="btn" onClick={handleNewSession}>
+          [+] new
+        </button>
+      </div>
+    </header>
+  );
+}

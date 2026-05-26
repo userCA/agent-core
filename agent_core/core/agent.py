@@ -37,7 +37,7 @@ Listener = Callable[[AgentEvent], Awaitable[None] | None]
 Unsubscribe = Callable[[], None]
 
 
-def _default_convert_to_llm() -> ConvertToLlm:
+def _default_convert_to_llm(tool_result_max_chars: int = 4000) -> ConvertToLlm:
     async def convert(messages: list[Any]) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         for m in messages:
@@ -67,13 +67,23 @@ def _default_convert_to_llm() -> ConvertToLlm:
                 text_parts = "".join(
                     c.text for c in m.content if getattr(c, "type", None) == "text"
                 )
-                # Hard cap to prevent context window overflow from accidental large payloads
-                MAX_TOOL_RESULT = 4000
-                if len(text_parts) > MAX_TOOL_RESULT:
-                    text_parts = text_parts[:MAX_TOOL_RESULT] + f"\n...[truncated, {len(text_parts)} chars total]"
+                if len(text_parts) > tool_result_max_chars:
+                    text_parts = text_parts[:tool_result_max_chars] + f"\n...[truncated, {len(text_parts)} chars total]"
                 out.append(
                     {"role": "tool", "tool_call_id": m.tool_call_id, "content": text_parts}
                 )
+            elif role == "custom":
+                custom_type = getattr(m, "custom_type", "")
+                if custom_type == "compaction_summary":
+                    content = getattr(m, "content", "")
+                    if isinstance(content, str):
+                        text = content
+                    else:
+                        text = str(content)
+                    out.append({
+                        "role": "system",
+                        "content": f"[Earlier conversation summary]\n{text}",
+                    })
         return out
 
     return convert
@@ -112,18 +122,24 @@ class Agent:
         before_tool_call: Any | None = None,
         after_tool_call: Any | None = None,
         tool_execution: str = "parallel",
+        tool_timeout: float | None = 120.0,
+        max_turns: int | None = None,
+        tool_result_max_chars: int = 4000,
         steering_mode: QueueMode = "one-at-a-time",
         followup_mode: QueueMode = "one-at-a-time",
     ) -> None:
         self.state: AgentState = initial_state or AgentState()
         self._provider = provider
         self._auth_source = auth_source
-        self._convert_to_llm = convert_to_llm or _default_convert_to_llm()
+        self._convert_to_llm = convert_to_llm or _default_convert_to_llm(tool_result_max_chars)
         self._transform_context = transform_context
         self._tool_registry = tool_registry
         self._before_tool_call = before_tool_call
         self._after_tool_call = after_tool_call
         self._tool_execution = tool_execution
+        self._tool_timeout = tool_timeout
+        self._max_turns = max_turns
+        self._tool_result_max_chars = tool_result_max_chars
         self._steering = PendingMessageQueue(steering_mode)
         self._follow_up = PendingMessageQueue(followup_mode)
         self._human_input_gate = HumanInputGate()
@@ -256,6 +272,9 @@ class Agent:
                 tool_registry=self._tool_registry,
                 before_tool_call=self._before_tool_call,
                 after_tool_call=self._after_tool_call,
+                tool_timeout=self._tool_timeout,
+                max_turns=self._max_turns,
+                tool_result_max_chars=self._tool_result_max_chars,
                 get_steering_messages=self._drain_steering,
                 get_follow_up_messages=self._drain_follow_up,
                 human_input_gate=self._human_input_gate,
@@ -299,10 +318,6 @@ class Agent:
         elif isinstance(evt, MessageEnd):
             self.state.streaming_message = None
             self.state.messages.append(evt.message)
-        elif isinstance(evt, ToolExecutionStart):
-            self.state.pending_tool_calls.add(evt.tool_call_id)
-        elif isinstance(evt, ToolExecutionEnd):
-            self.state.pending_tool_calls.discard(evt.tool_call_id)
         elif isinstance(evt, TurnEnd):
             msg = evt.message
             if getattr(msg, "role", None) == "assistant" and getattr(msg, "error_message", None):

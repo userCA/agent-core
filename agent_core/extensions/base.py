@@ -68,7 +68,14 @@ class ExtensionRunner:
                 hook = await ext.on_after_tool_call(self._ctx, tool_call, result, is_error)
                 if hook and hook.get("result"):
                     mutated_result = hook
-                    result = type(result)(**hook["result"]) if type(result) else result
+                    hook_data = hook["result"]
+                    existing_display = getattr(result, "display", None)
+                    merged = {
+                        "content": hook_data.get("content", getattr(result, "content", [])),
+                        "details": hook_data.get("details", getattr(result, "details", None)),
+                        "display": hook_data.get("display", existing_display),
+                    }
+                    result = type(result)(**merged)
             except Exception as exc:
                 logger.warning("Extension after_tool_call failed: %s", exc)
         return mutated_result

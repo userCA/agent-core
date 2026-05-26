@@ -41,6 +41,9 @@ class AgentLoopConfig:
     tool_registry: ToolRegistry | None = None
     before_tool_call: Any | None = None
     after_tool_call: Any | None = None
+    tool_timeout: float | None = 120.0
+    max_turns: int | None = None
+    tool_result_max_chars: int = 4000
     get_steering_messages: Any | None = None
     get_follow_up_messages: Any | None = None
     human_input_gate: Any | None = None

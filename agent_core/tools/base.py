@@ -24,6 +24,7 @@ class ToolDefinition(BaseModel):
     prompt_snippet: str | None = None
     prompt_guidelines: list[str] = []
     renderer: Any | None = None
+    timeout_seconds: float | None = None
 
 
 @dataclass

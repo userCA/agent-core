@@ -14,6 +14,7 @@ load_dotenv()
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
@@ -135,15 +136,29 @@ async def abort_session(request: Request) -> dict[str, Any]:
     return {"success": True}
 
 
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+DIST_DIR = os.path.join(STATIC_DIR, "dist")
+DIST_ASSETS = os.path.join(DIST_DIR, "assets")
+
+# Serve built Vite assets if dist exists
+if os.path.isdir(DIST_ASSETS):
+    app.mount("/assets", StaticFiles(directory=DIST_ASSETS), name="assets")
+
+
 @app.get("/")
 async def index() -> HTMLResponse:
-    html_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
-    try:
-        with open(html_path, "r", encoding="utf-8") as f:
-            content = f.read()
-    except FileNotFoundError:
-        content = _fallback_html()
-    return HTMLResponse(content=content)
+    # Prefer built Vite output, fall back to legacy single-file HTML
+    dist_html = os.path.join(DIST_DIR, "index.html")
+    legacy_html = os.path.join(STATIC_DIR, "index.html")
+    for path in (dist_html, legacy_html):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
+        except FileNotFoundError:
+            continue
+    return HTMLResponse(
+        content="<html><body><h1>agent-core</h1><p>Frontend not found. Run `npm run build` in static/</p></body></html>"
+    )
 
 
 if __name__ == "__main__":

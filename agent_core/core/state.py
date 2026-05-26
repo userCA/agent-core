@@ -20,7 +20,6 @@ class AgentState(BaseModel):
 
     is_streaming: bool = False
     streaming_message: Any | None = None
-    pending_tool_calls: set[str] = Field(default_factory=set)
     error_message: str | None = None
 
     @field_validator("tools", "messages", mode="before")

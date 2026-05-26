@@ -1,0 +1,149 @@
+/* Mobile responsive overrides — loaded after tokens.css */
+
+@media (max-width: 767px) {
+    body {
+        font-size: 13px;
+    }
+
+    /* Header */
+    .app-header {
+        padding: 10px 16px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .logo pre {
+        font-size: 11px;
+    }
+
+    .header-actions {
+        gap: 4px;
+    }
+
+    .header-actions .btn {
+        padding: 5px 10px;
+        font-size: 11px;
+    }
+
+    .status-badge {
+        font-size: 10px;
+        padding: 3px 8px;
+    }
+
+    /* Chat container */
+    .chat-container {
+        padding: 12px 16px;
+    }
+
+    .chat-inner {
+        max-width: 100%;
+    }
+
+    /* Messages */
+    .bubble {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    .bubble-user {
+        max-width: 85%;
+    }
+
+    .user-text {
+        font-size: 13px;
+    }
+
+    /* Input area */
+    .chat-input-area {
+        padding: 8px 16px 12px;
+        /* Safe area for bottom indicator bar */
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .chat-textarea {
+        font-size: 13px;
+        padding: 8px 12px;
+        min-height: 36px;
+    }
+
+    .send-btn {
+        padding: 8px 16px;
+        font-size: 12px;
+    }
+
+    /* Steps panel */
+    .section-summary {
+        font-size: 11px;
+        padding: 6px 10px;
+    }
+
+    .tool-step {
+        font-size: 11px;
+    }
+
+    /* HITL card */
+    .hitl-card {
+        padding: 12px;
+    }
+
+    .hitl-field input[type="text"],
+    .hitl-field textarea,
+    .hitl-field select {
+        font-size: 13px;
+        padding: 8px 10px;
+    }
+
+    /* Auth modal */
+    .auth-modal {
+        width: 95%;
+        padding: 16px;
+    }
+
+    /* Welcome */
+    .welcome {
+        min-height: 200px;
+        padding: 32px 16px;
+    }
+
+    .welcome-logo {
+        font-size: 11px;
+    }
+
+    .example-chip {
+        font-size: 11px;
+        padding: 6px 12px;
+    }
+
+    /* Widget */
+    .widget-container iframe {
+        height: 300px !important;
+    }
+}
+
+/* Touch optimizations */
+@media (hover: none) and (pointer: coarse) {
+    .btn, .example-chip, .section-summary, .upload-btn {
+        min-height: 44px; /* iOS HIG minimum touch target */
+    }
+
+    .thumb-remove {
+        min-height: unset;
+        width: 24px;
+        height: 24px;
+    }
+
+    .chat-textarea {
+        min-height: 40px;
+    }
+}
+
+/* Safe area for notched devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .chat-input-area {
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .app-header {
+        padding-top: calc(12px + env(safe-area-inset-top, 0px));
+    }
+}

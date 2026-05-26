@@ -18,8 +18,10 @@ DEFAULT_API_URL = "http://app.c.vip.migu.cn/aiTask/create/v1.0"
 DEFAULT_QUERY_URL = "http://app.c.vip.migu.cn/aiTask/query/v1.0"
 DEFAULT_UID = "123456"
 DEFAULT_CHANNEL = "014000D"
-POLL_INTERVAL = 3.0
-POLL_MAX_ATTEMPTS = 60
+POLL_INTERVAL_INITIAL = 3.0
+POLL_INTERVAL_MAX = 15.0
+POLL_BACKOFF = 2.0
+POLL_MAX_ATTEMPTS = 15
 
 
 class TextToMusicTool:
@@ -65,6 +67,7 @@ class TextToMusicTool:
                 },
                 "required": ["prompt"],
             },
+            timeout_seconds=300,
         )
 
     async def execute(
@@ -125,8 +128,21 @@ class TextToMusicTool:
                     )
 
                 # Step 2: Poll for result
-                result = await self._poll_result(client, headers, task_id, ctx)
-                return ToolResult(content=[TextContent(text=result)])
+                result_text, audio_urls = await self._poll_result(
+                    client, headers, task_id, ctx
+                )
+                display = None
+                if audio_urls:
+                    display = {
+                        "audio": {
+                            "urls": audio_urls,
+                            "task_id": task_id,
+                            "prompt": full_prompt,
+                        }
+                    }
+                return ToolResult(
+                    content=[TextContent(text=result_text)], display=display
+                )
 
         except httpx.HTTPStatusError as exc:
             text = f"HTTP {exc.response.status_code}: {exc.response.text}"
@@ -161,22 +177,46 @@ class TextToMusicTool:
         headers: dict[str, str],
         task_id: str,
         ctx: ToolContext,
-    ) -> str:
-        """Poll query endpoint until task completes or times out."""
+    ) -> tuple[str, list[str] | None]:
+        """Poll query endpoint until task completes or times out.
+
+        Returns (text, audio_urls_or_None).
+        Uses exponential backoff: 3s → 6s → 12s → cap at 15s.
+        """
         query_payload = {
             "taskId": task_id,
             "platform": "aigc-text2music",
         }
+        interval = POLL_INTERVAL_INITIAL
 
         for attempt in range(POLL_MAX_ATTEMPTS):
             if ctx.signal.is_set():
-                return f"任务 {task_id} 已取消"
+                return f"任务 {task_id} 已取消", None
 
-            resp = await client.get(
-                self._query_url,
-                headers=headers,
-                params=query_payload,
-            )
+            try:
+                resp = await asyncio.wait_for(
+                    client.get(
+                        self._query_url,
+                        headers=headers,
+                        params=query_payload,
+                    ),
+                    timeout=10.0,
+                )
+            except asyncio.TimeoutError:
+                if ctx.signal.is_set():
+                    return f"任务 {task_id} 已取消", None
+                if ctx.on_update is not None:
+                    ctx.on_update(
+                        ToolResult(
+                            content=[TextContent(
+                                text=f"第 {attempt + 1} 次查询超时，继续等待…"
+                            )]
+                        )
+                    )
+                interval = min(interval * POLL_BACKOFF, POLL_INTERVAL_MAX)
+                await asyncio.sleep(interval)
+                continue
+
             resp.raise_for_status()
             data = resp.json()
             logger.debug("Poll #%d response: %s", attempt, data)
@@ -188,20 +228,20 @@ class TextToMusicTool:
                     lines = [f"音乐生成完成！任务ID: {task_id}"]
                     for i, url in enumerate(urls, 1):
                         lines.append(f"  音频 {i}: {url}")
-                    return "\n".join(lines)
-                return f"任务完成，但未找到音频URL。原始响应: {data}"
+                    return "\n".join(lines), urls
+                return f"任务完成，但未找到音频URL。原始响应: {data}", None
 
             if status in ("FAILED", "ERROR", "FAILURE"):
-                return f"任务失败: {data}"
+                return f"任务失败: {data}", None
 
-            # Push progress update so the UI doesn't appear frozen
             if ctx.on_update is not None:
                 progress = f"第 {attempt + 1} 次查询，状态: {status or '处理中'}…"
                 ctx.on_update(ToolResult(content=[TextContent(text=progress)]))
 
-            await asyncio.sleep(POLL_INTERVAL)
+            await asyncio.sleep(interval)
+            interval = min(interval * POLL_BACKOFF, POLL_INTERVAL_MAX)
 
-        return f"任务 {task_id} 轮询超时，请稍后手动查询结果"
+        return f"任务 {task_id} 轮询超时（{POLL_MAX_ATTEMPTS} 次尝试），请稍后手动查询结果", None
 
     def _extract_status(self, data: dict[str, Any]) -> str | None:
         """Extract task status from query response."""

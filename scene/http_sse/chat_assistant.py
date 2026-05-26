@@ -31,6 +31,7 @@ from agent_core.tools.base import Tool, ToolRegistry
 from agent_core.tools.aigc_creation import create_nolo_video_tool
 from agent_core.tools.local import create_all_tools
 from agent_core.tools.music import create_text_to_music_tool
+from agent_core.tools.widgets import ShowWidgetTool
 
 from scene.http_sse.request_context import current_request_headers
 
@@ -123,6 +124,7 @@ class ChatAssistant:
             tool_registry.register(tool)
         tool_registry.register(create_text_to_music_tool())
         tool_registry.register(create_nolo_video_tool())
+        tool_registry.register(ShowWidgetTool())
         if tools:
             for tool in tools:
                 tool_registry.register(tool)

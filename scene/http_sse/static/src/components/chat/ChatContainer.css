@@ -1,0 +1,42 @@
+.chat-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px 24px;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+
+.chat-inner {
+    max-width: 720px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 100%;
+}
+
+/* Smooth transition on welcome dismiss */
+.welcome-exit {
+    opacity: 0;
+    transform: translateY(-12px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* New message entry animation */
+.msg-wrapper {
+    animation: msgEnter 0.25s ease;
+}
+
+@keyframes msgEnter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Streaming message has its own animation in StreamingMessage.css */

@@ -37,6 +37,7 @@ def agent_event_to_sse_json(evt: AgentEvent) -> dict[str, Any] | None:
         return {
             "event": "tool_start",
             "tool_name": evt.tool_name,
+            "tool_call_id": evt.tool_call_id,
             "args": evt.args,
         }
 
@@ -48,12 +49,19 @@ def agent_event_to_sse_json(evt: AgentEvent) -> dict[str, Any] | None:
         }
 
     if isinstance(evt, ToolExecutionEnd):
-        return {
+        result_dict = {
             "event": "tool_end",
             "tool_name": evt.tool_name,
+            "tool_call_id": evt.tool_call_id,
             "result": _extract_result_text(evt.result),
             "is_error": evt.is_error,
         }
+        if (
+            hasattr(evt.result, "display")
+            and evt.result.display
+        ):
+            result_dict["display"] = evt.result.display
+        return result_dict
 
     if isinstance(evt, HumanInputRequired):
         return {

@@ -36,6 +36,7 @@ async def execute_tools(
     mode = getattr(config, "tool_execution", "parallel")
     before = getattr(config, "before_tool_call", None)
     after = getattr(config, "after_tool_call", None)
+    tool_timeout = getattr(config, "tool_timeout", 120.0)
 
     if mode == "parallel":
         for tc in calls:
@@ -50,6 +51,7 @@ async def execute_tools(
             after=after,
             signal=signal,
             mutation_queue=mutation_queue,
+            tool_timeout=tool_timeout,
         )
         for tool_call, result, is_error in results:
             yield ToolExecutionEnd(
@@ -80,7 +82,7 @@ async def execute_tools(
             mutation_queue = getattr(config, "mutation_queue", None)
             tool_task = asyncio.create_task(
                 _run_single_tool(
-                    tc, registry, before, after, signal, mutation_queue, _on_update
+                    tc, registry, before, after, signal, mutation_queue, _on_update, tool_timeout=tool_timeout
                 )
             )
 
@@ -157,6 +159,7 @@ async def _run_single_tool(
     signal: asyncio.Event | None,
     mutation_queue: Any | None = None,
     on_update: Any = None,
+    tool_timeout: float | None = None,
 ) -> tuple[Any, ToolResult, bool]:
     abort_event = signal or asyncio.Event()
     tool = registry.get(tool_call.name)
@@ -194,13 +197,35 @@ async def _run_single_tool(
         on_update=on_update,
         metadata=_extra_metadata,
     )
+
+    effective_timeout = getattr(tool.definition, "timeout_seconds", None)
+    if effective_timeout is None:
+        effective_timeout = tool_timeout
+
     try:
-        result = await tool.execute(
-            tool_call_id=tool_call.id,
-            params=tool_call.arguments,
-            ctx=ctx,
-        )
+        if effective_timeout is not None:
+            result = await asyncio.wait_for(
+                tool.execute(
+                    tool_call_id=tool_call.id,
+                    params=tool_call.arguments,
+                    ctx=ctx,
+                ),
+                timeout=effective_timeout,
+            )
+        else:
+            result = await tool.execute(
+                tool_call_id=tool_call.id,
+                params=tool_call.arguments,
+                ctx=ctx,
+            )
         is_error = False
+    except asyncio.TimeoutError:
+        result = ToolResult(
+            content=[TextContent(
+                text=f"Tool '{tool_call.name}' timed out after {effective_timeout:.0f}s"
+            )]
+        )
+        is_error = True
     except RequiresHumanInput:
         raise
     except Exception as exc:
@@ -221,6 +246,7 @@ async def _run_single_tool(
                 result = ToolResult(
                     content=hook_result["result"].get("content", result.content),
                     details=hook_result["result"].get("details", result.details),
+                    display=hook_result["result"].get("display", result.display),
                 )
         except Exception as exc:
             logger.debug("after_tool_call hook failed: %s", exc)
@@ -236,8 +262,9 @@ async def _run_tools_parallel(
     after: Any,
     signal: asyncio.Event | None,
     mutation_queue: Any | None = None,
+    tool_timeout: float | None = None,
 ) -> list[tuple[Any, ToolResult, bool]]:
     tasks = [
-        _run_single_tool(c, registry, before, after, signal, mutation_queue) for c in calls
+        _run_single_tool(c, registry, before, after, signal, mutation_queue, tool_timeout=tool_timeout) for c in calls
     ]
     return await asyncio.gather(*tasks)

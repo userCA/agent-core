@@ -91,6 +91,8 @@ ToolResult(
 )
 ```
 
+**⚠️ `after_tool_call` hook 会吞掉 `display`**(已在 `tool_runner.py` 修复): 原 `after_tool_call` 重建 `ToolResult` 时未保留 `display` 字段。若场景注册了 `after_tool_call` hook 且 hook 返回了新 result,`display` 会丢失。修复方案:重建 `ToolResult` 时追加 `display=hook_result["result"].get("display", result.display)`。
+
 ### 校验(后端轻量)
 
 | 检查项 | 行为 |
@@ -100,9 +102,7 @@ ToolResult(
 | `height` 非 int 或 ≤0 | silent fallback 到 400(不 raise:容错优先,LLM 可能传 `"400"` / `0` / `None`) |
 | 正常输入 | 正常返回,`display` 含 widget 元数据 |
 
-**注意 1**: 不做 HTML 深度清洗。安全由 iframe sandbox + CSP 兜底,不重复造轮子。
-
-**注意 2**: 校验失败时**直接 `raise ValueError`**(带明确的修复指令文案)。loop 捕获异常后会生成 `is_error=True` 的 `ToolExecutionEnd`,其 `result` 是 `ToolResult(content=[TextContent(text=str(exc))], display=None)`。`events.py` 的 `evt.result.display and 'widget' in evt.result.display` 守卫会因 `display` 为 `None` 而短路,前端不会渲染 widget,只显示普通 tool-error step(异常文本进入 `data.result`,由现有 `tool_end` 分支正常处理)。`ToolResult` 没有 `is_error` 字段(那是事件层属性),因此我们用 raise 而非返回错误 `ToolResult`。
+**注意**: 校验失败时**直接 `raise ValueError`**(带明确的修复指令文案)。loop 捕获异常后会生成 `is_error=True` 的 `ToolExecutionEnd`,其 `result.display` 为 `None`,前端的 `evt.result.display and 'widget' in evt.result.display` 守卫会短路,只显示普通 tool-error step,LLM 据此重试。
 
 **错误处理示例**(工具内部):
 ```python
@@ -192,6 +192,8 @@ if isinstance(evt, ToolExecutionEnd):
 ```
 
 (`ToolExecutionUpdate` 同样可加 `tool_call_id`,本次不强制。)
+
+**⚠️ `tool_call_id` 影响范围**: `tool_start` 和 `tool_end` 事件格式变更影响**所有工具**,不只是 `show_widget`。前端 `tool_start` 处理(当前 `index.html:2197`) push step 时需带 `tool_call_id` 字段;`tool_end` 处理(当前 `index.html:2213`)需从 `findLast` 改为按 `tool_call_id` 匹配(该改动在 widget 分支之前就需完成,否则 widget 分支的 `tool_call_id` 匹配无意义)。实施顺序:先改通用 `tool_start`/`tool_end` 逻辑,再在其上叠加 widget 分支。
 
 ### 前端渲染(index.html)
 

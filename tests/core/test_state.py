@@ -9,7 +9,6 @@ def test_default_state():
     assert s.tools == []
     assert s.messages == []
     assert s.is_streaming is False
-    assert s.pending_tool_calls == set()
 
 
 def test_assignment_copies_lists():

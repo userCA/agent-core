@@ -16,3 +16,5 @@ sessions/
 .claude/
 demo/
 .worktrees/
+node_modules/
+quicksort.py

@@ -90,6 +90,30 @@ class AgentSession:
 
             self._agent._before_tool_call = _chained_before
 
+            # Chain Extension after_tool_call hooks
+            existing_after = getattr(self._agent, "_after_tool_call", None)
+
+            async def _chained_after(call_ctx: dict[str, Any]) -> dict[str, Any] | None:
+                scene_result = None
+                if existing_after is not None:
+                    scene_result = await existing_after(call_ctx)
+                    if scene_result and scene_result.get("result"):
+                        sr = scene_result["result"]
+                        orig = call_ctx.get("result")
+                        # Update call_ctx so extension sees scene-layer mutations
+                        call_ctx["result"] = type(orig)(
+                            content=sr.get("content", getattr(orig, "content", [])),
+                            details=sr.get("details", getattr(orig, "details", None)),
+                            display=sr.get("display", getattr(orig, "display", None)),
+                        )
+
+                ext_result = await self._ext_runner.after_tool_call(call_ctx)
+                if ext_result and ext_result.get("result"):
+                    return ext_result
+                return scene_result
+
+            self._agent._after_tool_call = _chained_after
+
         # Chain Extension.transform_context
         if self._extensions:
             ext_transforms = [getattr(e, "transform_context", None) for e in self._extensions]
@@ -233,5 +257,16 @@ class AgentSession:
                 id=f"compaction-{int(time.time() * 1000)}",
             )
             await self._store.append_entry(self._session_id, entry)
+
+            if result.summary and result.kept_count > 0:
+                from agent_core.core.messages import CustomMessage
+
+                summary_msg = CustomMessage(
+                    custom_type="compaction_summary",
+                    content=result.summary,
+                    timestamp=time.time(),
+                )
+                kept = self._agent.state.messages[-result.kept_count:]
+                self._agent.state.messages = [summary_msg] + kept
         except Exception as exc:
             logger.warning("Compaction failed for session %s: %s", self._session_id, exc)

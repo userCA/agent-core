@@ -1,0 +1,54 @@
+/* Streaming output — matches legacy tight layout (padding:0, no border) */
+
+.streaming-bubble {
+    animation: fadeIn 0.2s ease;
+    padding: 0;
+    border: none;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* msg-content wrapper — no gap needed; spacing comes from individual children */
+.msg-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.final-content {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--body);
+}
+
+/* Collapse empty content area so it doesn't add blank space
+   when steps are visible but text hasn't arrived.
+   Keep visible during streaming so the cursor shows. */
+.final-content:empty:not(.streaming) {
+    display: none;
+}
+
+/* Tighten empty streaming line to cursor height only */
+.final-content.streaming:empty {
+    line-height: 16px;
+}
+
+/* Blinking cursor via ::after — sits inline, no blank line */
+.final-content.streaming::after {
+    content: '';
+    display: inline-block;
+    width: 2px;
+    height: 16px;
+    background: var(--accent);
+    animation: cursorBlink 0.8s infinite;
+    vertical-align: middle;
+    margin-left: 2px;
+    border-radius: 1px;
+}
+
+@keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}

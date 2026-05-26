@@ -15,6 +15,7 @@ class CompactionResult(BaseModel):
     first_kept_entry_id: str
     tokens_before: int
     tokens_after: int
+    kept_count: int = 0
 
 
 SummarizeFn = Callable[[list[Any]], Awaitable[str]]
@@ -88,4 +89,5 @@ class LLMSummaryCompactor:
             first_kept_entry_id=first_kept_id,
             tokens_before=tokens_before,
             tokens_after=tokens_after,
+            kept_count=len(to_keep),
         )

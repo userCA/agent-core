@@ -49,12 +49,17 @@ async def agent_loop(
         yield MessageEnd(message=msg)
 
     new_assistant_messages: list[Any] = []
+    turn_count = 0
+    max_turns = getattr(config, "max_turns", None)
 
     while True:
         if signal is not None and signal.is_set():
             break
+        if max_turns is not None and turn_count >= max_turns:
+            break
 
         yield TurnStart()
+        turn_count += 1
 
         llm_messages = await config.convert_to_llm(context.messages)
         if config.transform_context is not None:

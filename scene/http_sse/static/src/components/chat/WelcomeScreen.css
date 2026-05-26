@@ -1,0 +1,77 @@
+.welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    padding: 48px 24px;
+    gap: 16px;
+    animation: welcomeIn 0.3s ease;
+}
+
+@keyframes welcomeIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.welcome-logo {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.2;
+    text-align: center;
+    letter-spacing: 0;
+    margin: 0;
+}
+
+.welcome-title {
+    font-family: var(--font-mono);
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0;
+    letter-spacing: 4px;
+}
+
+.welcome-subtitle {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--stone);
+    margin: 0;
+}
+
+.welcome-examples {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 8px;
+}
+
+.example-chip {
+    padding: 8px 16px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    background: var(--canvas);
+    color: var(--ink);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    transition: border-color 0.15s ease, background 0.15s ease;
+    touch-action: manipulation;
+}
+
+.example-chip:hover {
+    border-color: var(--hairline-strong);
+    background: var(--surface-soft);
+}
+
+.example-chip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.example-chip:active {
+    background: var(--surface-card);
+}

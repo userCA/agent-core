@@ -1,0 +1,61 @@
+.auth-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.auth-modal {
+    background: var(--canvas);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--radius-sm);
+    padding: 24px;
+    width: 90%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.auth-modal h3 {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.auth-field span {
+    font-size: 12px;
+    color: var(--mute);
+    font-family: var(--font-mono);
+}
+
+.auth-field input {
+    padding: 8px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--surface-soft);
+    color: var(--ink);
+}
+
+.auth-field input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.auth-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 8px;
+}

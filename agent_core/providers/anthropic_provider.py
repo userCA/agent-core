@@ -167,6 +167,7 @@ class AnthropicProvider:
     ) -> AsyncIterator[StreamEvent]:
         tool_buffers: dict[str, dict[str, Any]] = {}
         started_tools: set[str] = set()
+        index_to_tool: dict[int, str] = {}
 
         async for raw_line in resp.aiter_lines():
             if signal is not None and signal.is_set():
@@ -189,10 +190,12 @@ class AnthropicProvider:
                     pass  # input_tokens available; we emit at message_end
             elif evt_type == "content_block_start":
                 block = event.get("content_block", {})
+                idx = event.get("index", 0)
                 if block.get("type") == "tool_use":
                     tid = block.get("id", "")
                     name = block.get("name", "")
                     tool_buffers[tid] = {"id": tid, "name": name, "args": ""}
+                    index_to_tool[idx] = tid
                     if tid not in started_tools:
                         started_tools.add(tid)
                         yield StreamToolCallStart(id=tid, name=name)
@@ -204,8 +207,8 @@ class AnthropicProvider:
                 elif d_type == "thinking_delta":
                     yield StreamThinkingDelta(text=delta.get("thinking", ""))
                 elif d_type == "input_json_delta":
-                    tid = _current_tool_id(event.get("index", 0), tool_buffers)
-                    if tid:
+                    tid = index_to_tool.get(event.get("index", 0))
+                    if tid and tid in tool_buffers:
                         tool_buffers[tid]["args"] += delta.get("partial_json", "")
             elif evt_type == "message_delta":
                 delta = event.get("delta", {})
@@ -227,14 +230,6 @@ class AnthropicProvider:
                     except json.JSONDecodeError:
                         args = {}
                     yield StreamToolCallEnd(id=buf["id"], arguments=args)
-
-
-def _current_tool_id(index: int, buffers: dict[str, Any]) -> str | None:
-    # Best-effort: map index to tool_id based on insertion order
-    for tid in list(buffers.keys()):
-        if tid:
-            return tid
-    return None
 
 
 def _convert_tool_def(tool: dict[str, Any]) -> dict[str, Any]:
