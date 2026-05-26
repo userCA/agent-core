@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from agent_core.core.messages import AgentMessage
+
 ThinkingLevel = Literal["off", "minimal", "low", "medium", "high", "xhigh"]
 
 
@@ -16,7 +18,7 @@ class AgentState(BaseModel):
     model: Any | None = None
     thinking_level: ThinkingLevel = "off"
     tools: list[Any] = Field(default_factory=list)
-    messages: list[Any] = Field(default_factory=list)
+    messages: list[AgentMessage] = Field(default_factory=list)
 
     is_streaming: bool = False
     streaming_message: Any | None = None

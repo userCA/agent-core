@@ -7,7 +7,7 @@ import inspect
 import time
 from typing import Any, Awaitable, Callable
 
-from agent_core.core.content import ImageContent, TextContent
+from agent_core.core.content import ImageContent, TextContent, ToolCallContent
 from agent_core.core.context import (
     AgentContext,
     AgentLoopConfig,
@@ -21,15 +21,14 @@ from agent_core.core.events import (
     MessageEnd,
     MessageStart,
     MessageUpdate,
-    ToolExecutionEnd,
-    ToolExecutionStart,
     TurnEnd,
 )
 from agent_core.core.human_input import HumanInputGate
 from agent_core.core.loop import agent_loop, agent_loop_continue
-from agent_core.core.messages import AssistantMessage, UserMessage
+from agent_core.core.messages import AssistantMessage, CustomMessage, ToolResultMessage, UserMessage
 from agent_core.core.queue import PendingMessageQueue, QueueMode
-from agent_core.core.state import AgentState, ThinkingLevel
+from agent_core.tools.mutation_queue import FileMutationQueue
+from agent_core.core.state import AgentState
 from agent_core.providers.auth import AuthSource
 from agent_core.providers.base import ModelProvider
 
@@ -38,22 +37,21 @@ Unsubscribe = Callable[[], None]
 
 
 def _default_convert_to_llm(tool_result_max_chars: int = 4000) -> ConvertToLlm:
+    import json as _json
+
     async def convert(messages: list[Any]) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         for m in messages:
-            role = getattr(m, "role", None)
-            if role == "user":
+            if isinstance(m, UserMessage):
                 content = _user_content_to_openai(m.content)
                 out.append({"role": "user", "content": content})
-            elif role == "assistant":
+            elif isinstance(m, AssistantMessage):
                 msg: dict[str, Any] = {
                     "role": "assistant",
-                    "content": "".join(c.text for c in m.content if getattr(c, "type", None) == "text"),
+                    "content": "".join(c.text for c in m.content if isinstance(c, TextContent)),
                 }
-                tool_calls = [c for c in m.content if getattr(c, "type", None) == "tool_call"]
+                tool_calls = [c for c in m.content if isinstance(c, ToolCallContent)]
                 if tool_calls:
-                    import json as _json
-
                     msg["tool_calls"] = [
                         {
                             "id": tc.id,
@@ -63,27 +61,17 @@ def _default_convert_to_llm(tool_result_max_chars: int = 4000) -> ConvertToLlm:
                         for tc in tool_calls
                     ]
                 out.append(msg)
-            elif role == "tool_result":
-                text_parts = "".join(
-                    c.text for c in m.content if getattr(c, "type", None) == "text"
-                )
+            elif isinstance(m, ToolResultMessage):
+                text_parts = "".join(c.text for c in m.content if isinstance(c, TextContent))
                 if len(text_parts) > tool_result_max_chars:
                     text_parts = text_parts[:tool_result_max_chars] + f"\n...[truncated, {len(text_parts)} chars total]"
-                out.append(
-                    {"role": "tool", "tool_call_id": m.tool_call_id, "content": text_parts}
-                )
-            elif role == "custom":
-                custom_type = getattr(m, "custom_type", "")
-                if custom_type == "compaction_summary":
-                    content = getattr(m, "content", "")
-                    if isinstance(content, str):
-                        text = content
-                    else:
-                        text = str(content)
-                    out.append({
-                        "role": "system",
-                        "content": f"[Earlier conversation summary]\n{text}",
-                    })
+                out.append({"role": "tool", "tool_call_id": m.tool_call_id, "content": text_parts})
+            elif isinstance(m, CustomMessage) and m.custom_type == "compaction_summary":
+                text = m.content if isinstance(m.content, str) else str(m.content)
+                out.append({
+                    "role": "system",
+                    "content": f"[Earlier conversation summary]\n{text}",
+                })
         return out
 
     return convert
@@ -93,17 +81,20 @@ def _user_content_to_openai(content: list[Any]) -> Any:
     parts: list[dict[str, Any]] = []
     only_text = True
     for c in content:
-        t = getattr(c, "type", None) or (c.get("type") if isinstance(c, dict) else None)
-        if t == "text":
-            text = getattr(c, "text", None) or c.get("text", "")
-            parts.append({"type": "text", "text": text})
-        elif t == "image":
-            data = getattr(c, "data", None) or c.get("data")
-            mime = getattr(c, "mime_type", None) or c.get("mime_type", "image/png")
-            parts.append(
-                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}}
-            )
+        if isinstance(c, TextContent):
+            parts.append({"type": "text", "text": c.text})
+        elif isinstance(c, ImageContent):
+            parts.append({"type": "image_url", "image_url": {"url": f"data:{c.mime_type};base64,{c.data}"}})
             only_text = False
+        elif isinstance(c, dict):
+            t = c.get("type")
+            if t == "text":
+                parts.append({"type": "text", "text": c.get("text", "")})
+            elif t == "image":
+                data = c.get("data", "")
+                mime = c.get("mime_type", "image/png")
+                parts.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}})
+                only_text = False
     if only_text:
         return "".join(p["text"] for p in parts)
     return parts
@@ -124,6 +115,10 @@ class Agent:
         tool_execution: str = "parallel",
         tool_timeout: float | None = 120.0,
         max_turns: int | None = None,
+        max_retries: int = 3,
+        retry_base_delay: float = 1.0,
+        retry_max_delay: float = 60.0,
+        compact_callback: Any | None = None,
         tool_result_max_chars: int = 4000,
         steering_mode: QueueMode = "one-at-a-time",
         followup_mode: QueueMode = "one-at-a-time",
@@ -131,14 +126,20 @@ class Agent:
         self.state: AgentState = initial_state or AgentState()
         self._provider = provider
         self._auth_source = auth_source
-        self._convert_to_llm = convert_to_llm or _default_convert_to_llm(tool_result_max_chars)
-        self._transform_context = transform_context
+        if convert_to_llm is not None:
+            self._convert_to_llm = convert_to_llm
+        elif hasattr(provider, "create_message_converter"):
+            self._convert_to_llm = provider.create_message_converter(tool_result_max_chars)
+        else:
+            self._convert_to_llm = _default_convert_to_llm(tool_result_max_chars)
         self._tool_registry = tool_registry
-        self._before_tool_call = before_tool_call
-        self._after_tool_call = after_tool_call
         self._tool_execution = tool_execution
         self._tool_timeout = tool_timeout
         self._max_turns = max_turns
+        self._max_retries = max_retries
+        self._retry_base_delay = retry_base_delay
+        self._retry_max_delay = retry_max_delay
+        self._compact_callback = compact_callback
         self._tool_result_max_chars = tool_result_max_chars
         self._steering = PendingMessageQueue(steering_mode)
         self._follow_up = PendingMessageQueue(followup_mode)
@@ -146,6 +147,17 @@ class Agent:
         self._listeners: list[Listener] = []
         self._active_run: asyncio.Task | None = None
         self._abort_event: asyncio.Event | None = None
+
+        # Hook chains — primary (constructor) + additional (registered)
+        self._before_hooks: list[Any] = []
+        if before_tool_call is not None:
+            self._before_hooks.append(before_tool_call)
+        self._after_hooks: list[Any] = []
+        if after_tool_call is not None:
+            self._after_hooks.append(after_tool_call)
+        self._transform_hooks: list[Any] = []
+        if transform_context is not None:
+            self._transform_hooks.append(transform_context)
 
     # ---------- subscriptions ----------
     def subscribe(self, listener: Listener) -> Unsubscribe:
@@ -193,6 +205,32 @@ class Agent:
     def followup_mode(self, mode: QueueMode) -> None:
         self._follow_up.mode = mode
 
+    # ---------- hook registration ----------
+    def add_before_tool_call_hook(self, hook: Any) -> None:
+        """Register a hook that runs before each tool call.
+
+        Hooks run in registration order. A hook may return:
+        - ``{"block": True, "reason": "..."}`` to prevent the tool call
+        - ``{"inject_metadata": {...}}`` to inject metadata into the ToolContext
+        - ``None`` to allow the call unchanged
+        """
+        self._before_hooks.append(hook)
+
+    def add_after_tool_call_hook(self, hook: Any) -> None:
+        """Register a hook that runs after each tool call.
+
+        Hooks run in registration order. A hook may return
+        ``{"result": {"content": [...], "details": {...}}}`` to mutate the result.
+        """
+        self._after_hooks.append(hook)
+
+    def add_transform_context_hook(self, hook: Any) -> None:
+        """Register a hook that transforms the LLM message list before each turn.
+
+        Hooks run in registration order, each receiving the output of the previous.
+        """
+        self._transform_hooks.append(hook)
+
     # ---------- control ----------
     def abort(self) -> None:
         if self._abort_event is not None:
@@ -219,22 +257,23 @@ class Agent:
         text_or_message: Any,
         *,
         images: list[ImageContent] | None = None,
+        compact_callback: Any | None = None,
+        trace_callback: Any | None = None,
     ) -> None:
         if self._active_run is not None and not self._active_run.done():
             raise RuntimeError("Agent is already running a prompt; use steer/follow_up or wait_for_idle.")
         message = self._normalize_input(text_or_message, images)
-        await self._run([message], continuation=False)
+        await self._run([message], continuation=False, compact_callback=compact_callback, trace_callback=trace_callback)
 
-    async def continue_(self) -> None:
+    async def continue_(self, *, compact_callback: Any | None = None, trace_callback: Any | None = None) -> None:
         if self._active_run is not None and not self._active_run.done():
             raise RuntimeError("Agent is already running.")
         if not self.state.messages:
             raise RuntimeError("No messages in state to continue from.")
         last = self.state.messages[-1]
-        role = getattr(last, "role", None)
-        if role not in ("user", "tool_result"):
-            raise RuntimeError(f"Cannot continue from message with role={role}.")
-        await self._run([], continuation=True)
+        if not isinstance(last, (UserMessage, ToolResultMessage)):
+            raise RuntimeError(f"Cannot continue from message with role={getattr(last, 'role', 'unknown')}.")
+        await self._run([], continuation=True, compact_callback=compact_callback, trace_callback=trace_callback)
 
     def _normalize_input(
         self, text_or_message: Any, images: list[ImageContent] | None
@@ -246,7 +285,7 @@ class Agent:
             return UserMessage(content=content, timestamp=time.time())
         return text_or_message
 
-    async def _run(self, new_messages: list[Any], *, continuation: bool) -> None:
+    async def _run(self, new_messages: list[Any], *, continuation: bool, compact_callback: Any | None = None, trace_callback: Any | None = None) -> None:
         self._abort_event = asyncio.Event()
         self.state.is_streaming = True
         self.state.error_message = None
@@ -266,14 +305,20 @@ class Agent:
                 model=self.state.model,
                 convert_to_llm=self._convert_to_llm,
                 auth_resolver=auth_resolver,
-                transform_context=self._transform_context,
+                transform_context=self._chain_transform_hooks(),
                 thinking_level=self.state.thinking_level,
                 tool_execution=self._tool_execution,
                 tool_registry=self._tool_registry,
-                before_tool_call=self._before_tool_call,
-                after_tool_call=self._after_tool_call,
+                before_tool_call=self._chain_before_hooks(),
+                after_tool_call=self._chain_after_hooks(),
                 tool_timeout=self._tool_timeout,
                 max_turns=self._max_turns,
+                max_retries=self._max_retries,
+                retry_base_delay=self._retry_base_delay,
+                retry_max_delay=self._retry_max_delay,
+                compact_callback=compact_callback or self._compact_callback,
+                trace_callback=trace_callback,
+                mutation_queue=FileMutationQueue(),
                 tool_result_max_chars=self._tool_result_max_chars,
                 get_steering_messages=self._drain_steering,
                 get_follow_up_messages=self._drain_follow_up,
@@ -303,6 +348,66 @@ class Agent:
             self._active_run = None
             self._abort_event = None
 
+    def _chain_before_hooks(self) -> Any | None:
+        if not self._before_hooks:
+            return None
+        hooks = list(self._before_hooks)
+
+        async def _chained(call_ctx: dict[str, Any]) -> dict[str, Any] | None:
+            merged: dict[str, Any] = {}
+            for hook in hooks:
+                result = hook(call_ctx)
+                if inspect.isawaitable(result):
+                    result = await result
+                if result and result.get("block"):
+                    return result
+                if result and result.get("inject_metadata"):
+                    merged.update(result["inject_metadata"])
+            return {"inject_metadata": merged} if merged else None
+
+        return _chained
+
+    def _chain_after_hooks(self) -> Any | None:
+        if not self._after_hooks:
+            return None
+        hooks = list(self._after_hooks)
+
+        async def _chained(call_ctx: dict[str, Any]) -> dict[str, Any] | None:
+            last_result = None
+            for hook in hooks:
+                hook_result = hook(call_ctx)
+                if inspect.isawaitable(hook_result):
+                    hook_result = await hook_result
+                if hook_result and hook_result.get("result"):
+                    last_result = hook_result
+                    hr = hook_result["result"]
+                    orig = call_ctx.get("result")
+                    call_ctx["result"] = type(orig)(
+                        content=hr.get("content", orig.content),
+                        details=hr.get("details", orig.details),
+                        display=hr.get("display", orig.display),
+                    )
+            return last_result
+
+        return _chained
+
+    def _chain_transform_hooks(self) -> Any | None:
+        if not self._transform_hooks:
+            return None
+        hooks = list(self._transform_hooks)
+
+        async def _chained(llm_messages: list[Any], signal: Any) -> list[Any]:
+            current = llm_messages
+            for hook in hooks:
+                result = hook(current, signal)
+                if inspect.isawaitable(result):
+                    current = await result
+                else:
+                    current = result
+            return current
+
+        return _chained
+
     async def _drain_steering(self) -> list[Any]:
         return self._steering.drain()
 
@@ -311,7 +416,7 @@ class Agent:
 
     async def _handle_event(self, evt: AgentEvent, context: AgentContext) -> None:
         if isinstance(evt, MessageStart):
-            if getattr(evt.message, "role", None) == "assistant":
+            if isinstance(evt.message, AssistantMessage):
                 self.state.streaming_message = evt.message
         elif isinstance(evt, MessageUpdate):
             self.state.streaming_message = evt.message
@@ -320,10 +425,9 @@ class Agent:
             self.state.messages.append(evt.message)
         elif isinstance(evt, TurnEnd):
             msg = evt.message
-            if getattr(msg, "role", None) == "assistant" and getattr(msg, "error_message", None):
+            if isinstance(msg, AssistantMessage) and msg.error_message:
                 self.state.error_message = msg.error_message
-            # Persist tool results to agent state so they appear in future turns
-            for tool_result in getattr(evt, "tool_results", []):
+            for tool_result in evt.tool_results:
                 self.state.messages.append(tool_result)
         elif isinstance(evt, AgentEnd):
             self.state.streaming_message = None

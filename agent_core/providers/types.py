@@ -63,6 +63,7 @@ class StreamError(BaseModel):
     type: Literal["error"] = "error"
     message: str
     retryable: bool = False
+    overflow: bool = False
 
 
 StreamEvent = Annotated[

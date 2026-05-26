@@ -10,6 +10,16 @@ The codebase is a Python re-implementation of the TypeScript `pi-mono` architect
 
 `docs/design.md` is the authoritative design document for this codebase. `docs/development-log.md` and `docs/mistake-log.md` are living records of recent decisions and past pitfalls — check them before making non-trivial changes so you don't repeat resolved mistakes.
 
+## Skill Routing
+
+Modify code in these paths? Load the corresponding skill first to prevent known anti-patterns:
+
+| Scope | Skill |
+|---|---|
+| `agent_core/core/`, `providers/`, `session/`, `tools/`, `compaction/`, `extensions/` | `/dev-process-backend` |
+| `scene/http_sse/static/src/` | `/dev-process-frontend` |
+| Cross-layer (touching both scopes above) | `/dev-process-optimizer` first, then the sub-skill |
+
 ## Development Commands
 
 ```bash

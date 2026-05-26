@@ -8,6 +8,7 @@ import time
 from typing import Any, AsyncIterator
 
 from agent_core.core.content import TextContent
+from agent_core.core.context import AgentLoopConfig
 from agent_core.core.events import HumanInputRequired, ToolExecutionEnd, ToolExecutionStart, ToolExecutionUpdate
 from agent_core.core.human_input import HumanInputGate, RequiresHumanInput
 from agent_core.core.messages import AssistantMessage, ToolResultMessage
@@ -19,13 +20,14 @@ logger = logging.getLogger(__name__)
 async def execute_tools(
     *,
     assistant: AssistantMessage,
-    config: Any,
+    config: AgentLoopConfig,
     context: Any,
     signal: asyncio.Event | None,
     tool_results_out: list[Any],
     human_input_gate: HumanInputGate | None = None,
+    mutation_queue: Any = None,
 ) -> AsyncIterator[Any]:
-    registry: ToolRegistry | None = getattr(config, "tool_registry", None)
+    registry = config.tool_registry
     if registry is None:
         return
 
@@ -33,17 +35,16 @@ async def execute_tools(
     if not calls:
         return
 
-    mode = getattr(config, "tool_execution", "parallel")
-    before = getattr(config, "before_tool_call", None)
-    after = getattr(config, "after_tool_call", None)
-    tool_timeout = getattr(config, "tool_timeout", 120.0)
+    mode = config.tool_execution
+    before = config.before_tool_call
+    after = config.after_tool_call
+    tool_timeout = config.tool_timeout
 
     if mode == "parallel":
         for tc in calls:
             yield ToolExecutionStart(
                 tool_call_id=tc.id, tool_name=tc.name, args=tc.arguments
             )
-        mutation_queue = getattr(config, "mutation_queue", None)
         results = await _run_tools_parallel(
             calls=calls,
             registry=registry,
@@ -79,7 +80,6 @@ async def execute_tools(
             def _on_update(partial: ToolResult) -> None:
                 update_queue.put_nowait(partial)
 
-            mutation_queue = getattr(config, "mutation_queue", None)
             tool_task = asyncio.create_task(
                 _run_single_tool(
                     tc, registry, before, after, signal, mutation_queue, _on_update, tool_timeout=tool_timeout
@@ -198,7 +198,7 @@ async def _run_single_tool(
         metadata=_extra_metadata,
     )
 
-    effective_timeout = getattr(tool.definition, "timeout_seconds", None)
+    effective_timeout = tool.definition.timeout_seconds
     if effective_timeout is None:
         effective_timeout = tool_timeout
 

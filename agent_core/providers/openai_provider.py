@@ -20,6 +20,21 @@ from agent_core.providers.types import (
 )
 
 
+def _is_context_overflow(status_code: int, body: str) -> bool:
+    """Detect context window overflow from HTTP error responses."""
+    lower = body.lower()
+    keywords = (
+        "context_length_exceeded",
+        "maximum context length",
+        "reduce the length of the messages",
+        "too long",
+        "token limit",
+        "prompt is too long",
+        "exceeds the maximum",
+    )
+    return any(kw in lower for kw in keywords)
+
+
 class OpenAIProvider:
     name: str
 
@@ -135,9 +150,13 @@ class OpenAIProvider:
             async with client.stream("POST", url, headers=headers, json=payload) as resp:
                 if resp.status_code >= 400:
                     body = await resp.aread()
+                    body_text = body.decode("utf-8", errors="replace")
+                    retryable = resp.status_code in (429, 500, 502, 503, 504)
+                    overflow = _is_context_overflow(resp.status_code, body_text)
                     yield StreamError(
-                        message=f"HTTP {resp.status_code}: {body.decode('utf-8', errors='replace')}",
-                        retryable=resp.status_code in (429, 500, 502, 503, 504),
+                        message=f"HTTP {resp.status_code}: {body_text}",
+                        retryable=retryable,
+                        overflow=overflow,
                     )
                     return
                 async for evt in self._parse_sse(resp, signal):

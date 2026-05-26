@@ -40,6 +40,7 @@ class AgentSession:
         self._started = False
         self._closed = False
         self._ext_runner: ExtensionRunner | None = None
+        self._compact_callback: Any | None = None
 
     async def start(self) -> None:
         """Create session in store and subscribe to agent events."""
@@ -67,69 +68,56 @@ class AgentSession:
             )
             self._ext_runner = ExtensionRunner(self._extensions, ext_ctx)
 
-        # Chain Extension before_tool_call hooks after any scene-layer hook
-        if self._ext_runner is not None:
-            existing = getattr(self._agent, "_before_tool_call", None)
+            # Register extension hooks via Agent's public API
+            self._agent.add_before_tool_call_hook(
+                lambda call_ctx: self._ext_runner.before_tool_call(call_ctx)
+            )
+            self._agent.add_after_tool_call_hook(
+                lambda call_ctx: self._ext_runner.after_tool_call(call_ctx)
+            )
 
-            async def _chained_before(call_ctx: dict[str, Any]) -> dict[str, Any] | None:
-                result = None
-                if existing is not None:
-                    result = await existing(call_ctx)
-                    if result and result.get("block"):
-                        return result
+            # Register extension transform_context hooks via Agent's public API
+            for ext in self._extensions:
+                transform = getattr(ext, "transform_context", None)
+                if callable(transform):
+                    self._agent.add_transform_context_hook(transform)
 
-                ext_result = await self._ext_runner.before_tool_call(call_ctx)
-                if ext_result and ext_result.get("block"):
-                    return ext_result
-
-                merged: dict[str, Any] = {}
-                for r in (result, ext_result):
-                    if r and r.get("inject_metadata"):
-                        merged.update(r["inject_metadata"])
-                return {"inject_metadata": merged} if merged else None
-
-            self._agent._before_tool_call = _chained_before
-
-            # Chain Extension after_tool_call hooks
-            existing_after = getattr(self._agent, "_after_tool_call", None)
-
-            async def _chained_after(call_ctx: dict[str, Any]) -> dict[str, Any] | None:
-                scene_result = None
-                if existing_after is not None:
-                    scene_result = await existing_after(call_ctx)
-                    if scene_result and scene_result.get("result"):
-                        sr = scene_result["result"]
-                        orig = call_ctx.get("result")
-                        # Update call_ctx so extension sees scene-layer mutations
-                        call_ctx["result"] = type(orig)(
-                            content=sr.get("content", getattr(orig, "content", [])),
-                            details=sr.get("details", getattr(orig, "details", None)),
-                            display=sr.get("display", getattr(orig, "display", None)),
+        # Wire compaction callback for overflow auto-retry
+        if self._compactor is not None:
+            async def _on_overflow_compact(messages: list[Any]) -> bool:
+                try:
+                    compacted = await self._compactor.compact(
+                        messages, reason="overflow", signal=None
+                    )
+                    if compacted.summary and compacted.kept_count > 0:
+                        entry = CompactionEntry(
+                            summary=compacted.summary,
+                            first_kept_entry_id=compacted.first_kept_entry_id,
+                            tokens_before=compacted.tokens_before,
+                            id=f"compaction-{int(time.time() * 1000)}",
                         )
+                        await self._store.append_entry(self._session_id, entry)
 
-                ext_result = await self._ext_runner.after_tool_call(call_ctx)
-                if ext_result and ext_result.get("result"):
-                    return ext_result
-                return scene_result
+                        from agent_core.core.messages import CustomMessage
+                        summary_msg = CustomMessage(
+                            custom_type="compaction_summary",
+                            content=compacted.summary,
+                            timestamp=time.time(),
+                        )
+                        kept = messages[-compacted.kept_count:]
+                        messages.clear()
+                        messages.append(summary_msg)
+                        messages.extend(kept)
 
-            self._agent._after_tool_call = _chained_after
+                        self._agent.state.messages = list(messages)
+                        return True
+                    return False
+                except Exception as exc:
+                    logger.warning("Overflow compaction failed for session %s: %s", self._session_id, exc)
+                    return False
 
-        # Chain Extension.transform_context
-        if self._extensions:
-            ext_transforms = [getattr(e, "transform_context", None) for e in self._extensions]
-            ext_transforms = [t for t in ext_transforms if callable(t)]
-            if ext_transforms:
-                existing_transform = getattr(self._agent, "_transform_context", None)
+            self._compact_callback = _on_overflow_compact
 
-                async def _chained_transform(llm_messages, signal):
-                    current = llm_messages
-                    if existing_transform is not None:
-                        current = await existing_transform(current, signal)
-                    for t in ext_transforms:
-                        current = await t(current, signal)
-                    return current
-
-                self._agent._transform_context = _chained_transform
         self._started = True
 
     # ---------- external listeners ----------
@@ -151,11 +139,11 @@ class AgentSession:
 
     async def prompt(self, text: str, **opts: Any) -> None:
         self._check_ready()
-        await self._agent.prompt(text, **opts)
+        await self._agent.prompt(text, compact_callback=self._compact_callback, **opts)
 
     async def continue_(self) -> None:
         self._check_ready()
-        await self._agent.continue_()
+        await self._agent.continue_(compact_callback=self._compact_callback)
 
     async def compact(self, *, instructions: str | None = None) -> None:
         """Manually trigger compaction."""

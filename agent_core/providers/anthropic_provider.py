@@ -8,6 +8,8 @@ from typing import Any, AsyncIterator
 
 import httpx
 
+from agent_core.core.content import ImageContent, TextContent, ToolCallContent
+from agent_core.core.messages import AssistantMessage, CustomMessage, ToolResultMessage, UserMessage
 from agent_core.providers.auth import ProviderAuth
 from agent_core.providers.types import (
     Model,
@@ -28,6 +30,84 @@ THINKING_BUDGETS = {
     "high": 2048,
     "xhigh": 4096,
 }
+
+
+def _create_anthropic_converter(tool_result_max_chars: int = 4000) -> Any:
+    """Build a ConvertToLlm callable that outputs Anthropic-native messages."""
+
+    async def convert(messages: list[Any]) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for m in messages:
+            if isinstance(m, UserMessage):
+                blocks: list[dict[str, Any]] = []
+                for c in m.content:
+                    if isinstance(c, TextContent):
+                        blocks.append({"type": "text", "text": c.text})
+                    elif isinstance(c, ImageContent):
+                        blocks.append({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": c.mime_type,
+                                "data": c.data,
+                            },
+                        })
+                out.append({"role": "user", "content": blocks if blocks else [{"type": "text", "text": ""}]})
+            elif isinstance(m, AssistantMessage):
+                blocks: list[dict[str, Any]] = []
+                text = "".join(c.text for c in m.content if isinstance(c, TextContent))
+                if text:
+                    blocks.append({"type": "text", "text": text})
+                for tc in m.content:
+                    if isinstance(tc, ToolCallContent):
+                        blocks.append({
+                            "type": "tool_use",
+                            "id": tc.id,
+                            "name": tc.name,
+                            "input": tc.arguments,
+                        })
+                out.append({"role": "assistant", "content": blocks if blocks else [{"type": "text", "text": ""}]})
+            elif isinstance(m, ToolResultMessage):
+                text_parts = "".join(c.text for c in m.content if isinstance(c, TextContent))
+                if len(text_parts) > tool_result_max_chars:
+                    text_parts = (
+                        text_parts[:tool_result_max_chars]
+                        + f"\n...[truncated, {len(text_parts)} chars total]"
+                    )
+                result_block = {
+                    "type": "tool_result",
+                    "tool_use_id": m.tool_call_id,
+                    "content": text_parts,
+                }
+                if out and out[-1]["role"] == "user":
+                    out[-1]["content"].append(result_block)
+                else:
+                    out.append({"role": "user", "content": [result_block]})
+            elif isinstance(m, CustomMessage) and m.custom_type == "compaction_summary":
+                text = m.content if isinstance(m.content, str) else str(m.content)
+                out.append({
+                    "role": "user",
+                    "content": [{"type": "text", "text": f"[Earlier conversation summary]\n{text}"}],
+                })
+        return out
+
+    return convert
+
+
+def _is_anthropic_format(messages: list[dict[str, Any]]) -> bool:
+    """Check if messages are already in Anthropic-native content-block format."""
+    for m in messages:
+        role = m.get("role")
+        if role in ("user", "assistant"):
+            content = m.get("content")
+            if isinstance(content, list) and len(content) > 0:
+                first = content[0]
+                if isinstance(first, dict) and first.get("type") in (
+                    "text", "image", "tool_use", "tool_result"
+                ):
+                    return True
+            return False
+    return False
 
 
 class AnthropicProvider:
@@ -72,6 +152,10 @@ class AnthropicProvider:
     def list_models(self) -> list[Model]:
         return list(self._models)
 
+    def create_message_converter(self, tool_result_max_chars: int = 4000) -> Any:
+        """Return a ConvertToLlm callable that produces Anthropic-native messages."""
+        return _create_anthropic_converter(tool_result_max_chars)
+
     async def stream(
         self,
         *,
@@ -85,7 +169,10 @@ class AnthropicProvider:
         signal: asyncio.Event | None = None,
         auth: ProviderAuth,
     ) -> AsyncIterator[StreamEvent]:
-        anthropic_msgs, system = _convert_messages(messages, system_prompt)
+        if _is_anthropic_format(messages):
+            anthropic_msgs, system = _merge_anthropic_messages(messages, system_prompt)
+        else:
+            anthropic_msgs, system = _convert_messages(messages, system_prompt)
         payload = self._build_payload(
             model=model,
             messages=anthropic_msgs,
@@ -151,9 +238,14 @@ class AnthropicProvider:
             async with client.stream("POST", url, headers=headers, json=payload) as resp:
                 if resp.status_code >= 400:
                     body = await resp.aread()
+                    body_text = body.decode("utf-8", errors="replace")
+                    retryable = resp.status_code in (429, 500, 502, 503, 504)
+                    from agent_core.providers.openai_provider import _is_context_overflow
+                    overflow = _is_context_overflow(resp.status_code, body_text)
                     yield StreamError(
-                        message=f"HTTP {resp.status_code}: {body.decode('utf-8', errors='replace')}",
-                        retryable=resp.status_code in (429, 500, 502, 503, 504),
+                        message=f"HTTP {resp.status_code}: {body_text}",
+                        retryable=retryable,
+                        overflow=overflow,
                     )
                     return
                 async for evt in self._parse_sse(resp, signal):
@@ -273,6 +365,32 @@ def _convert_messages(
                 out[-1]["content"].append(result)
             else:
                 out.append({"role": "user", "content": [result]})
+
+    # Merge consecutive same-role messages
+    merged: list[dict[str, Any]] = []
+    for m in out:
+        if merged and merged[-1]["role"] == m["role"]:
+            merged[-1]["content"].extend(m["content"])
+        else:
+            merged.append(m)
+    return merged, system
+
+
+def _merge_anthropic_messages(
+    messages: list[dict[str, Any]], system_prompt: str
+) -> tuple[list[dict[str, Any]], str]:
+    """Merge consecutive same-role messages when already in Anthropic format."""
+    system = system_prompt
+    out: list[dict[str, Any]] = []
+    for msg in messages:
+        role = msg.get("role")
+        if role == "system":
+            text = _extract_text(msg.get("content"))
+            if text:
+                system = text
+            continue
+        if role in ("user", "assistant"):
+            out.append({"role": role, "content": list(msg.get("content", []))})
 
     # Merge consecutive same-role messages
     merged: list[dict[str, Any]] = []

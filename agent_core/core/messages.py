@@ -41,6 +41,8 @@ class AssistantMessage(BaseModel):
     usage: Usage = Usage()
     stop_reason: StopReason = "stop"
     error_message: str | None = None
+    retryable_error: bool = False
+    overflow_error: bool = False
     provider: str | None = None
     model: str | None = None
     timestamp: float

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import random as _random
 import time
 from typing import Any, AsyncIterator
 
@@ -21,7 +23,7 @@ from agent_core.core.events import (
     TurnEnd,
     TurnStart,
 )
-from agent_core.core.messages import AssistantMessage, ToolResultMessage, Usage
+from agent_core.core.messages import AssistantMessage, Usage
 from agent_core.providers.types import (
     StreamError,
     StreamMessageEnd,
@@ -50,7 +52,7 @@ async def agent_loop(
 
     new_assistant_messages: list[Any] = []
     turn_count = 0
-    max_turns = getattr(config, "max_turns", None)
+    max_turns = config.max_turns
 
     while True:
         if signal is not None and signal.is_set():
@@ -61,35 +63,90 @@ async def agent_loop(
         yield TurnStart()
         turn_count += 1
 
+        # Tracing: start turn span
+        if config.trace_callback is not None:
+            await config.trace_callback("turn_start", {"turn": turn_count})
+
         llm_messages = await config.convert_to_llm(context.messages)
         if config.transform_context is not None:
             llm_messages = await config.transform_context(llm_messages, signal)
 
         auth = await config.auth_resolver(config.model.provider)
-
         tool_defs = _tools_to_provider_format(context.tools)
 
-        assistant = AssistantMessage(
-            content=[],
-            usage=Usage(),
-            stop_reason="stop",
-            provider=config.model.provider,
-            model=config.model.id,
-            timestamp=time.time(),
-        )
+        max_retries = config.max_retries
+        retry_base_delay = config.retry_base_delay
+        retry_max_delay = config.retry_max_delay
 
-        yield MessageStart(message=assistant)
-        async for upd in _stream_assistant(
-            config=config,
-            llm_messages=llm_messages,
-            tool_defs=tool_defs,
-            auth=auth,
-            signal=signal,
-            system_prompt=context.system_prompt,
-            assistant=assistant,
-        ):
-            yield upd
+        assistant: AssistantMessage | None = None
+        retry_count = 0
+        while True:
+            assistant = AssistantMessage(
+                content=[],
+                usage=Usage(),
+                stop_reason="stop",
+                provider=config.model.provider,
+                model=config.model.id,
+                timestamp=time.time(),
+            )
+
+            # Buffer updates during the stream; only emit on the final attempt
+            buffered: list[Any] = []
+            async for upd in _stream_assistant(
+                config=config,
+                llm_messages=llm_messages,
+                tool_defs=tool_defs,
+                auth=auth,
+                signal=signal,
+                system_prompt=context.system_prompt,
+                assistant=assistant,
+            ):
+                buffered.append(upd)
+
+            should_retry = False
+            if (assistant.stop_reason == "error"
+                    and assistant.retryable_error
+                    and retry_count < max_retries):
+                should_retry = True
+                retry_count += 1
+                delay = min(retry_base_delay * (2 ** (retry_count - 1)), retry_max_delay)
+                delay = delay * (0.5 + _random.random())
+                _log = logging.getLogger(__name__)
+                _log.warning(
+                    "Retryable error in agent loop (attempt %s/%s), retrying in %.1fs: %s",
+                    retry_count, max_retries, delay, assistant.error_message,
+                )
+                await asyncio.sleep(delay)
+
+            elif (assistant.overflow_error
+                    and config.compact_callback is not None
+                    and retry_count < max_retries):
+                _log = logging.getLogger(__name__)
+                _log.warning(
+                    "Context overflow detected (attempt %s/%s), triggering compaction",
+                    retry_count + 1, max_retries,
+                )
+                compacted = await config.compact_callback(context.messages)
+                if compacted:
+                    retry_count += 1
+                    llm_messages = await config.convert_to_llm(context.messages)
+                    if config.transform_context is not None:
+                        llm_messages = await config.transform_context(llm_messages, signal)
+                    should_retry = True
+                else:
+                    _log.warning("Compaction callback returned False, cannot retry overflow")
+
+            if should_retry:
+                continue
+
+            # Only emit events for the final attempt (success or exhausted retries)
+            yield MessageStart(message=assistant)
+            for upd in buffered:
+                yield upd
+            break
+
         yield MessageEnd(message=assistant)
+
         context.messages.append(assistant)
         new_assistant_messages.append(assistant)
 
@@ -102,10 +159,18 @@ async def agent_loop(
                 signal=signal,
                 tool_results_out=tool_result_messages,
                 human_input_gate=config.human_input_gate,
+                mutation_queue=config.mutation_queue,
             ):
                 yield evt
 
         yield TurnEnd(message=assistant, tool_results=tool_result_messages)
+
+        if config.trace_callback is not None:
+            await config.trace_callback("turn_end", {
+                "turn": turn_count,
+                "stop_reason": assistant.stop_reason,
+                "tool_calls": len(assistant.tool_calls()),
+            })
 
         if assistant.stop_reason in ("error", "aborted"):
             break
@@ -194,13 +259,7 @@ async def _stream_assistant(
         signal=signal,
         auth=auth,
     )
-    # provider.stream may be coroutine returning AsyncIterator or AsyncIterator itself
-    if hasattr(stream, "__aiter__"):
-        iterator = stream
-    else:
-        iterator = await stream  # type: ignore[assignment]
-
-    async for evt in iterator:
+    async for evt in stream:
         if isinstance(evt, StreamTextDelta):
             text_buf += evt.text
             yield MessageUpdate(message=assistant, delta=TextDelta(text=evt.text))
@@ -237,6 +296,10 @@ async def _stream_assistant(
         elif isinstance(evt, StreamError):
             error_message = evt.message
             assistant.stop_reason = "error"
+            if evt.retryable:
+                assistant.retryable_error = True
+            if evt.overflow:
+                assistant.overflow_error = True
 
     if text_buf:
         assistant.content.append(TextContent(text=text_buf))
@@ -256,6 +319,7 @@ async def _execute_tools(
     signal: asyncio.Event | None,
     tool_results_out: list[Any],
     human_input_gate: Any | None = None,
+    mutation_queue: Any | None = None,
 ) -> AsyncIterator[AgentEvent]:
     """Delegate to tool_runner to avoid circular imports at module level."""
     from agent_core.core.tool_runner import execute_tools
@@ -267,5 +331,6 @@ async def _execute_tools(
         signal=signal,
         tool_results_out=tool_results_out,
         human_input_gate=human_input_gate,
+        mutation_queue=mutation_queue,
     ):
         yield evt

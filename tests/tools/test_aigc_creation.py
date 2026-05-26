@@ -287,20 +287,17 @@ def test_session_chains_extension_hooks():
         provider=provider,
         auth_source=AuthSource.static(api_key="k"),
         initial_state=AgentState(model=fake_model()),
+        before_tool_call=lambda info: (calls.append("scene"), None)[1],
     )
-
-    async def scene_hook(info):
-        calls.append("scene")
-        return None
-
-    agent._before_tool_call = scene_hook
 
     store = __import__("agent_core.session.inmemory_store", fromlist=["InMemoryStore"]).InMemoryStore()
     session = AgentSession(agent=agent, store=store, session_id="test-chain", extensions=[_SpyExt()])
 
     asyncio.run(session.start())
 
-    # The chained hook should exist and call both
-    assert agent._before_tool_call is not scene_hook  # replaced by chain
-    asyncio.run(agent._before_tool_call({"tool_call": None, "args": {}}))
+    # Both hooks should be registered
+    assert len(agent._before_hooks) == 2
+    # Run the chained hook to verify ordering
+    chained = agent._chain_before_hooks()
+    asyncio.run(chained({"tool_call": None, "args": {}}))
     assert calls == ["scene", "ext"]
