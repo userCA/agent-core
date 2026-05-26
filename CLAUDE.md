@@ -20,6 +20,14 @@ Modify code in these paths? Load the corresponding skill first to prevent known 
 | `scene/http_sse/static/src/` | `/dev-process-frontend` |
 | Cross-layer (touching both scopes above) | `/dev-process-optimizer` first, then the sub-skill |
 
+## Commit Checklist
+
+Before committing non-trivial changes, execute these three steps in order:
+
+1. **Update dev log** — append a dated entry to `docs/development-log/YYYY-MM-DD.md` (create if new day), update `docs/development-log.md` index
+2. **Check skills** — does any fix reveal a new anti-pattern? Apply the three-question gate from `dev-process-optimizer` maintenance rules before adding a rule
+3. **Commit** — concise message describing WHY, referencing problem numbers from dev log
+
 ## Development Commands
 
 ```bash
