@@ -16,6 +16,7 @@
 | 2026-05-22 | 19. Memory & Retrieval 基础子系统：Protocol + 内存适配器 + Extension/Tool 桥接  20. AIGC 视频生成工具 + HTTP/SSE 请求级鉴权透传 | [2026-05-22.md](development-log/2026-05-22.md) |
 | 2026-05-26 | 22. 架构审查与全面优化  23. Core 目录冗余清理 + 开发流程 Skill  24. 设计债务清偿（P0-P3） | [2026-05-26.md](development-log/2026-05-26.md) |
 | 2026-05-27 | 25. loop.py 清理  26. dead code 删除  27. message_converter 提取  28. 前端交互优化（thinking dots/步骤展开/流式思考）  29. 测试质量修复  30. CLAUDE.md 中文化 | [2026-05-27.md](development-log/2026-05-27.md) |
+| 2026-05-28 | 31. 修复 SSE 流式输出被 agent_loop 缓冲的问题 | [2026-05-28.md](development-log/2026-05-28.md) |
 
 ---
 

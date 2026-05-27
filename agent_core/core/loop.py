@@ -89,18 +89,38 @@ async def agent_loop(
                 timestamp=time.time(),
             )
 
-            # Buffer updates during the stream; only emit on the final attempt
-            buffered: list[Any] = []
-            async for upd in _stream_assistant(
-                config=config,
-                llm_messages=llm_messages,
-                tool_defs=tool_defs,
-                auth=auth,
-                signal=signal,
-                system_prompt=context.system_prompt,
-                assistant=assistant,
-            ):
-                buffered.append(upd)
+            if retry_count == 0:
+                # First attempt: stream in real-time for responsiveness.
+                # If this attempt fails and we retry, the client may have
+                # seen partial output; that is acceptable because retries
+                # are rare and streaming is the common-case expectation.
+                yield MessageStart(message=assistant)
+                async for upd in _stream_assistant(
+                    config=config,
+                    llm_messages=llm_messages,
+                    tool_defs=tool_defs,
+                    auth=auth,
+                    signal=signal,
+                    system_prompt=context.system_prompt,
+                    assistant=assistant,
+                ):
+                    yield upd
+            else:
+                # Retry attempts: buffer to avoid emitting partial failed output.
+                buffered: list[Any] = []
+                async for upd in _stream_assistant(
+                    config=config,
+                    llm_messages=llm_messages,
+                    tool_defs=tool_defs,
+                    auth=auth,
+                    signal=signal,
+                    system_prompt=context.system_prompt,
+                    assistant=assistant,
+                ):
+                    buffered.append(upd)
+                yield MessageStart(message=assistant)
+                for upd in buffered:
+                    yield upd
 
             should_retry = False
             if (assistant.stop_reason == "error"
@@ -136,10 +156,6 @@ async def agent_loop(
             if should_retry:
                 continue
 
-            # Only emit events for the final attempt (success or exhausted retries)
-            yield MessageStart(message=assistant)
-            for upd in buffered:
-                yield upd
             break
 
         yield MessageEnd(message=assistant)
