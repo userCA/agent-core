@@ -20,7 +20,7 @@ from agent_core.core.events import (
     TurnEnd,
     TurnStart,
 )
-from agent_core.core.loop import agent_loop, agent_loop_continue
+from agent_core.core.loop import agent_loop
 from agent_core.core.messages import (
     AgentMessage,
     AssistantMessage,
@@ -64,5 +64,4 @@ __all__ = [
     "Usage",
     "UserMessage",
     "agent_loop",
-    "agent_loop_continue",
 ]

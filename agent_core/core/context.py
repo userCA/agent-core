@@ -59,7 +59,6 @@ class AgentLoopConfig:
     retry_max_delay: float = 60.0
     tool_result_max_chars: int = 4000
     compact_callback: CompactCallback | None = None
-    trace_callback: Any | None = None
     mutation_queue: Any | None = None
     get_steering_messages: MessageDrainer | None = None
     get_follow_up_messages: MessageDrainer | None = None

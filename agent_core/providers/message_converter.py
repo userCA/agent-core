@@ -1,0 +1,73 @@
+"""Default OpenAI-format message converter — used when the provider has no native converter."""
+
+from __future__ import annotations
+
+import json as _json
+from typing import Any
+
+from agent_core.core.content import ImageContent, TextContent, ToolCallContent
+from agent_core.core.messages import AssistantMessage, CustomMessage, ToolResultMessage, UserMessage
+
+
+def create_default_converter(tool_result_max_chars: int = 4000):
+    """Return a ConvertToLlm callable that formats messages to OpenAI-compatible dicts."""
+
+    async def convert(messages: list[Any]) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for m in messages:
+            if isinstance(m, UserMessage):
+                content = _user_content_to_openai(m.content)
+                out.append({"role": "user", "content": content})
+            elif isinstance(m, AssistantMessage):
+                msg: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": "".join(c.text for c in m.content if isinstance(c, TextContent)),
+                }
+                tool_calls = [c for c in m.content if isinstance(c, ToolCallContent)]
+                if tool_calls:
+                    msg["tool_calls"] = [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {"name": tc.name, "arguments": _json.dumps(tc.arguments)},
+                        }
+                        for tc in tool_calls
+                    ]
+                out.append(msg)
+            elif isinstance(m, ToolResultMessage):
+                text_parts = "".join(c.text for c in m.content if isinstance(c, TextContent))
+                if len(text_parts) > tool_result_max_chars:
+                    text_parts = text_parts[:tool_result_max_chars] + f"\n...[truncated, {len(text_parts)} chars total]"
+                out.append({"role": "tool", "tool_call_id": m.tool_call_id, "content": text_parts})
+            elif isinstance(m, CustomMessage) and m.custom_type == "compaction_summary":
+                text = m.content if isinstance(m.content, str) else str(m.content)
+                out.append({
+                    "role": "system",
+                    "content": f"[Earlier conversation summary]\n{text}",
+                })
+        return out
+
+    return convert
+
+
+def _user_content_to_openai(content: list[Any]) -> Any:
+    parts: list[dict[str, Any]] = []
+    only_text = True
+    for c in content:
+        if isinstance(c, TextContent):
+            parts.append({"type": "text", "text": c.text})
+        elif isinstance(c, ImageContent):
+            parts.append({"type": "image_url", "image_url": {"url": f"data:{c.mime_type};base64,{c.data}"}})
+            only_text = False
+        elif isinstance(c, dict):
+            t = c.get("type")
+            if t == "text":
+                parts.append({"type": "text", "text": c.get("text", "")})
+            elif t == "image":
+                data = c.get("data", "")
+                mime = c.get("mime_type", "image/png")
+                parts.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}})
+                only_text = False
+    if only_text:
+        return "".join(p["text"] for p in parts)
+    return parts

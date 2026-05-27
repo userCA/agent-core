@@ -1,4 +1,4 @@
-"""Tool execution logic extracted from loop.py to avoid circular imports."""
+"""Tool execution: parallel/sequential dispatch, hook invocation, HITL integration."""
 
 from __future__ import annotations
 

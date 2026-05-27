@@ -8,8 +8,6 @@ import random as _random
 import time
 from typing import Any, AsyncIterator
 
-_log = logging.getLogger(__name__)
-
 from agent_core.core.context import AgentContext, AgentLoopConfig
 from agent_core.core.content import TextContent, ToolCallContent
 from agent_core.core.events import (
@@ -26,6 +24,7 @@ from agent_core.core.events import (
     TurnStart,
 )
 from agent_core.core.messages import AssistantMessage, Usage
+from agent_core.core.tool_runner import execute_tools
 from agent_core.providers.base import tools_to_provider_format
 from agent_core.providers.types import (
     StreamError,
@@ -36,6 +35,8 @@ from agent_core.providers.types import (
     StreamToolCallEnd,
     StreamToolCallStart,
 )
+
+_log = logging.getLogger(__name__)
 
 
 async def agent_loop(
@@ -55,20 +56,15 @@ async def agent_loop(
 
     new_assistant_messages: list[Any] = []
     turn_count = 0
-    max_turns = config.max_turns
 
     while True:
         if signal is not None and signal.is_set():
             break
-        if max_turns is not None and turn_count >= max_turns:
+        if config.max_turns is not None and turn_count >= config.max_turns:
             break
 
         yield TurnStart()
         turn_count += 1
-
-        # Tracing: start turn span
-        if config.trace_callback is not None:
-            await config.trace_callback("turn_start", {"turn": turn_count})
 
         llm_messages = await config.convert_to_llm(context.messages)
         if config.transform_context is not None:
@@ -153,7 +149,7 @@ async def agent_loop(
 
         tool_result_messages: list[Any] = []
         if assistant.has_tool_calls() and config.tool_registry is not None:
-            async for evt in _execute_tools(
+            async for evt in execute_tools(
                 assistant=assistant,
                 config=config,
                 context=context,
@@ -165,13 +161,6 @@ async def agent_loop(
                 yield evt
 
         yield TurnEnd(message=assistant, tool_results=tool_result_messages)
-
-        if config.trace_callback is not None:
-            await config.trace_callback("turn_end", {
-                "turn": turn_count,
-                "stop_reason": assistant.stop_reason,
-                "tool_calls": len(assistant.tool_calls()),
-            })
 
         if assistant.stop_reason in ("error", "aborted"):
             break
@@ -201,17 +190,6 @@ async def agent_loop(
         break
 
     yield AgentEnd(messages=new_assistant_messages)
-
-
-async def agent_loop_continue(
-    context: AgentContext,
-    config: AgentLoopConfig,
-    signal: asyncio.Event | None = None,
-) -> AsyncIterator[AgentEvent]:
-    """Continue an agent run from the existing transcript (no new user message)."""
-
-    async for evt in agent_loop([], context, config, signal):
-        yield evt
 
 
 async def _stream_assistant(
@@ -289,28 +267,3 @@ async def _stream_assistant(
         )
     if error_message:
         assistant.error_message = error_message
-
-
-async def _execute_tools(
-    *,
-    assistant: AssistantMessage,
-    config: AgentLoopConfig,
-    context: AgentContext,
-    signal: asyncio.Event | None,
-    tool_results_out: list[Any],
-    human_input_gate: Any | None = None,
-    mutation_queue: Any | None = None,
-) -> AsyncIterator[AgentEvent]:
-    """Delegate to tool_runner to avoid circular imports at module level."""
-    from agent_core.core.tool_runner import execute_tools
-
-    async for evt in execute_tools(
-        assistant=assistant,
-        config=config,
-        context=context,
-        signal=signal,
-        tool_results_out=tool_results_out,
-        human_input_gate=human_input_gate,
-        mutation_queue=mutation_queue,
-    ):
-        yield evt
