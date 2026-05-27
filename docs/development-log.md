@@ -15,6 +15,7 @@
 | 2026-05-18 | 18. agent-core 架构优化：工具可插拔性、资源发现加载、系统提示词构建 | [2026-05-18.md](development-log/2026-05-18.md) |
 | 2026-05-22 | 19. Memory & Retrieval 基础子系统：Protocol + 内存适配器 + Extension/Tool 桥接  20. AIGC 视频生成工具 + HTTP/SSE 请求级鉴权透传 | [2026-05-22.md](development-log/2026-05-22.md) |
 | 2026-05-26 | 22. 架构审查与全面优化  23. Core 目录冗余清理 + 开发流程 Skill  24. 设计债务清偿（P0-P3） | [2026-05-26.md](development-log/2026-05-26.md) |
+| 2026-05-27 | 25. loop.py 清理：消除 _log 重复、工具格式化函数移入 provider 层提升内聚 | [2026-05-27.md](development-log/2026-05-27.md) |
 
 ---
 

@@ -8,6 +8,8 @@ import random as _random
 import time
 from typing import Any, AsyncIterator
 
+_log = logging.getLogger(__name__)
+
 from agent_core.core.context import AgentContext, AgentLoopConfig
 from agent_core.core.content import TextContent, ToolCallContent
 from agent_core.core.events import (
@@ -24,6 +26,7 @@ from agent_core.core.events import (
     TurnStart,
 )
 from agent_core.core.messages import AssistantMessage, Usage
+from agent_core.providers.base import tools_to_provider_format
 from agent_core.providers.types import (
     StreamError,
     StreamMessageEnd,
@@ -72,7 +75,7 @@ async def agent_loop(
             llm_messages = await config.transform_context(llm_messages, signal)
 
         auth = await config.auth_resolver(config.model.provider)
-        tool_defs = _tools_to_provider_format(context.tools)
+        tool_defs = tools_to_provider_format(context.tools)
 
         max_retries = config.max_retries
         retry_base_delay = config.retry_base_delay
@@ -111,7 +114,6 @@ async def agent_loop(
                 retry_count += 1
                 delay = min(retry_base_delay * (2 ** (retry_count - 1)), retry_max_delay)
                 delay = delay * (0.5 + _random.random())
-                _log = logging.getLogger(__name__)
                 _log.warning(
                     "Retryable error in agent loop (attempt %s/%s), retrying in %.1fs: %s",
                     retry_count, max_retries, delay, assistant.error_message,
@@ -121,7 +123,6 @@ async def agent_loop(
             elif (assistant.overflow_error
                     and config.compact_callback is not None
                     and retry_count < max_retries):
-                _log = logging.getLogger(__name__)
                 _log.warning(
                     "Context overflow detected (attempt %s/%s), triggering compaction",
                     retry_count + 1, max_retries,
@@ -211,27 +212,6 @@ async def agent_loop_continue(
 
     async for evt in agent_loop([], context, config, signal):
         yield evt
-
-
-def _tools_to_provider_format(tools: list[Any]) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for t in tools:
-        if isinstance(t, dict):
-            out.append(_definition_to_openai(t))
-        elif hasattr(t, "model_dump"):
-            out.append(_definition_to_openai(t.model_dump()))
-    return out
-
-
-def _definition_to_openai(d: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "type": "function",
-        "function": {
-            "name": d["name"],
-            "description": d.get("description", ""),
-            "parameters": d.get("parameters", {"type": "object", "properties": {}}),
-        },
-    }
 
 
 async def _stream_assistant(

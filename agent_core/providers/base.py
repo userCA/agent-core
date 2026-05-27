@@ -9,6 +9,28 @@ from agent_core.providers.auth import ProviderAuth
 from agent_core.providers.types import Model, StreamEvent
 
 
+def tools_to_provider_format(tools: list[Any]) -> list[dict[str, Any]]:
+    """Convert tool definitions (dict or Pydantic model) to OpenAI function-calling format."""
+    out: list[dict[str, Any]] = []
+    for t in tools:
+        if isinstance(t, dict):
+            out.append(_definition_to_openai(t))
+        elif hasattr(t, "model_dump"):
+            out.append(_definition_to_openai(t.model_dump()))
+    return out
+
+
+def _definition_to_openai(d: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "type": "function",
+        "function": {
+            "name": d["name"],
+            "description": d.get("description", ""),
+            "parameters": d.get("parameters", {"type": "object", "properties": {}}),
+        },
+    }
+
+
 @runtime_checkable
 class ModelProvider(Protocol):
     name: str
