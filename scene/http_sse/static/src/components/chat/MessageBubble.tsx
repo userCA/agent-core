@@ -4,6 +4,7 @@ import Markdown from '../shared/Markdown';
 import StepsPanel from '../tools/StepsPanel';
 import WidgetFrame from '../tools/WidgetFrame';
 import AudioPlayer from '../tools/AudioPlayer';
+import Icon from '../shared/Icon';
 import './MessageBubble.css';
 
 interface Props {
@@ -27,7 +28,7 @@ export default function MessageBubble({ message }: Props) {
   if (role === 'error') {
     return (
       <div className="msg-wrapper msg-error">
-        <span className="msg-label">[!] error</span>
+        <span className="msg-label"><Icon name="alert" size={11} /> error</span>
         <div className="bubble bubble-error">{content}</div>
       </div>
     );
@@ -36,7 +37,7 @@ export default function MessageBubble({ message }: Props) {
   if (role === 'tool') {
     return (
       <div className="msg-wrapper msg-tool">
-        <span className="msg-label">[#] tool</span>
+        <span className="msg-label"><Icon name="tool" size={11} /> tool</span>
         <div className="bubble bubble-tool">
           <pre className="tool-text">{content}</pre>
         </div>

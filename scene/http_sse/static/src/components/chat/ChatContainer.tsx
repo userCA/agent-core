@@ -19,7 +19,7 @@ export default function ChatContainer({ onExampleClick }: Props) {
   const welcomeVisible = useUIStore((s) => s.welcomeVisible) && messages.length === 0;
 
   const { containerRef, onScroll, scrollToBottom } = useAutoScroll([
-    messages, currentText, steps,
+    messages, currentText, steps.length,
   ]);
 
   return (

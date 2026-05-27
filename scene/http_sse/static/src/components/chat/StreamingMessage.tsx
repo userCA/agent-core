@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { useChatStore } from '../../stores/chat-store';
 import { useTypewriter } from '../../hooks/useTypewriter';
 import { getDisplayableText } from '../../utils/think';
-import { renderMarkdown } from '../../utils/markdown';
+
 import StepsPanel from '../tools/StepsPanel';
 import WidgetFrame from '../tools/WidgetFrame';
 import AudioPlayer from '../tools/AudioPlayer';
@@ -18,25 +18,21 @@ export default function StreamingMessage() {
 
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Raw mode during active typing (fast, no layout thrash), markdown on pause.
-  // Matches legacy pattern: renderFinalContent(true) vs renderFinalContent(false).
-  const handleFlush = useCallback((displayed: string, isActive: boolean) => {
+  // Stream-only raw text renderer: avoids Markdown-parse flash & perf cost.
+  // Final markdown is rendered by MessageBubble once streaming ends.
+  const handleFlush = useCallback((displayed: string) => {
     if (!contentRef.current) return;
     if (!displayed) {
       contentRef.current.innerHTML = '';
       return;
     }
-    if (isActive) {
-      // Trim leading newlines and collapse multiple consecutive newlines
-      // to match markdown paragraph-break behavior (avoids blank lines).
-      let trimmed = displayed.replace(/^\n+/, '');
-      trimmed = trimmed.replace(/\n{2,}/g, '\n\n');
-      const div = document.createElement('div');
-      div.appendChild(document.createTextNode(trimmed));
-      contentRef.current.innerHTML = div.innerHTML.replace(/\n/g, '<br>');
-    } else {
-      contentRef.current.innerHTML = renderMarkdown(displayed);
-    }
+    // Trim leading newlines and collapse multiple consecutive newlines
+    // to match markdown paragraph-break behavior (avoids blank lines).
+    let trimmed = displayed.replace(/^\n+/, '');
+    trimmed = trimmed.replace(/\n{2,}/g, '\n\n');
+    const div = document.createElement('div');
+    div.appendChild(document.createTextNode(trimmed));
+    contentRef.current.innerHTML = div.innerHTML.replace(/\n/g, '<br>');
   }, []);
 
   const typewriter = useTypewriter({
@@ -101,7 +97,13 @@ export default function StreamingMessage() {
       <div className="bubble bubble-assistant streaming-bubble">
         <div className="msg-content">
           <StepsPanel />
-          <div ref={contentRef} className={`final-content markdown-body${isStreaming ? ' streaming' : ''}`} />
+          <div
+            ref={contentRef}
+            className={`final-content markdown-body${isStreaming ? ' streaming' : ''}`}
+            aria-live="polite"
+            aria-atomic="false"
+            aria-label="AI 正在生成回复"
+          />
         </div>
 
         {widgets.map((w, i) => <WidgetFrame key={`w-${i}`} widget={w} />)}

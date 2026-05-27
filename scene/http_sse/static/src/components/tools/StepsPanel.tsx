@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useChatStore, type ToolStep as ToolStepType } from '../../stores/chat-store';
 import ToolStep from './ToolStep';
+import Icon from '../shared/Icon';
 import './StepsPanel.css';
 
 interface Props {
@@ -17,6 +18,7 @@ function StepSection({
   onToggle: () => void;
 }) {
   const detailRef = useRef<HTMLDivElement>(null);
+  const detailId = `step-detail-${step.id}`;
 
   useEffect(() => {
     if (expanded && detailRef.current) {
@@ -24,10 +26,8 @@ function StepSection({
     }
   }, [step.detail, expanded]);
 
-  const icon = step.type === 'think' ? '[#]' : '[%]';
   const running = step.status === 'running';
   const done = step.status === 'done';
-  const statusIcon = done ? (step.isError ? '[!]' : '[x]') : '';
 
   let label = step.label;
   if (step.type === 'think') label = '思考过程';
@@ -41,20 +41,31 @@ function StepSection({
 
   return (
     <div className={`step-section${expanded ? ' open' : ''}${running ? ' active' : ''}`}>
-      <button className="section-summary" onClick={onToggle}>
+      <button
+        className="section-summary"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        aria-controls={detailId}
+      >
         <span className="section-label">
-          <span className="section-icon">{icon}</span>
+          <span className="section-icon">
+            {step.type === 'think' ? <Icon name="think" size={12} /> : <Icon name="tool" size={12} />}
+          </span>
           {label}
           {statusSuffix && <span className="section-status-text"> {statusSuffix}</span>}
-          {running && <span className="section-spinner" />}
+          {running && <Icon name="spinner" size={12} className="section-spinner-icon" />}
         </span>
         <span className="section-right">
-          <span className="section-status-icon">{statusIcon}</span>
-          <span className="section-arrow">{expanded ? '[-]' : '[+]'}</span>
+          <span className="section-status-icon">
+            {done && (step.isError ? <Icon name="alert" size={12} /> : <Icon name="check" size={12} />)}
+          </span>
+          <span className="section-arrow">
+            {expanded ? <Icon name="chevron-up" size={12} /> : <Icon name="chevron-down" size={12} />}
+          </span>
         </span>
       </button>
       {expanded && (
-        <div className="section-detail" ref={detailRef}>
+        <div id={detailId} className="section-detail" ref={detailRef} role="region">
           <ToolStep step={step} showHeader={false} />
         </div>
       )}

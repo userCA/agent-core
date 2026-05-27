@@ -1,5 +1,3 @@
-const THINK_RE = /<think>([\s\S]*?)<\/think>/g;
-
 export interface ExtractedThink {
   content: string;
   startIndex: number;
@@ -7,61 +5,108 @@ export interface ExtractedThink {
   text: string;
 }
 
+/** Stack-based extraction that correctly handles nested <think> blocks. */
 export function extractThinkSteps(text: string, alreadySeen: Set<string>): ExtractedThink[] {
   const results: ExtractedThink[] = [];
-  let match: RegExpExecArray | null;
-  const re = new RegExp(THINK_RE.source, 'g');
-  while ((match = re.exec(text)) !== null) {
-    const content = match[1].trim();
+  let pos = 0;
+
+  while (true) {
+    const openIdx = text.indexOf('<think>', pos);
+    if (openIdx === -1) break;
+
+    let depth = 1;
+    let searchFrom = openIdx + '<think>'.length;
+    let closeIdx = -1;
+
+    while (depth > 0) {
+      const nextOpen = text.indexOf('<think>', searchFrom);
+      const nextClose = text.indexOf('</think>', searchFrom);
+
+      if (nextClose === -1) break;
+
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth++;
+        searchFrom = nextOpen + '<think>'.length;
+      } else {
+        depth--;
+        closeIdx = nextClose;
+        searchFrom = nextClose + '</think>'.length;
+      }
+    }
+
+    if (closeIdx === -1) break;
+
+    const content = text.slice(openIdx + '<think>'.length, closeIdx).trim();
     if (content && !alreadySeen.has(content)) {
       alreadySeen.add(content);
       results.push({
         content,
-        startIndex: match.index,
-        endIndex: match.index + match[0].length,
-        text: match[0],
+        startIndex: openIdx,
+        endIndex: closeIdx + '</think>'.length,
+        text: text.slice(openIdx, closeIdx + '</think>'.length),
       });
     }
+
+    pos = closeIdx + '</think>'.length;
   }
+
   return results;
 }
 
 export function stripThinkTags(text: string): string {
-  return text.replace(THINK_RE, '').trim();
+  return getDisplayableText(text).trim();
 }
 
+/**
+ * Strip think blocks, handling three streaming states:
+ *   1. Complete (nested-safe): <think>...</think>  → removed
+ *   2. Unterminated: <think>... (no close) → trim from <think> onward
+ *   3. Partial opening: <think (no > yet)   → trim from <think onward
+ */
 export function getDisplayableText(text: string): string {
-  // Strip think blocks, handling three streaming states:
-  //   1. Complete:   <think>...</think>  → removed
-  //   2. Unterminated: <think>... (no close) → trim from <think> onward
-  //   3. Partial opening: <think (no > yet)   → trim from <think onward
   let result = text;
-  let changed = true;
-  while (changed) {
-    changed = false;
+  let i = 0;
 
-    // Strip complete <think>...</think> blocks
-    const stripped = result.replace(/<think>[\s\S]*?<\/think>/g, '');
-    if (stripped !== result) {
-      result = stripped;
-      changed = true;
-      continue;
+  while (true) {
+    const openIdx = result.indexOf('<think>', i);
+    if (openIdx === -1) break;
+
+    // Stack-based matching for nested tags
+    let depth = 1;
+    let pos = openIdx + '<think>'.length;
+    let closeIdx = -1;
+
+    while (depth > 0 && pos < result.length) {
+      const nextOpen = result.indexOf('<think>', pos);
+      const nextClose = result.indexOf('</think>', pos);
+
+      if (nextClose === -1) {
+        return result.slice(0, openIdx);
+      }
+
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth++;
+        pos = nextOpen + '<think>'.length;
+      } else {
+        depth--;
+        closeIdx = nextClose;
+        pos = nextClose + '</think>'.length;
+      }
     }
 
-    // Trim from unclosed <think> onward
-    const openTag = result.indexOf('<think>');
-    if (openTag !== -1 && !result.includes('</think>', openTag)) {
-      result = result.slice(0, openTag);
-      changed = true;
-      continue;
+    if (closeIdx === -1) {
+      return result.slice(0, openIdx);
     }
 
-    // Trim from partial <think (missing >) — streaming artifact
-    const partial = result.indexOf('<think');
-    if (partial !== -1 && !result.startsWith('<think>', partial)) {
-      result = result.slice(0, partial);
-      changed = true;
-    }
+    result = result.slice(0, openIdx) + result.slice(closeIdx + '</think>'.length);
+    i = openIdx;
   }
+
+  // Trim from partial <think (missing >) — streaming artifact
+  const partial = result.indexOf('<think');
+  if (partial !== -1 && !result.startsWith('<think>', partial)) {
+    result = result.slice(0, partial);
+  }
+
   return result;
 }

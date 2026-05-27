@@ -1,4 +1,5 @@
 import React from 'react';
+import Icon from '../shared/Icon';
 import './WelcomeScreen.css';
 
 const EXAMPLES = [
@@ -38,7 +39,7 @@ export default function WelcomeScreen({ onSelect }: Props) {
             className="example-chip"
             onClick={() => onSelect?.(ex.text)}
           >
-            {ex.label}
+            <Icon name="plus" size={12} /> {ex.label.slice(4)}
           </button>
         ))}
       </div>

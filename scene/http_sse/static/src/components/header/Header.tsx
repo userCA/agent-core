@@ -2,6 +2,7 @@ import React from 'react';
 import { useChatStore } from '../../stores/chat-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
+import Icon from '../shared/Icon';
 import './Header.css';
 
 interface Props {
@@ -35,18 +36,26 @@ export default function Header({ onAbort }: Props) {
       <div className="header-actions">
         <span className="status-badge">
           <span className={`status-dot ${isStreaming ? 'pulse' : ''}`} />
-          {isStreaming ? '[#] running' : '[x] ready'}
+          {isStreaming ? (
+            <>
+              <Icon name="running" size={11} /> running
+            </>
+          ) : (
+            <>
+              <Icon name="ready" size={11} /> ready
+            </>
+          )}
         </span>
         {isStreaming && (
           <button className="btn btn-danger" onClick={onAbort}>
-            [!] cancel
+            <Icon name="cancel" size={11} /> cancel
           </button>
         )}
         <button className="btn" onClick={() => setAuthModalOpen(true)}>
-          {hasAuth ? '[key] authed' : '[key] auth'}
+          <Icon name="key" size={11} /> {hasAuth ? 'authed' : 'auth'}
         </button>
         <button className="btn" onClick={handleNewSession}>
-          [+] new
+          <Icon name="plus" size={11} /> new
         </button>
       </div>
     </header>

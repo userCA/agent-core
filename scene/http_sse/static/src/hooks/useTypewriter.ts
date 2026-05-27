@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useMemo } from 'react';
 
 interface TypewriterOptions {
   speed?: number;
@@ -20,6 +20,10 @@ export function useTypewriter(opts: TypewriterOptions = {}) {
   const activeRef = useRef(false);
   const flushScheduled = useRef(false);
   const lastFlushLen = useRef(0);
+  const reducedMotionRef = useRef(
+    typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 
   const doFlush = useCallback(() => {
     flushScheduled.current = false;
@@ -40,7 +44,15 @@ export function useTypewriter(opts: TypewriterOptions = {}) {
   const runLoop = useCallback(() => {
     if (queueRef.current.length === 0) {
       activeRef.current = false;
-      scheduleFlush(); // final flush with isActive=false → markdown mode
+      scheduleFlush();
+      return;
+    }
+    // Respect prefers-reduced-motion: emit all queued chars immediately
+    if (reducedMotionRef.current) {
+      fullTextRef.current += queueRef.current.join('');
+      queueRef.current = [];
+      scheduleFlush();
+      activeRef.current = false;
       return;
     }
     const ch = queueRef.current.shift()!;
@@ -73,10 +85,19 @@ export function useTypewriter(opts: TypewriterOptions = {}) {
   }, []);
 
   useEffect(() => {
+    const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handler = (e: MediaQueryListEvent) => {
+      reducedMotionRef.current = e.matches;
+    };
+    mql.addEventListener('change', handler);
     return () => {
+      mql.removeEventListener('change', handler);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
 
-  return { enqueue, reset, fullTextRef, isActive: activeRef };
+  return useMemo(
+    () => ({ enqueue, reset, fullTextRef, isActive: activeRef }),
+    [enqueue, reset]
+  );
 }
