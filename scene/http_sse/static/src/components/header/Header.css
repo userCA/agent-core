@@ -51,11 +51,12 @@
 }
 
 .status-dot.pulse {
-    animation: pulse 1.5s ease-in-out infinite;
+    animation: pulseRing 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     background: var(--accent);
 }
 
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
+@keyframes pulseRing {
+    0% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 122, 255, 0.35); }
+    60% { opacity: 0.6; transform: scale(1.15); box-shadow: 0 0 0 4px rgba(0, 122, 255, 0); }
+    100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 122, 255, 0); }
 }

@@ -64,11 +64,9 @@ function StepSection({
           </span>
         </span>
       </button>
-      {expanded && (
-        <div id={detailId} className="section-detail" ref={detailRef} role="region">
-          <ToolStep step={step} showHeader={false} />
-        </div>
-      )}
+      <div id={detailId} className={`section-detail${expanded ? ' open' : ''}`} ref={detailRef} role="region">
+        <ToolStep step={step} showHeader={false} />
+      </div>
     </div>
   );
 }

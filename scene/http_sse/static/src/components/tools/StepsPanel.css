@@ -91,11 +91,21 @@
 }
 
 .section-detail {
-    display: none;
-    padding: 0 12px 10px;
-    max-height: 240px;
-    overflow-y: auto;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    padding: 0 12px;
+    transition: max-height 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 0.25s ease,
+                padding 0.3s cubic-bezier(0.22, 1, 0.36, 1);
     scroll-behavior: smooth;
+}
+
+.section-detail.open {
+    max-height: 240px;
+    opacity: 1;
+    padding: 0 12px 10px;
+    overflow-y: auto;
 }
 
 .section-detail::-webkit-scrollbar {
@@ -105,10 +115,6 @@
 .section-detail::-webkit-scrollbar-thumb {
     background: var(--hairline);
     border-radius: 2px;
-}
-
-.step-section.open .section-detail {
-    display: block;
 }
 
 /* Subtle "waiting for next step" indicator between steps */

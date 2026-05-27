@@ -23,20 +23,32 @@
     transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-/* New message entry animation */
+/* New message entry animation — direction varies by role */
 .msg-wrapper {
-    animation: msgEnter 0.25s ease;
+    animation: msgEnterBase 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@keyframes msgEnter {
-    from {
-        opacity: 0;
-        transform: translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.msg-user {
+    animation-name: msgEnterRight;
+}
+
+.msg-assistant {
+    animation-name: msgEnterLeft;
+}
+
+@keyframes msgEnterBase {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes msgEnterRight {
+    from { opacity: 0; transform: translateX(24px) scale(0.98); }
+    to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes msgEnterLeft {
+    from { opacity: 0; transform: translateX(-16px) scale(0.98); }
+    to   { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 /* Streaming message has its own animation in StreamingMessage.css */
