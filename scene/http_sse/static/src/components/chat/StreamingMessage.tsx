@@ -40,7 +40,7 @@ export default function StreamingMessage() {
   }, []);
 
   const typewriter = useTypewriter({
-    speed: 25,
+    speed: 18,
     onFlush: handleFlush,
   });
 
@@ -80,7 +80,20 @@ export default function StreamingMessage() {
 
   const hasContent = currentText.length > 0 || steps.length > 0;
 
-  if (!hasContent && !hitlRequest && steps.length === 0) return null;
+  if (!hasContent && !hitlRequest && steps.length === 0) {
+    return (
+      <div className="msg-wrapper msg-assistant">
+        <span className="msg-label">assistant</span>
+        <div className="bubble bubble-assistant streaming-bubble">
+          <div className="thinking-indicator">
+            <span className="thinking-dot" />
+            <span className="thinking-dot" />
+            <span className="thinking-dot" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="msg-wrapper msg-assistant">

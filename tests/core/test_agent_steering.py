@@ -50,5 +50,5 @@ def test_clear_all_queues():
     agent.steer(UserMessage(content=[{"type": "text", "text": "a"}], timestamp=0.0))
     agent.follow_up(UserMessage(content=[{"type": "text", "text": "b"}], timestamp=0.0))
     agent.clear_all_queues()
-    assert agent._steering.has_items() is False
-    assert agent._follow_up.has_items() is False
+    assert asyncio.run(agent._drain_steering()) == []
+    assert asyncio.run(agent._drain_follow_up()) == []

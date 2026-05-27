@@ -120,7 +120,7 @@ def test_agent_retries_on_retryable_error_then_succeeds():
 
 def test_agent_stops_after_max_retries():
     provider = FakeProvider()
-    for _ in range(4):
+    for _ in range(3):  # initial + 2 retries
         provider.queue_script(
             [StreamError(message="HTTP 503", retryable=True)]
         )
@@ -159,6 +159,8 @@ def test_agent_does_not_retry_on_non_retryable_error():
     )
 
     asyncio.run(agent.prompt("hi"))
+
+    assert len(provider.calls) == 1  # no retry, second script never consumed
 
     assistants = [m for m in agent.state.messages if getattr(m, "role", None) == "assistant"]
     assert len(assistants) == 1

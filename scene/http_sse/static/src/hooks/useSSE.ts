@@ -15,6 +15,7 @@ export function useSSE() {
   const abortRef = useRef<AbortController | null>(null);
   const stepTimers = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
   const seenThinks = useRef<Set<string>>(new Set());
+  const thinkingStepId = useRef<string | null>(null);
 
   const {
     setStreaming, addMessage, setStreamingMessageId,
@@ -35,9 +36,33 @@ export function useSSE() {
 
       case 'thinking_delta':
         appendThinking(evt.text);
+        if (!thinkingStepId.current) {
+          thinkingStepId.current = 'think-stream';
+          addStep({
+            id: thinkingStepId.current,
+            type: 'think',
+            label: '思考过程',
+            detail: evt.text,
+            renderedDetail: '',
+            status: 'running',
+            isError: false,
+            isSlow: false,
+            startTime: Date.now(),
+            toolCallId: '',
+          });
+        } else {
+          updateStep(thinkingStepId.current, {
+            detail: useChatStore.getState().thinkingText,
+          });
+        }
         break;
 
-      case 'text_delta':
+      case 'text_delta': {
+        // Mark streaming think step as done on first text
+        if (thinkingStepId.current) {
+          updateStep(thinkingStepId.current, { status: 'done' });
+          thinkingStepId.current = null;
+        }
         appendText(evt.text);
         // Extract complete <think>...</think> blocks into steps
         {
@@ -62,6 +87,7 @@ export function useSSE() {
               });
             }
           }
+        }
         }
         break;
 
@@ -150,6 +176,7 @@ export function useSSE() {
     setStreaming(true);
     resetSteps();
     seenThinks.current.clear();
+    thinkingStepId.current = null;
     const assistantId = `asst-${Date.now()}`;
     setStreamingMessageId(assistantId);
 
@@ -163,6 +190,11 @@ export function useSSE() {
 
       for await (const evt of gen) {
         processEvent(evt);
+        // Yield to React after step-creation events so the UI renders
+        // before the next event arrives (prevents "flash" of batched steps)
+        if (evt.event === 'thinking_delta' || evt.event === 'tool_start') {
+          await new Promise((r) => setTimeout(r, 0));
+        }
       }
 
       const finalState = useChatStore.getState();
