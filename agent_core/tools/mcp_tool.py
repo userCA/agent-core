@@ -80,9 +80,63 @@ def parse_mcp_servers(raw: str) -> list[MCPServerConfig]:
     return servers
 
 
-def load_mcp_server_configs() -> list[MCPServerConfig]:
-    """Load MCP server configs from MCP_SERVERS env var."""
-    return parse_mcp_servers(os.environ.get("MCP_SERVERS", ""))
+def parse_mcp_json(path: str) -> list[MCPServerConfig]:
+    """Parse a Claude Desktop-style .mcp.json config file.
+
+    Format:
+        {"mcpServers": {"name": {"command": "...", "args": [...], "env": {...}}}}}
+    """
+    import json as _json
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = _json.load(f)
+    except (FileNotFoundError, _json.JSONDecodeError, OSError):
+        return []
+
+    servers_data = data.get("mcpServers", {})
+    if not isinstance(servers_data, dict):
+        return []
+
+    servers: list[MCPServerConfig] = []
+    for name, cfg in servers_data.items():
+        if not isinstance(cfg, dict):
+            continue
+        command = cfg.get("command", "")
+        args = cfg.get("args", [])
+        env = cfg.get("env")
+        url = cfg.get("url")
+
+        # Detect transport from config fields
+        if url:
+            transport = "sse"  # could be streamable_http, default to sse
+            servers.append(MCPServerConfig(
+                name=name, transport=transport, url=url,
+                env=env if isinstance(env, dict) else None,
+            ))
+        elif command:
+            full_cmd = [command] + list(args) if args else [command]
+            servers.append(MCPServerConfig(
+                name=name, transport="stdio", command=full_cmd,
+                env={k: str(v) for k, v in env.items()} if isinstance(env, dict) else None,
+            ))
+
+    return servers
+
+
+def load_mcp_server_configs(cwd: str = "") -> list[MCPServerConfig]:
+    """Load MCP server configs from .mcp.json (cwd), then fall back to MCP_SERVERS env var."""
+    import os as _os
+
+    search_dir = cwd or _os.getcwd()
+    json_path = _os.path.join(search_dir, ".mcp.json")
+
+    configs = parse_mcp_json(json_path)
+    if configs:
+        return configs
+
+    # Fall back to env var for backward compatibility
+    return parse_mcp_servers(_os.environ.get("MCP_SERVERS", ""))
 
 
 # ---------------------------------------------------------------------------
