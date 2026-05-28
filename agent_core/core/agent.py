@@ -99,6 +99,21 @@ class Agent:
         if transform_context is not None:
             self._transform_hooks.append(transform_context)
 
+    # ---------- MCP tools ----------
+    async def setup_mcp_tools(self, mcp_manager: Any | None = None) -> int:
+        """Register MCP tools from env or a pre-loaded manager. Call once after init.
+
+        Returns the number of MCP tools registered.
+        """
+        if mcp_manager is None:
+            from agent_core.tools.mcp_tool import MCPManager
+            mcp_manager = MCPManager.from_env()
+            await mcp_manager.start()
+        self._mcp_manager = mcp_manager
+        if self._tool_registry is not None:
+            return mcp_manager.register_tools(self._tool_registry)
+        return 0
+
     # ---------- subscriptions ----------
     def subscribe(self, listener: Listener) -> Unsubscribe:
         self._listeners.append(listener)
