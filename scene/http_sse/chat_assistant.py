@@ -30,6 +30,7 @@ from agent_core.resources.types import Skill
 from agent_core.tools.base import Tool, ToolRegistry
 from agent_core.tools.aigc_creation import create_nolo_video_tool
 from agent_core.tools.local import create_all_tools
+from agent_core.tools.mcp_tool import MCPManager
 from agent_core.tools.music import create_text_to_music_tool
 from agent_core.tools.widgets import ShowWidgetTool
 
@@ -76,11 +77,13 @@ class ChatAssistant:
         session_id: str | None = None,
         skills: list[Skill] | None = None,
         tool_registry: ToolRegistry | None = None,
+        mcp_manager: MCPManager | None = None,
         cwd: str = "",
     ) -> None:
         self._agent = agent
         self._tool_registry = tool_registry or ToolRegistry()
         self._skills = skills or []
+        self._mcp_manager = mcp_manager
         self._cwd = cwd or os.getcwd()
         self._session_store = session_store or InMemoryStore()
         self._session_id = session_id or _generate_session_id()
@@ -101,6 +104,7 @@ class ChatAssistant:
         session_store: SessionStore | None = None,
         session_id: str | None = None,
         system_prompt: str | None = None,
+        mcp_manager: MCPManager | None = None,
         cwd: str = "",
     ) -> "ChatAssistant":
         """Factory method to create a ChatAssistant with minimal configuration."""
@@ -128,6 +132,15 @@ class ChatAssistant:
         if tools:
             for tool in tools:
                 tool_registry.register(tool)
+
+        # Register MCP tools (pre-loaded at server startup, or discover now)
+        if mcp_manager is None:
+            mcp_manager = MCPManager.from_env()
+            await mcp_manager.start()
+        mcp_count = mcp_manager.register_tools(tool_registry)
+        if mcp_count > 0:
+            import logging
+            logging.getLogger(__name__).info("Registered %d MCP tools", mcp_count)
 
         # Resolve auth
         if api_key:
@@ -196,6 +209,7 @@ class ChatAssistant:
             session_id=session_id,
             skills=skills,
             tool_registry=tool_registry,
+            mcp_manager=mcp_manager,
             cwd=cwd,
         )
         await assistant.start()
@@ -314,3 +328,5 @@ class ChatAssistant:
             self._session_unsub = None
         if self._session is not None:
             await self._session.dispose()
+        if self._mcp_manager is not None:
+            await self._mcp_manager.stop()

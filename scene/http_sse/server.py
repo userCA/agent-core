@@ -38,6 +38,7 @@ manager = SessionManager(cwd=os.getcwd())
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await manager.start()
     yield
     await manager.dispose_all()
 

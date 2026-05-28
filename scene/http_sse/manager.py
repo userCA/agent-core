@@ -13,6 +13,7 @@ import re
 import time
 from typing import Any
 
+from agent_core.tools.mcp_tool import MCPManager
 from agent_core.session.jsonl_store import JsonlStore
 from agent_core.session.store import SessionStore
 
@@ -45,6 +46,16 @@ class SessionManager:
         self._sessions: dict[str, ChatAssistant] = {}
         self._lock = asyncio.Lock()
         self._create_locks: dict[str, asyncio.Lock] = {}
+        self._mcp_manager: MCPManager | None = None
+
+    async def start(self) -> None:
+        """Pre-load MCP tools at server startup (not lazy on first request)."""
+        self._mcp_manager = MCPManager.from_env()
+        await self._mcp_manager.start()
+        if len(self._mcp_manager.adapters) > 0:
+            import logging
+            _log = logging.getLogger(__name__)
+            _log.info("MCP tools pre-loaded: %d tools", len(self._mcp_manager.adapters))
 
     async def get_or_create(self, session_id: str | None) -> tuple[str, ChatAssistant]:
         """Get an existing assistant or create a new one."""
@@ -73,6 +84,7 @@ class SessionManager:
                 provider_name=provider_name,
                 model_id=model_id,
                 api_key_env=api_key_env,
+                mcp_manager=self._mcp_manager,
             )
             async with self._lock:
                 self._sessions[sid] = assistant
@@ -97,3 +109,5 @@ class SessionManager:
             self._create_locks.clear()
         for _, assistant in items:
             await assistant.dispose()
+        if self._mcp_manager is not None:
+            await self._mcp_manager.stop()

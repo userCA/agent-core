@@ -5,14 +5,16 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from agent_core.core.content import TextContent
 from agent_core.core.context import AgentLoopConfig
 from agent_core.core.events import HumanInputRequired, ToolExecutionEnd, ToolExecutionStart, ToolExecutionUpdate
 from agent_core.core.human_input import HumanInputGate, RequiresHumanInput
 from agent_core.core.messages import AssistantMessage, ToolResultMessage
-from agent_core.tools.base import ToolContext, ToolRegistry, ToolResult
+
+if TYPE_CHECKING:
+    from agent_core.tools.base import ToolContext, ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,9 @@ async def execute_tools(
     human_input_gate: HumanInputGate | None = None,
     mutation_queue: Any = None,
 ) -> AsyncIterator[Any]:
+    # Lazy import to break circular dependency: core → tools → core
+    from agent_core.tools.base import ToolResult  # noqa: F811
+
     registry = config.tool_registry
     if registry is None:
         return
@@ -160,7 +165,9 @@ async def _run_single_tool(
     mutation_queue: Any | None = None,
     on_update: Any = None,
     tool_timeout: float | None = None,
-) -> tuple[Any, ToolResult, bool]:
+) -> tuple[Any, Any, bool]:
+    from agent_core.tools.base import ToolResult, ToolContext  # noqa: F811
+
     abort_event = signal or asyncio.Event()
     tool = registry.get(tool_call.name)
 

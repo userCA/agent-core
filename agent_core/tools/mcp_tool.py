@@ -1,20 +1,93 @@
-"""MCP (Model Context Protocol) tool adapter.
+"""MCP (Model Context Protocol) tool adapter — connect, discover, register.
 
 Connects to MCP servers (stdio / SSE) and exposes their tools as agent_core Tools.
+Supports auto-registration via MCPManager + ChatAssistant integration.
+
+Config format (env MCP_SERVERS):
+  stdio:server_name:command:arg1:arg2|sse:server_name:url
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+import os
+from dataclasses import dataclass
+from typing import Any
 
 from agent_core.core.content import TextContent
-from agent_core.tools.base import Tool, ToolContext, ToolDefinition, ToolResult
+from agent_core.tools.base import Tool, ToolContext, ToolDefinition, ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# MCP server configuration
+# ---------------------------------------------------------------------------
+
+@dataclass
+class MCPServerConfig:
+    name: str
+    transport: str  # "stdio" | "sse" | "streamable_http"
+    command: list[str] | None = None
+    url: str | None = None
+    env: dict[str, str] | None = None
+
+
+def parse_mcp_servers(raw: str) -> list[MCPServerConfig]:
+    """Parse MCP_SERVERS env string into server configs.
+
+    Format: stdio:name:cmd:arg1:arg2|sse:name:url|streamable_http:name:url
+
+    Examples:
+        stdio:echo:python:-m:agent_core.skills.mcp_example_server
+        sse:remote:http://localhost:8080/sse
+        streamable_http:amap:https://mcp.amap.com/mcp?key=YOUR_KEY
+    """
+    servers: list[MCPServerConfig] = []
+    if not raw or not raw.strip():
+        return servers
+
+    for spec in raw.strip().split("|"):
+        parts = spec.strip().split(":")
+        if len(parts) < 3:
+            logger.warning("Invalid MCP server spec (too few parts): %s", spec)
+            continue
+
+        transport, name = parts[0].strip(), parts[1].strip()
+
+        if transport == "stdio":
+            servers.append(MCPServerConfig(
+                name=name,
+                transport="stdio",
+                command=[p.strip() for p in parts[2:]],
+            ))
+        elif transport == "sse":
+            servers.append(MCPServerConfig(
+                name=name,
+                transport="sse",
+                url=":".join(p.strip() for p in parts[2:]),
+            ))
+        elif transport == "streamable_http":
+            servers.append(MCPServerConfig(
+                name=name,
+                transport="streamable_http",
+                url=":".join(p.strip() for p in parts[2:]),
+            ))
+        else:
+            logger.warning("Unknown MCP transport '%s' for server '%s'", transport, name)
+
+    return servers
+
+
+def load_mcp_server_configs() -> list[MCPServerConfig]:
+    """Load MCP server configs from MCP_SERVERS env var."""
+    return parse_mcp_servers(os.environ.get("MCP_SERVERS", ""))
+
+
+# ---------------------------------------------------------------------------
+# MCP connection
+# ---------------------------------------------------------------------------
 
 class MCPConnection:
     """Manages a single MCP server connection lifecycle."""
@@ -24,48 +97,73 @@ class MCPConnection:
         *,
         command: list[str] | None = None,
         url: str | None = None,
+        transport: str = "",
         env: dict[str, str] | None = None,
         timeout: float = 30.0,
     ) -> None:
         if command is None and url is None:
-            raise ValueError("Either 'command' (stdio) or 'url' (SSE) must be provided")
+            raise ValueError("Either 'command' (stdio) or 'url' (SSE/streamable_http) must be provided")
         self._command = command
         self._url = url
+        self._transport = transport
         self._env = env
         self._timeout = timeout
         self._session: Any = None
-        self._context_stack: Any = None
+        self._exit_stack: Any = None
 
     async def connect(self) -> None:
         """Connect to the MCP server and initialize the session."""
+        from contextlib import AsyncExitStack
+
         from mcp import ClientSession
-        from mcp.client.stdio import stdio_client
-        from mcp.client.sse import sse_client
+
+        self._exit_stack = AsyncExitStack()
+
+        if self._transport == "streamable_http":
+            from mcp.client.streamable_http import streamable_http_client
+
+            if self._url is None:
+                raise RuntimeError("URL is required for streamable HTTP transport")
+            read, write, _ = await self._exit_stack.enter_async_context(
+                streamable_http_client(self._url)
+            )
+            self._session = await self._exit_stack.enter_async_context(
+                ClientSession(read, write)
+            )
+            await self._session.initialize()
+            return
 
         if self._command is not None:
             from mcp import StdioServerParameters
+            from mcp.client.stdio import stdio_client
 
             params = StdioServerParameters(
                 command=self._command[0],
                 args=self._command[1:] if len(self._command) > 1 else [],
                 env=self._env,
             )
-            ctx = stdio_client(params)
+            read, write = await self._exit_stack.enter_async_context(
+                stdio_client(params)
+            )
         elif self._url is not None:
-            ctx = sse_client(url=self._url)
+            from mcp.client.sse import sse_client
+
+            read, write = await self._exit_stack.enter_async_context(
+                sse_client(url=self._url)
+            )
         else:
             raise RuntimeError("No connection parameters configured")
 
-        self._context_stack = ctx
-        read, write = await ctx.__aenter__()
-        self._session = ClientSession(read, write)
+        self._session = await self._exit_stack.enter_async_context(
+            ClientSession(read, write)
+        )
         await self._session.initialize()
 
     async def close(self) -> None:
         """Close the MCP server connection."""
-        if self._context_stack is not None:
-            await self._context_stack.__aexit__(None, None, None)
-            self._context_stack = None
+        if self._exit_stack is not None:
+            await self._exit_stack.aclose()
+            self._exit_stack = None
         self._session = None
 
     async def list_tools(self) -> list[dict[str, Any]]:
@@ -100,7 +198,8 @@ class MCPToolAdapter:
         try:
             result = await self._connection.call_tool(self._tool_def["name"], params)
             text = _extract_mcp_result(result)
-            return ToolResult(content=[TextContent(text=text)])
+            display = _build_map_display(self._tool_def["name"], text)
+            return ToolResult(content=[TextContent(text=text)], display=display)
         except Exception as exc:
             return ToolResult(
                 content=[TextContent(text=f"MCP tool error: {exc}")],
@@ -115,6 +214,167 @@ async def discover_mcp_tools(
     await connection.connect()
     tool_defs = await connection.list_tools()
     return [MCPToolAdapter(connection, td) for td in tool_defs]
+
+
+# ---------------------------------------------------------------------------
+# MCP manager — multi-server lifecycle
+# ---------------------------------------------------------------------------
+
+class MCPManager:
+    """Manages multiple MCP server connections and their tool registrations.
+
+    Usage:
+        manager = MCPManager(configs)
+        await manager.start()
+        manager.register_tools(tool_registry)
+        # ... agent runs, calling MCP tools ...
+        await manager.stop()
+    """
+
+    def __init__(self, configs: list[MCPServerConfig] | None = None) -> None:
+        self._configs: list[MCPServerConfig] = configs or []
+        self._connections: list[MCPConnection] = []
+        self._adapters: list[MCPToolAdapter] = []
+
+    @property
+    def adapters(self) -> list[MCPToolAdapter]:
+        return list(self._adapters)
+
+    @classmethod
+    def from_env(cls) -> "MCPManager":
+        """Create an MCPManager from MCP_SERVERS env var."""
+        configs = load_mcp_server_configs()
+        return cls(configs)
+
+    async def start(self) -> None:
+        """Connect to all configured MCP servers and discover their tools."""
+        for cfg in self._configs:
+            try:
+                if cfg.transport == "stdio":
+                    conn = MCPConnection(
+                        command=cfg.command,
+                        env=cfg.env or os.environ.copy(),
+                        transport="stdio",
+                    )
+                elif cfg.transport == "sse":
+                    conn = MCPConnection(url=cfg.url, env=cfg.env, transport="sse")
+                elif cfg.transport == "streamable_http":
+                    conn = MCPConnection(url=cfg.url, transport="streamable_http")
+                else:
+                    logger.warning("Skip unknown transport: %s", cfg.transport)
+                    continue
+
+                await conn.connect()
+                tool_defs = await conn.list_tools()
+                for td in tool_defs:
+                    self._adapters.append(MCPToolAdapter(conn, td))
+
+                self._connections.append(conn)
+                logger.info(
+                    "MCP server '%s' connected — %d tools discovered",
+                    cfg.name, len(tool_defs),
+                )
+            except Exception:
+                logger.exception("Failed to connect MCP server '%s'", cfg.name)
+
+    async def stop(self) -> None:
+        """Close all MCP connections."""
+        for conn in self._connections:
+            try:
+                await conn.close()
+            except Exception:
+                logger.exception("Error closing MCP connection")
+        self._connections.clear()
+        self._adapters.clear()
+
+    def register_tools(self, registry: ToolRegistry) -> int:
+        """Register all discovered MCP tools into the given registry.
+
+        Returns the number of tools registered.
+        """
+        count = 0
+        for adapter in self._adapters:
+            registry.register(adapter)
+            count += 1
+        return count
+
+
+def _build_map_display(tool_name: str, text: str) -> dict[str, Any] | None:
+    """Build an interactive Amap widget for geo / direction results."""
+    import html as _html
+    import json as _json
+
+    api_key = os.environ.get("AMAP_MAPS_API_KEY", "")
+    if not api_key:
+        return None
+
+    try:
+        data = _json.loads(text)
+    except (_json.JSONDecodeError, TypeError):
+        return None
+
+    # --- geo / regeocode: single marker ---
+    if tool_name in ("maps_geo", "maps_regeocode"):
+        items = data.get("return") if isinstance(data.get("return"), list) else [data]
+        if items and isinstance(items[0], dict):
+            loc = items[0].get("location", "")
+            if loc:
+                lng, lat = loc.split(",")
+                title = _html.escape(
+                    items[0].get("name") or items[0].get("address", "") or items[0].get("district", "") or loc
+                )
+                return {
+                    "widget": {
+                        "title": f"地图: {title}",
+                        "html": _INTERACTIVE_MARKER_HTML.format(
+                            key=api_key, lng=lng, lat=lat, title=title, zoom=14,
+                        ),
+                        "height": 400,
+                    }
+                }
+
+    # --- direction tools: interactive map with origin/destination markers ---
+    if tool_name in ("maps_direction_driving", "maps_direction_walking",
+                     "maps_bicycling", "maps_direction_transit_integrated"):
+        route = data.get("route", {})
+        origin_coord = (route.get("origin") or "").strip()
+        dest_coord = (route.get("destination") or "").strip()
+        if not origin_coord or not dest_coord:
+            return None
+        origin_lng, origin_lat = origin_coord.split(",")
+        dest_lng, dest_lat = dest_coord.split(",")
+        return {
+            "widget": {
+                "title": "路线地图",
+                "html": _INTERACTIVE_ROUTE_HTML.format(
+                    key=api_key,
+                    origin_lng=origin_lng, origin_lat=origin_lat,
+                    dest_lng=dest_lng, dest_lat=dest_lat,
+                ),
+                "height": 400,
+            }
+        }
+
+    return None
+
+
+_INTERACTIVE_MARKER_HTML = """\
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>html,body{{margin:0;padding:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f5f3f0}}
+img{{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}}</style>
+</head><body>
+<img src="https://restapi.amap.com/v3/staticmap?key={key}&location={lng},{lat}&zoom={zoom}&size=600*300&scale=2&markers=mid,0xFF0000,A:{lng},{lat}" alt="map" style="width:100%" />
+</body></html>"""
+
+_INTERACTIVE_ROUTE_HTML = """\
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>html,body{{margin:0;padding:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f5f3f0}}
+img{{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}}</style>
+</head><body>
+<img src="https://restapi.amap.com/v3/staticmap?key={key}&size=600*300&scale=2&markers=mid,0xFF0000,A:{origin_lng},{origin_lat}|mid,0x3388FF,B:{dest_lng},{dest_lat}" alt="map" style="width:100%" />
+</body></html>"""
 
 
 def _extract_mcp_result(result: Any) -> str:
