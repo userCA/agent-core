@@ -4,6 +4,11 @@
     animation: fadeIn 0.2s ease;
     padding: 0;
     border: none;
+    transition: opacity 0.25s ease;
+}
+
+.streaming-bubble.fade-out {
+    opacity: 0;
 }
 
 @keyframes fadeIn {

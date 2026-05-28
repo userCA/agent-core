@@ -3,19 +3,21 @@ import { streamChat, abortSession } from '../api/client';
 import { useChatStore } from '../stores/chat-store';
 import { useSessionStore } from '../stores/session-store';
 import { useUIStore } from '../stores/ui-store';
-import { getDisplayableText } from '../utils/think';
+import { getDisplayableText, extractThinkSteps, getStreamingThinkContent } from '../utils/think';
 import type { SSEEvent } from '../api/types';
 import type { ToolStep, HitlRequest } from '../stores/chat-store';
 
 const SLOW_TOOL_RE = /music|text_to_music/;
-
-const THINK_RE = /<think>([\s\S]*?)<\/think>/g;
 
 export function useSSE() {
   const abortRef = useRef<AbortController | null>(null);
   const stepTimers = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
   const seenThinks = useRef<Set<string>>(new Set());
   const thinkingStepId = useRef<string | null>(null);
+  // Tracks the streaming think step created from <think> tags in text (non-Anthropic path)
+  const streamingThinkTextId = useRef<string | null>(null);
+  // Monotonic counter so each streaming think block gets a unique ID
+  const thinkTextSeq = useRef(0);
 
   const {
     setStreaming, addMessage, setStreamingMessageId,
@@ -58,38 +60,75 @@ export function useSSE() {
         break;
 
       case 'text_delta': {
-        // Mark streaming think step as done on first text
+        // Close Anthropic-native thinking step on first text
         if (thinkingStepId.current) {
           updateStep(thinkingStepId.current, { status: 'done' });
           thinkingStepId.current = null;
         }
         appendText(evt.text);
-        // Extract complete <think>...</think> blocks into steps
-        {
-          const currentText = useChatStore.getState().currentText;
-          let match: RegExpExecArray | null;
-          const re = new RegExp(THINK_RE.source, 'g');
-          while ((match = re.exec(currentText)) !== null) {
-            const content = match[1].trim();
-            if (content && !seenThinks.current.has(content)) {
-              seenThinks.current.add(content);
-              addStep({
-                id: `think-${seenThinks.current.size}`,
-                type: 'think',
-                label: '思考过程',
-                detail: content,
-                renderedDetail: '',
-                status: 'done',
-                isError: false,
-                isSlow: false,
-                startTime: Date.now(),
-                toolCallId: '',
-              });
-            }
+
+        const currentText = useChatStore.getState().currentText;
+
+        // 1. Handle streaming partial <think> block
+        const streamContent = getStreamingThinkContent(currentText);
+        if (streamContent !== null) {
+          // Inside an unclosed <think> — create or update running step
+          if (!streamingThinkTextId.current) {
+            const id = `think-text-${thinkTextSeq.current++}`;
+            streamingThinkTextId.current = id;
+            addStep({
+              id,
+              type: 'think',
+              label: '思考过程',
+              detail: streamContent,
+              renderedDetail: '',
+              status: 'running',
+              isError: false,
+              isSlow: false,
+              startTime: Date.now(),
+              toolCallId: '',
+            });
+          } else {
+            updateStep(streamingThinkTextId.current, {
+              detail: streamContent,
+            });
           }
+        } else if (streamingThinkTextId.current) {
+          // Block just completed — pull the correct content from currentText
+          // (the step's last detail may include partial closing-tag chunks)
+          const tempSeen = new Set<string>();
+          const allBlocks = extractThinkSteps(currentText, tempSeen);
+          const lastBlock = allBlocks.length > 0 ? allBlocks[allBlocks.length - 1] : null;
+          if (lastBlock) {
+            seenThinks.current.add(lastBlock.content);
+            updateStep(streamingThinkTextId.current, {
+              detail: lastBlock.content,
+              status: 'done',
+            });
+          } else {
+            updateStep(streamingThinkTextId.current, { status: 'done' });
+          }
+          streamingThinkTextId.current = null;
         }
+
+        // 2. Extract complete <think> blocks (skips already-seen via seenThinks)
+        const completeBlocks = extractThinkSteps(currentText, seenThinks.current);
+        for (const block of completeBlocks) {
+          addStep({
+            id: `think-${seenThinks.current.size}`,
+            type: 'think',
+            label: '思考过程',
+            detail: block.content,
+            renderedDetail: '',
+            status: 'done',
+            isError: false,
+            isSlow: false,
+            startTime: Date.now(),
+            toolCallId: '',
+          });
         }
         break;
+      }
 
       case 'tool_start': {
         const step: ToolStep = {
@@ -177,6 +216,8 @@ export function useSSE() {
     resetSteps();
     seenThinks.current.clear();
     thinkingStepId.current = null;
+    streamingThinkTextId.current = null;
+    thinkTextSeq.current = 0;
     const assistantId = `asst-${Date.now()}`;
     setStreamingMessageId(assistantId);
 
@@ -192,7 +233,8 @@ export function useSSE() {
         processEvent(evt);
         // Yield to React after step-creation events so the UI renders
         // before the next event arrives (prevents "flash" of batched steps)
-        if (evt.event === 'thinking_delta' || evt.event === 'tool_start') {
+        if (evt.event === 'thinking_delta' || evt.event === 'tool_start'
+            || (evt.event === 'text_delta' && streamingThinkTextId.current)) {
           await new Promise((r) => setTimeout(r, 0));
         }
       }
@@ -227,6 +269,12 @@ export function useSSE() {
 
       stepTimers.current.forEach((t) => clearInterval(t));
       stepTimers.current.clear();
+
+      // Delay reset so StreamingMessage can render markdown and fade out
+      // before MessageBubble takes over.
+      setTimeout(() => {
+        resetSteps();
+      }, 350);
 
       // Drain pending queue — user message already shown when first enqueued
       const pending = dequeuePending();

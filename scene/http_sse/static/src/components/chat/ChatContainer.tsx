@@ -18,6 +18,13 @@ export default function ChatContainer({ onExampleClick }: Props) {
   const steps = useChatStore((s) => s.steps);
   const welcomeVisible = useUIStore((s) => s.welcomeVisible) && messages.length === 0;
 
+  // While StreamingMessage is fading out (after stream ends), hide the last
+  // assistant MessageBubble so the same content isn't rendered twice.
+  const showStreaming = isStreaming || currentText.length > 0;
+  const lastMsg = messages[messages.length - 1];
+  const hideLastBubble = showStreaming && lastMsg?.role === 'assistant';
+  const displayMessages = hideLastBubble ? messages.slice(0, -1) : messages;
+
   const { containerRef, onScroll, scrollToBottom } = useAutoScroll([
     messages, currentText, steps.length,
   ]);
@@ -26,10 +33,10 @@ export default function ChatContainer({ onExampleClick }: Props) {
     <div className="chat-container" ref={containerRef} onScroll={onScroll}>
       <div className="chat-inner">
         {welcomeVisible && <WelcomeScreen onSelect={onExampleClick} />}
-        {messages.map((msg) => (
+        {displayMessages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}
-        {isStreaming && <StreamingMessage />}
+        {showStreaming && <StreamingMessage />}
       </div>
     </div>
   );

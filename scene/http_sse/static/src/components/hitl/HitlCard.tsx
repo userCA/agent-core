@@ -171,7 +171,7 @@ export default function HitlCard({ toolCallId, prompt, inputSchema, onSubmitted 
 
             {field.type === 'image_upload' && (
               <div className="image-upload-area">
-                <label className="upload-btn">
+                <label className="upload-btn" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(`hitl-${field.name}`)?.click(); } }}>
                   {uploadCounts[field.name]
                     ? `[+] selected ${uploadCounts[field.name]}/${field.max || 5}`
                     : `[+] choose images (max ${field.max || 5})`}
@@ -190,7 +190,7 @@ export default function HitlCard({ toolCallId, prompt, inputSchema, onSubmitted 
                   {(imageFiles[field.name] || []).map((dataUri, idx) => (
                     <div key={idx} className="thumb-item">
                       <img src={dataUri} alt={`upload ${idx + 1}`} />
-                      <button type="button" className="thumb-remove" onClick={() => removeImage(field.name, idx)}>
+                      <button type="button" className="thumb-remove" onClick={() => removeImage(field.name, idx)} aria-label={`删除图片 ${idx + 1}`}>
                         [x]
                       </button>
                     </div>
@@ -208,6 +208,7 @@ export default function HitlCard({ toolCallId, prompt, inputSchema, onSubmitted 
                   onMouseUp={() => handleAudioRecord(field)}
                   onTouchStart={() => handleAudioRecord(field)}
                   onTouchEnd={() => handleAudioRecord(field)}
+                  aria-label={audioState[field.name]?.recording ? '停止录音' : '按住录音'}
                 >
                   {audioState[field.name]?.recording ? '[!] recording...' : '[rec] hold to record'}
                 </button>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
 import { AUTH_KEYS } from '../../config';
@@ -7,11 +7,50 @@ import './AuthModal.css';
 export default function AuthModal() {
   const { authHeaders, saveAuth } = useSessionStore();
   const setAuthModalOpen = useUIStore((s) => s.setAuthModalOpen);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const [values, setValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     for (const k of AUTH_KEYS) init[k] = authHeaders[k] || '';
     return init;
   });
+
+  useEffect(() => {
+    // Remember previously focused element
+    previousFocusRef.current = document.activeElement as HTMLElement;
+    // Move focus into the modal (first input)
+    const firstInput = modalRef.current?.querySelector('input');
+    firstInput?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setAuthModalOpen(false);
+      }
+      if (e.key === 'Tab') {
+        // Simple focus trap
+        const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable || focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      // Restore focus when closing
+      previousFocusRef.current?.focus();
+    };
+  }, [setAuthModalOpen]);
 
   const handleSave = () => {
     saveAuth(values);
@@ -28,13 +67,19 @@ export default function AuthModal() {
 
   return (
     <div className="auth-backdrop" onClick={handleBackdrop}>
-      <div className="auth-modal">
+      <div
+        ref={modalRef}
+        className="auth-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Authentication headers"
+      >
         <h3>[key] auth headers</h3>
         {AUTH_KEYS.map((k) => (
           <label key={k} className="auth-field">
             <span>{k}</span>
             <input
-              type="text"
+              type="password"
               value={values[k] || ''}
               onChange={(e) => set(k, e.target.value)}
               placeholder={`Enter ${k}`}

@@ -7,6 +7,7 @@ import StepsPanel from '../tools/StepsPanel';
 import WidgetFrame from '../tools/WidgetFrame';
 import AudioPlayer from '../tools/AudioPlayer';
 import HitlCard from '../hitl/HitlCard';
+import Markdown from '../shared/Markdown';
 import './StreamingMessage.css';
 
 export default function StreamingMessage() {
@@ -30,9 +31,15 @@ export default function StreamingMessage() {
     // to match markdown paragraph-break behavior (avoids blank lines).
     let trimmed = displayed.replace(/^\n+/, '');
     trimmed = trimmed.replace(/\n{2,}/g, '\n\n');
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(trimmed));
-    contentRef.current.innerHTML = div.innerHTML.replace(/\n/g, '<br>');
+    const el = contentRef.current;
+    el.innerHTML = '';
+    const lines = trimmed.split('\n');
+    lines.forEach((line, i) => {
+      el.appendChild(document.createTextNode(line));
+      if (i < lines.length - 1) {
+        el.appendChild(document.createElement('br'));
+      }
+    });
   }, []);
 
   const typewriter = useTypewriter({
@@ -94,16 +101,22 @@ export default function StreamingMessage() {
   return (
     <div className="msg-wrapper msg-assistant">
       <span className="msg-label">assistant</span>
-      <div className="bubble bubble-assistant streaming-bubble">
+      <div className={`bubble bubble-assistant streaming-bubble${!isStreaming ? ' fade-out' : ''}`}>
         <div className="msg-content">
           <StepsPanel />
-          <div
-            ref={contentRef}
-            className={`final-content markdown-body${isStreaming ? ' streaming' : ''}`}
-            aria-live="polite"
-            aria-atomic="false"
-            aria-label="AI 正在生成回复"
-          />
+          {isStreaming ? (
+            <div
+              ref={contentRef}
+              className="final-content markdown-body streaming"
+              aria-live="polite"
+              aria-atomic="false"
+              aria-label="AI 正在生成回复"
+            />
+          ) : (
+            <div className="final-content markdown-body">
+              <Markdown text={getDisplayableText(currentText)} />
+            </div>
+          )}
         </div>
 
         {widgets.map((w, i) => <WidgetFrame key={`w-${i}`} widget={w} />)}

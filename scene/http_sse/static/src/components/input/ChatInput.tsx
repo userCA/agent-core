@@ -52,13 +52,15 @@ export default function ChatInput({ onSend }: Props) {
           onKeyDown={handleKeyDown}
           placeholder={isStreaming ? 'queue a message...' : 'type a message'}
           rows={1}
+          aria-label="消息输入框，按 Enter 发送，Shift+Enter 换行"
         />
         <button
           className="btn btn-primary send-btn"
           onClick={handleSend}
-          disabled={!inputValue.trim()}
+          disabled={!inputValue.trim() || isStreaming}
+          aria-label="发送消息"
         >
-          send
+          {isStreaming ? '...' : 'send'}
         </button>
       </div>
     </div>

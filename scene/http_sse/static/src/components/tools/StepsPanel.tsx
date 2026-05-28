@@ -46,6 +46,7 @@ function StepSection({
         onClick={onToggle}
         aria-expanded={expanded}
         aria-controls={detailId}
+        aria-label={`${label}详情`}
       >
         <span className="section-label">
           <span className="section-icon">
@@ -78,13 +79,16 @@ export default function StepsPanel({ steps: propSteps }: Props) {
 
   // Auto-expand running steps so user sees live progress.
   // When nothing is running, keep the most recent step expanded.
-  const [manualExpanded, setManualExpanded] = useState<Set<string>>(new Set());
+  // manualOpen: user explicitly expanded this step
+  // manualClosed: user explicitly collapsed this step (overrides auto)
+  const [manualOpen, setManualOpen] = useState<Set<string>>(new Set());
+  const [manualClosed, setManualClosed] = useState<Set<string>>(new Set());
 
   const getAutoExpandedId = useCallback(() => {
+    // Only auto-expand the currently running step.
+    // Done steps stay collapsed so the user sees clean final output.
     const running = steps.find((s) => s.status === 'running');
-    if (running) return running.id;
-    if (steps.length === 0) return null;
-    return steps[steps.length - 1].id;
+    return running ? running.id : null;
   }, [steps]);
 
   const hasRunning = steps.some((s) => s.status === 'running');
@@ -92,7 +96,10 @@ export default function StepsPanel({ steps: propSteps }: Props) {
 
   // Reset manual overrides when steps reset
   useEffect(() => {
-    if (steps.length === 0) setManualExpanded(new Set());
+    if (steps.length === 0) {
+      setManualOpen(new Set());
+      setManualClosed(new Set());
+    }
   }, [steps.length]);
 
   if (steps.length === 0) return null;
@@ -101,18 +108,21 @@ export default function StepsPanel({ steps: propSteps }: Props) {
     <div className="steps-panel">
       {steps.map((step) => {
         const autoId = getAutoExpandedId();
-        const expanded = manualExpanded.has(step.id) ? true : step.id === autoId;
+        // manualClosed overrides auto; manualOpen overrides both
+        const expanded = manualOpen.has(step.id) ? true
+          : manualClosed.has(step.id) ? false
+          : step.id === autoId;
 
         const handleToggle = () => {
-          setManualExpanded((prev) => {
-            const next = new Set(prev);
-            if (next.has(step.id)) {
-              next.delete(step.id);
-            } else {
-              next.add(step.id);
-            }
-            return next;
-          });
+          if (expanded) {
+            // Currently expanded → user wants to collapse
+            setManualOpen((prev) => { const n = new Set(prev); n.delete(step.id); return n; });
+            setManualClosed((prev) => { const n = new Set(prev); n.add(step.id); return n; });
+          } else {
+            // Currently collapsed → user wants to expand
+            setManualClosed((prev) => { const n = new Set(prev); n.delete(step.id); return n; });
+            setManualOpen((prev) => { const n = new Set(prev); n.add(step.id); return n; });
+          }
         };
 
         return (

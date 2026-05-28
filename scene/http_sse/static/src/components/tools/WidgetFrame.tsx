@@ -61,6 +61,7 @@ export default function WidgetFrame({ widget }: Props) {
       )}
       <iframe
         ref={iframeRef}
+        title={widget.title || 'Widget display'}
         sandbox="allow-scripts"
         srcDoc={srcdoc}
         style={{

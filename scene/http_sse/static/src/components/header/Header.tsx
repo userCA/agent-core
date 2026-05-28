@@ -47,14 +47,14 @@ export default function Header({ onAbort }: Props) {
           )}
         </span>
         {isStreaming && (
-          <button className="btn btn-danger" onClick={onAbort}>
+          <button className="btn btn-danger" onClick={onAbort} aria-label="取消生成">
             <Icon name="cancel" size={11} /> cancel
           </button>
         )}
-        <button className="btn" onClick={() => setAuthModalOpen(true)}>
+        <button className="btn" onClick={() => setAuthModalOpen(true)} aria-label="设置认证信息">
           <Icon name="key" size={11} /> {hasAuth ? 'authed' : 'auth'}
         </button>
-        <button className="btn" onClick={handleNewSession}>
+        <button className="btn" onClick={handleNewSession} aria-label="新建会话">
           <Icon name="plus" size={11} /> new
         </button>
       </div>

@@ -110,3 +110,50 @@ export function getDisplayableText(text: string): string {
 
   return result;
 }
+
+/**
+ * Extract partial content from the last unclosed <think> block.
+ * Strips all complete blocks first, then returns trailing unclosed content
+ * for streaming display. Returns null when all blocks are properly closed.
+ */
+export function getStreamingThinkContent(text: string): string | null {
+  let cleaned = text;
+
+  // Strip all complete <think>...</think> blocks (stack-based for nesting)
+  while (true) {
+    const openIdx = cleaned.indexOf('<think>');
+    if (openIdx === -1) break;
+
+    let depth = 1;
+    let pos = openIdx + '<think>'.length;
+    let closeIdx = -1;
+
+    while (depth > 0 && pos < cleaned.length) {
+      const nextOpen = cleaned.indexOf('<think>', pos);
+      const nextClose = cleaned.indexOf('</think>', pos);
+
+      if (nextClose === -1) {
+        // Unclosed — return content after opening tag
+        return cleaned.slice(openIdx + '<think>'.length);
+      }
+
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth++;
+        pos = nextOpen + '<think>'.length;
+      } else {
+        depth--;
+        closeIdx = nextClose;
+        pos = nextClose + '</think>'.length;
+      }
+    }
+
+    if (closeIdx === -1) {
+      return cleaned.slice(openIdx + '<think>'.length);
+    }
+
+    // Strip this complete block and continue
+    cleaned = cleaned.slice(0, openIdx) + cleaned.slice(closeIdx + '</think>'.length);
+  }
+
+  return null;
+}
