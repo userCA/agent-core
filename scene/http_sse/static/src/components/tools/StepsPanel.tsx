@@ -76,15 +76,16 @@ export default function StepsPanel({ steps: propSteps }: Props) {
   const currentText = useChatStore((s) => s.currentText);
   const steps = propSteps ?? storeSteps;
 
-  // Always expand the latest step (running or most recently done).
-  // Collapse all once text output begins.
+  // Auto-expand running steps so user sees live progress.
+  // When nothing is running, keep the most recent step expanded.
   const [manualExpanded, setManualExpanded] = useState<Set<string>>(new Set());
 
   const getAutoExpandedId = useCallback(() => {
-    if (currentText.length > 0) return null;
+    const running = steps.find((s) => s.status === 'running');
+    if (running) return running.id;
     if (steps.length === 0) return null;
     return steps[steps.length - 1].id;
-  }, [steps, currentText]);
+  }, [steps]);
 
   const hasRunning = steps.some((s) => s.status === 'running');
   const isStreaming = useChatStore((s) => s.isStreaming);
