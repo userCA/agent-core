@@ -7,7 +7,7 @@ interface RecorderState {
   error: string | null;
 }
 
-export function useAudioRecorder(onResult: (base64: string) => void) {
+export function useAudioRecorder(onResult: (base64: string, blob: Blob) => void) {
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const stream = useRef<MediaStream | null>(null);
@@ -39,7 +39,7 @@ export function useAudioRecorder(onResult: (base64: string) => void) {
           base64,
           error: null,
         };
-        onResult(base64);
+        onResult(base64, blob);
         // release mic
         stream.current?.getTracks().forEach((t) => t.stop());
         stream.current = null;

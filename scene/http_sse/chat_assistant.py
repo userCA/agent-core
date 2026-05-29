@@ -127,6 +127,33 @@ class ChatAssistant:
             tool_registry.register(tool)
         tool_registry.register(create_text_to_music_tool())
         tool_registry.register(create_nolo_video_tool())
+        # Register local knowledge base via existing RetrieverTool
+        # Only if no persona filtering, or persona explicitly enables "local" knowledge base
+        _kb_allowed = True
+        if persona is not None and persona.knowledge_bases is not None:
+            _kb_allowed = "local" in persona.knowledge_bases
+        elif persona is not None and persona.enabled_tools is not None:
+            _kb_allowed = False  # persona has tool filtering but didn't opt into local KB
+
+        if _kb_allowed:
+            from agent_core.knowledge.local_kb import LocalKnowledgeBase
+            from agent_core.retrieval.tool import RetrieverTool
+            from agent_core.tools.base import ToolContext, ToolResult
+
+            kb_dir = os.path.join(cwd, ".pi", "knowledge")
+            kb_retriever = LocalKnowledgeBase(kb_dir)
+            _kb_rt = RetrieverTool(
+                retriever=kb_retriever,
+                name="search_knowledge",
+                description="搜索本地知识库中的文档。传入自然语言查询，返回语义相关的文档片段及其来源。",
+            )
+
+            class _KBAdapter:
+                definition = _kb_rt.definition
+                async def execute(self, params: dict, context: ToolContext | None = None) -> ToolResult:
+                    return await _kb_rt.execute("", params, context)
+
+            tool_registry.register(_KBAdapter())
         tool_registry.register(ShowWidgetTool())
         if tools:
             for tool in tools:
@@ -141,12 +168,16 @@ class ChatAssistant:
             allowed: set[str] | None = None
             if persona.enabled_tools is not None:
                 allowed = set(persona.enabled_tools)
-            # Auto-include knowledge base tools from linked MCP connectors
-            if persona.knowledge_bases and mcp_manager is not None:
+            # Auto-include knowledge base tools
+            if persona.knowledge_bases:
                 kb_names = set(persona.knowledge_bases)
-                for adapter in mcp_manager.adapters:
-                    if adapter.server_name in kb_names:
-                        if allowed is not None:
+                # Local KB
+                if "local" in kb_names and allowed is not None:
+                    allowed.add("search_knowledge")
+                # MCP KB connectors
+                if mcp_manager is not None:
+                    for adapter in mcp_manager.adapters:
+                        if adapter.server_name in kb_names and allowed is not None:
                             allowed.add(adapter.definition.name)
             if allowed is not None:
                 filtered = ToolRegistry()

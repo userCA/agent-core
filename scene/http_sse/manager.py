@@ -50,13 +50,21 @@ class SessionManager:
         self._mcp_manager: MCPManager | None = None
 
     async def start(self) -> None:
-        """Pre-load MCP tools at server startup (not lazy on first request)."""
+        """Pre-load MCP tools and warm up embedding model at startup."""
         self._mcp_manager = MCPManager.from_env()
         await self._mcp_manager.start()
         if len(self._mcp_manager.adapters) > 0:
             import logging
             _log = logging.getLogger(__name__)
             _log.info("MCP tools pre-loaded: %d tools", len(self._mcp_manager.adapters))
+        # Pre-download/warm embedding model in background (avoids first-request lag)
+        try:
+            import asyncio
+            from agent_core.knowledge.local_kb import _get_model
+            await asyncio.to_thread(_get_model)
+            _log.info("Embedding model ready")
+        except Exception:
+            _log.warning("Embedding model warm-up failed (pip install sentence-transformers?)")
 
     async def get_or_create(
         self, session_id: str | None, persona_id: str | None = None

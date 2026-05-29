@@ -50,8 +50,23 @@ export default function ChatInput({ onSend }: Props) {
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
   }, [inputValue]);
 
-  const { start: startRecording, stop: stopRecording } = useAudioRecorder((base64) => {
-    onSend(`[语音输入] ${base64.slice(0, 50)}...`);
+  const { start: startRecording, stop: stopRecording } = useAudioRecorder((base64, blob) => {
+    // Save recording and send as file reference
+    const sendVoice = async () => {
+      try {
+        if (blob) {
+          const { uploadFile } = await import('../../api/client');
+          const file = new File([blob], `recording-${Date.now()}.wav`, { type: 'audio/wav' });
+          const result = await uploadFile(file);
+          onSend(`[语音消息] ${result.path}`);
+        } else {
+          onSend(`[语音消息] base64长度: ${base64.length}`);
+        }
+      } catch {
+        onSend(`[语音消息] (${(base64.length / 1024).toFixed(1)}KB)`);
+      }
+    };
+    sendVoice();
   });
 
   const toggleRecording = () => {
@@ -72,22 +87,36 @@ export default function ChatInput({ onSend }: Props) {
     inputRef.current?.focus();
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const prefix = inputValue ? inputValue + ' ' : '';
-    setInputValue(`${prefix}[文件: ${file.name}] `);
-    setShowMore(false);
-    e.target.value = '';
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      const prefix = inputValue ? inputValue + '\n\n' : '';
+      if (ext && ['txt', 'md', 'json', 'csv', 'py', 'js', 'ts', 'html', 'css', 'yaml', 'yml', 'xml', 'log'].includes(ext)) {
+        const text = await file.text();
+        setInputValue(`${prefix}[文件: ${file.name}]\n${text}`);
+      } else {
+        const { uploadFile } = await import('../../api/client');
+        const result = await uploadFile(file);
+        setInputValue(`${prefix}[文件: ${file.name}] ${result.path} (${(result.size / 1024).toFixed(1)}KB)`);
+      }
+      setShowMore(false);
+    } catch { /* ignore */ }
+    finally { e.target.value = ''; }
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const prefix = inputValue ? inputValue + ' ' : '';
-    setInputValue(`${prefix}[图片: ${file.name}] `);
-    setShowMore(false);
-    e.target.value = '';
+    try {
+      const { uploadFile } = await import('../../api/client');
+      const result = await uploadFile(file);
+      const prefix = inputValue ? inputValue + '\n\n' : '';
+      setInputValue(`${prefix}[图片: ${file.name}] ${result.path}`);
+      setShowMore(false);
+    } catch { /* ignore */ }
+    finally { e.target.value = ''; }
   };
 
   return (

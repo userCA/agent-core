@@ -95,6 +95,14 @@ export interface Capabilities {
   tools: string[];
 }
 
+export async function uploadFile(file: File): Promise<{ filename: string; path: string; size: number }> {
+  const form = new FormData();
+  form.append('file', file);
+  const response = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
+  if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
+  return response.json() as Promise<{ success: boolean; filename: string; path: string; size: number } & { success: boolean }>;
+}
+
 export async function importSkill(name: string, content: string): Promise<boolean> {
   const response = await fetch(`${API_BASE}/skills/import`, {
     method: 'POST',
@@ -174,6 +182,61 @@ export async function fetchConnectors(): Promise<ConnectorInfo[]> {
   }
   const data = await response.json() as { connectors: ConnectorInfo[] };
   return data.connectors;
+}
+
+export interface KnowledgeDoc {
+  name: string;
+  original_name: string;
+  created: number;
+  chunk_count: number;
+}
+
+export interface KnowledgeDocDetail extends KnowledgeDoc {
+  content: string;
+  chunks: Array<{ index: string; text: string; full_length: number }>;
+}
+
+export async function fetchKnowledgeDocs(): Promise<KnowledgeDoc[]> {
+  const response = await fetch(`${API_BASE}/knowledge`);
+  if (!response.ok) throw new Error(`Failed to fetch knowledge: ${response.status}`);
+  const data = await response.json() as { docs: KnowledgeDoc[] };
+  return data.docs;
+}
+
+export async function uploadKnowledgeFile(file: File): Promise<{ success: boolean; chunks: number }> {
+  const form = new FormData();
+  form.append('file', file);
+  const response = await fetch(`${API_BASE}/knowledge/upload`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!response.ok) throw new Error(`Failed to upload: ${response.status}`);
+  return response.json() as Promise<{ success: boolean; chunks: number }>;
+}
+
+export async function uploadKnowledgeDoc(name: string, content: string): Promise<{ success: boolean; chunks: number }> {
+  const response = await fetch(`${API_BASE}/knowledge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, content }),
+  });
+  if (!response.ok) throw new Error(`Failed to upload: ${response.status}`);
+  return response.json() as Promise<{ success: boolean; chunks: number }>;
+}
+
+export async function fetchKnowledgeDoc(name: string): Promise<KnowledgeDocDetail | null> {
+  const response = await fetch(`${API_BASE}/knowledge/${encodeURIComponent(name)}`);
+  if (!response.ok) return null;
+  const data = await response.json() as { success: boolean; doc?: KnowledgeDocDetail };
+  return data.doc || null;
+}
+
+export async function deleteKnowledgeDoc(name: string): Promise<boolean> {
+  const response = await fetch(`${API_BASE}/knowledge?name=${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error(`Failed to delete: ${response.status}`);
+  return (await response.json() as { success: boolean }).success;
 }
 
 export async function submitHumanInput(

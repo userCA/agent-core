@@ -10,7 +10,7 @@ function getInitialCollapsed(): boolean {
   }
 }
 
-export type Page = 'chat' | 'skills' | 'connectors' | 'experts';
+export type Page = 'chat' | 'skills' | 'connectors' | 'experts' | 'knowledge';
 
 interface UIState {
   activePage: Page;

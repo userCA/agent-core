@@ -12,6 +12,7 @@ import PendingBubbles from './components/input/PendingBubbles';
 import SkillsPage from './components/pages/SkillsPage';
 import ConnectorsPage from './components/pages/ConnectorsPage';
 import ExpertsPage from './components/pages/ExpertsPage';
+import KnowledgePage from './components/pages/KnowledgePage';
 import './App.css';
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
           {activePage === 'skills' && <SkillsPage />}
           {activePage === 'connectors' && <ConnectorsPage />}
           {activePage === 'experts' && <ExpertsPage />}
+          {activePage === 'knowledge' && <KnowledgePage />}
         </div>
       </div>
       {authModalOpen && <AuthModal />}

@@ -158,6 +158,15 @@ export default function Sidebar() {
 
           <button
             className="sidebar-menu-item"
+            onClick={() => setActivePage('knowledge')}
+          >
+            <span className="sidebar-menu-icon"><Icon name="book" size={14} /></span>
+            <span className="sidebar-menu-label">知识库</span>
+            <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
+          </button>
+
+          <button
+            className="sidebar-menu-item"
             onClick={() => setAuthModalOpen(true)}
           >
             <span className="sidebar-menu-icon"><Icon name="key" size={14} /></span>
@@ -238,6 +247,15 @@ export default function Sidebar() {
                 );
               })}
             </div>
+          )}
+          {sessionId && (
+            <a
+              className="sidebar-export-link"
+              href={`/session/export?session_id=${encodeURIComponent(sessionId)}`}
+              download
+            >
+              导出当前会话
+            </a>
           )}
         </div>
       </aside>

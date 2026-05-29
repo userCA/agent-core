@@ -30,6 +30,11 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=100_000)
 
 
+class KnowledgeDocRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    content: str = Field(..., min_length=1, max_length=500_000)
+
+
 class SkillImportRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     content: str = Field(..., min_length=1, max_length=100_000)
@@ -168,6 +173,29 @@ async def get_session(request: Request) -> dict[str, Any]:
     return {"success": True, "session_id": session_id, "messages": messages}
 
 
+@app.get("/session/export")
+async def export_session(request: Request):
+    """Export session messages as readable text file."""
+    session_id = request.query_params.get("session_id")
+    if not session_id:
+        return {"success": False, "error": "Missing session_id"}
+
+    _, assistant = await manager.get_or_create(session_id)
+    lines = []
+    for msg in assistant.messages:
+        role = getattr(msg, 'role', 'unknown')
+        content = getattr(msg, 'content', '')
+        if isinstance(content, list):
+            content = ' '.join(p.get('text', '') for p in content if isinstance(p, dict) and p.get('type') == 'text')
+        lines.append(f"## {role}\n\n{content}\n")
+
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(
+        "\n".join(lines),
+        headers={"Content-Disposition": f"attachment; filename=session-{session_id}.txt"},
+    )
+
+
 @app.delete("/session")
 async def delete_session(request: Request) -> dict[str, Any]:
     """Delete a persisted session."""
@@ -223,6 +251,133 @@ async def import_skill(body: SkillImportRequest) -> dict[str, Any]:
     global _capabilities_cache
     _capabilities_cache = None
     return {"success": True}
+
+
+# ---- File upload ----
+
+@app.post("/upload")
+async def upload_file(request: Request) -> dict[str, Any]:
+    """Upload a file to .pi/uploads/, return the saved path."""
+    import os as _os
+    import uuid as _uuid
+
+    form = await request.form()
+    file = form.get("file")
+    if file is None:
+        return {"success": False, "error": "Missing file"}
+
+    uploads_dir = _os.path.join(manager._cwd, ".pi", "uploads")
+    _os.makedirs(uploads_dir, exist_ok=True)
+
+    ext = ""
+    if file.filename and "." in file.filename:
+        ext = "." + file.filename.rsplit(".", 1)[-1].lower()
+    saved_name = f"{_uuid.uuid4().hex[:12]}{ext}"
+    saved_path = _os.path.join(uploads_dir, saved_name)
+
+    raw = await file.read()
+    with open(saved_path, "wb") as f:
+        f.write(raw)
+
+    return {
+        "success": True,
+        "filename": file.filename or saved_name,
+        "path": f".pi/uploads/{saved_name}",
+        "size": len(raw),
+    }
+
+
+# ---- Knowledge base endpoints ----
+
+@app.get("/knowledge")
+async def list_knowledge_docs() -> dict[str, Any]:
+    """List all documents in the local knowledge base."""
+    from agent_core.knowledge.local_kb import LocalKnowledgeBase
+    import os as _os
+    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
+    kb = LocalKnowledgeBase(kb_dir)
+    return {"docs": kb.list_docs()}
+
+
+@app.post("/knowledge")
+async def add_knowledge_doc(body: KnowledgeDocRequest) -> dict[str, Any]:
+    """Add or update a document in the local knowledge base."""
+    from agent_core.knowledge.local_kb import LocalKnowledgeBase
+    import os as _os
+    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
+    kb = LocalKnowledgeBase(kb_dir)
+    _, chunk_count = await kb.add_async(body.name, body.content)
+    return {"success": True, "chunks": chunk_count}
+
+
+@app.post("/knowledge/upload")
+async def upload_knowledge_file(request: Request) -> dict[str, Any]:
+    """Upload a file (txt, md, pdf) to the knowledge base."""
+    from agent_core.knowledge.local_kb import LocalKnowledgeBase
+    import os as _os
+
+    form = await request.form()
+    file = form.get("file")
+    if file is None:
+        return {"success": False, "error": "Missing file"}
+
+    filename = file.filename or "doc"
+    content = ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext == "pdf":
+        try:
+            from io import BytesIO
+            from pypdf import PdfReader
+        except ImportError:
+            return {"success": False, "error": "pypdf not installed. Run: pip install pypdf"}
+        raw = await file.read()
+        reader = PdfReader(BytesIO(raw))
+        pages = []
+        for page in reader.pages:
+            text = page.extract_text()
+            if text:
+                pages.append(text)
+        content = "\n".join(pages)
+    else:
+        raw = await file.read()
+        content = raw.decode("utf-8", errors="replace")
+
+    if not content.strip():
+        return {"success": False, "error": "Empty file or could not extract text"}
+
+    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
+    kb = LocalKnowledgeBase(kb_dir)
+    name = filename.rsplit(".", 1)[0] if "." in filename else filename
+    _, chunk_count = await kb.add_async(name, content)
+    return {"success": True, "chunks": chunk_count}
+
+
+@app.get("/knowledge/{name}")
+async def get_knowledge_doc(name: str) -> dict[str, Any]:
+    """Get a single knowledge document with chunk previews."""
+    from agent_core.knowledge.local_kb import LocalKnowledgeBase
+    import os as _os
+    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
+    kb = LocalKnowledgeBase(kb_dir)
+    doc = kb.get_doc(name)
+    if doc is None:
+        return {"success": False, "error": "Not found"}
+    return {"success": True, "doc": doc}
+
+
+@app.delete("/knowledge")
+async def delete_knowledge_doc(request: Request) -> dict[str, Any]:
+    """Delete a document from the local knowledge base."""
+    name = request.query_params.get("name")
+    if not name:
+        return {"success": False, "error": "Missing name"}
+    from agent_core.knowledge.local_kb import LocalKnowledgeBase
+    import os as _os
+    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
+    kb = LocalKnowledgeBase(kb_dir)
+    found = kb.delete(name)
+    return {"success": found}
 
 
 _capabilities_cache: dict[str, Any] | None = None

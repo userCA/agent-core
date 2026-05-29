@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useSessionStore } from '../../stores/session-store';
+import { useSkillStore } from '../../stores/skill-store';
 import { useUIStore } from '../../stores/ui-store';
 import { savePersona, deletePersona, fetchConnectors, type PersonaInfo, type ConnectorInfo } from '../../api/client';
 import Icon from '../shared/Icon';
@@ -9,11 +10,11 @@ function emptyPersona(): PersonaInfo {
   return { id: '', name: '', description: '', system_prompt: '', enabled_tools: null, knowledge_bases: null };
 }
 
-const KNOWN_TOOLS = ['read', 'write', 'edit', 'bash', 'ls', 'find', 'grep', 'confirm'];
-
 export default function ExpertsPage() {
   const personas = useSessionStore((s) => s.personas);
   const loadPersonas = useSessionStore((s) => s.loadPersonas);
+  const allTools = useSkillStore((s) => s.tools);
+  const loadCapabilities = useSkillStore((s) => s.loadCapabilities);
   const personaId = useSessionStore((s) => s.personaId);
   const setPersonaId = useSessionStore((s) => s.setPersonaId);
   const setActivePage = useUIStore((s) => s.setActivePage);
@@ -26,11 +27,27 @@ export default function ExpertsPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
 
-  React.useEffect(() => { loadPersonas(); }, [loadPersonas]);
+  React.useEffect(() => { loadPersonas(); loadCapabilities(); }, [loadPersonas, loadCapabilities]);
   React.useEffect(() => { fetchConnectors().then(setConnectors).catch(() => {}); }, []);
 
   const kbConnectors = connectors.filter((c) => c.type === 'knowledge');
   const selectedKBs: string[] = form.knowledge_bases || [];
+  // Categorize tools: local vs MCP (grouped by connector)
+  const mcpToolNames = new Set(connectors.flatMap((c) => c.tools));
+  const localTools = allTools.filter((t) => !mcpToolNames.has(t));
+  const connectorTools = connectors.filter((c) => c.tools.length > 0);
+  const [expandedToolGroups, setExpandedToolGroups] = useState<Set<string>>(new Set(['local']));
+  const noToolFilter = form.enabled_tools === null || form.enabled_tools === undefined;
+  const kbEnabled = selectedKBs.includes('local');
+
+  const toolCountLabel = (names: string[]) => {
+    if (noToolFilter) return '全部';
+    const selected = names.filter((t) => toolList.includes(t)).length;
+    return `${selected}/${names.length}`;
+  };
+
+  // Local tools: hide search_knowledge if local KB is not enabled
+  const visibleLocalTools = kbEnabled ? localTools : localTools.filter((t) => t !== 'search_knowledge');
 
   const filtered = useMemo(() => {
     if (!search.trim()) return personas;
@@ -59,7 +76,7 @@ export default function ExpertsPage() {
   };
 
   const startEdit = (p: PersonaInfo) => {
-    setForm({ ...p, system_prompt: p.system_prompt || '', enabled_tools: p.enabled_tools || null });
+    setForm({ ...p, system_prompt: p.system_prompt || '', enabled_tools: p.enabled_tools || null, knowledge_bases: p.knowledge_bases || null });
     setEditingId(p.id);
     setFormError('');
     setShowForm(true);
@@ -73,6 +90,18 @@ export default function ExpertsPage() {
     } else {
       setForm({ ...form, enabled_tools: [...toolList, t] });
     }
+  };
+
+  const toggleKb = (kbName: string) => {
+    const next = selectedKBs.includes(kbName)
+      ? selectedKBs.filter((x: string) => x !== kbName)
+      : [...selectedKBs, kbName];
+    let nextTools = toolList;
+    // If unchecking local KB, also remove search_knowledge from enabled_tools
+    if (kbName === 'local' && !next.includes('local') && nextTools.includes('search_knowledge')) {
+      nextTools = nextTools.filter((x: string) => x !== 'search_knowledge');
+    }
+    setForm({ ...form, knowledge_bases: next, enabled_tools: nextTools.length > 0 ? nextTools : null });
   };
 
   const handleSubmit = async () => {
@@ -152,6 +181,13 @@ export default function ExpertsPage() {
                 <p>{activePersona.system_prompt.slice(0, 120)}{activePersona.system_prompt.length > 120 ? '...' : ''}</p>
               </div>
             )}
+            {activePersona.knowledge_bases && activePersona.knowledge_bases.length > 0 && (
+              <div className="expert-active-tools">
+                {activePersona.knowledge_bases.map((kb: string) => (
+                  <span key={kb} className="tag type-kb">{kb === 'local' ? '本地知识库' : kb}</span>
+                ))}
+              </div>
+            )}
             {activePersona.enabled_tools && activePersona.enabled_tools.length > 0 && (
               <div className="expert-active-tools">
                 {activePersona.enabled_tools.map((t: string) => (
@@ -200,51 +236,98 @@ export default function ExpertsPage() {
               </label>
               <div className="form-field">
                 <span>关联知识库</span>
-                {kbConnectors.length > 0 ? (
-                  <div className="tool-toggle-grid">
-                    {kbConnectors.map((c) => {
-                      const on = selectedKBs.includes(c.name);
-                      return (
-                        <button
-                          key={c.name}
-                          className={`tool-toggle${on ? ' on' : ''}`}
-                          onClick={() => {
-                            if (on) setForm({ ...form, knowledge_bases: selectedKBs.filter((x: string) => x !== c.name) });
-                            else setForm({ ...form, knowledge_bases: [...selectedKBs, c.name] });
-                          }}
-                          type="button"
-                        >
-                          {on && <Icon name="check" size={11} />}
-                          {c.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <span className="expert-kb-hint">
-                    暂无知识库连接器 — 先在
-                    <button className="expert-kb-link" onClick={() => { setActivePage('connectors'); }}>连接器管理</button>
-                    中添加类型为"知识库"的连接器
+                <div className="tool-toggle-grid">
+                  <button
+                    className={`tool-toggle${selectedKBs.includes('local') ? ' on' : ''}`}
+                    onClick={() => toggleKb('local')}
+                    type="button"
+                  >
+                    {selectedKBs.includes('local') && <Icon name="check" size={11} />}
+                    本地知识库
+                  </button>
+                  {kbConnectors.map((c) => {
+                    const on = selectedKBs.includes(c.name);
+                    return (
+                      <button
+                        key={c.name}
+                        className={`tool-toggle${on ? ' on' : ''}`}
+                        onClick={() => toggleKb(c.name)}
+                        type="button"
+                      >
+                        {on && <Icon name="check" size={11} />}
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                {kbConnectors.length === 0 && (
+                  <span className="expert-kb-hint" style={{ marginTop: 6 }}>
+                    还没有知识库连接器 —
+                    <button className="expert-kb-link" onClick={() => { setActivePage('connectors'); }}>添加</button>
                   </span>
                 )}
               </div>
               <div className="form-field">
                 <span>启用的工具</span>
-                <div className="tool-toggle-grid">
-                  {KNOWN_TOOLS.map((t: string) => {
-                    const on = toolList.includes(t);
-                    return (
+                <div className="tool-group-list">
+                  {/* Local tools */}
+                  {visibleLocalTools.length > 0 && (
+                    <div className="tool-group">
                       <button
-                        key={t}
-                        className={`tool-toggle${on ? ' on' : ''}`}
-                        onClick={() => toggleFormTool(t)}
-                        type="button"
+                        className="tool-group-label-btn"
+                        onClick={() => {
+                          setExpandedToolGroups((prev) => {
+                            const n = new Set(prev);
+                            if (n.has('local')) n.delete('local'); else n.add('local');
+                            return n;
+                          });
+                        }}
                       >
-                        {on && <Icon name="check" size={11} />}
-                        {t}
+                        {expandedToolGroups.has('local') ? '[-]' : '[+]'} 本地 ({toolCountLabel(visibleLocalTools)})
                       </button>
-                    );
-                  })}
+                      {expandedToolGroups.has('local') && (
+                        <div className="tool-toggle-grid">
+                          {visibleLocalTools.map((t: string) => {
+                            const on = toolList.includes(t);
+                            return (
+                              <button key={t} className={`tool-toggle${on ? ' on' : ''}`} onClick={() => toggleFormTool(t)} type="button">
+                                {on && <Icon name="check" size={11} />} {t}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* MCP connector tools */}
+                  {connectorTools.map((c) => (
+                    <div key={c.name} className="tool-group">
+                      <button
+                        className="tool-group-label-btn"
+                        onClick={() => {
+                          setExpandedToolGroups((prev) => {
+                            const n = new Set(prev);
+                            if (n.has(c.name)) n.delete(c.name); else n.add(c.name);
+                            return n;
+                          });
+                        }}
+                      >
+                        {expandedToolGroups.has(c.name) ? '[-]' : '[+]'} {c.name} ({toolCountLabel(c.tools)})
+                      </button>
+                      {expandedToolGroups.has(c.name) && (
+                        <div className="tool-toggle-grid">
+                          {c.tools.map((t: string) => {
+                            const on = toolList.includes(t);
+                            return (
+                              <button key={t} className={`tool-toggle${on ? ' on' : ''}`} onClick={() => toggleFormTool(t)} type="button">
+                                {on && <Icon name="check" size={11} />} {t}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

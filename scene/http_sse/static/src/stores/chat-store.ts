@@ -162,6 +162,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadMessages: (rawMessages) => {
     const loaded: ChatMessage[] = [];
+    let pendingSteps: ToolStep[] = [];
+
+    const flushPending = (into: ChatMessage) => {
+      if (pendingSteps.length > 0) {
+        into.steps = [...pendingSteps, ...(into.steps || [])];
+        pendingSteps = [];
+      }
+    };
+
     for (const msg of rawMessages) {
       const role = msg.role as 'user' | 'assistant' | 'tool';
       if (role !== 'user' && role !== 'assistant' && role !== 'tool') continue;
@@ -169,22 +178,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (role === 'assistant') {
         const parsed = parseAssistantMessage(msg.content);
         if (!parsed.text && parsed.steps.length === 0) continue;
-        loaded.push({
-          id: `loaded-${Date.now()}-${loaded.length}`,
-          role,
-          content: parsed.text,
-          steps: parsed.steps.length > 0 ? parsed.steps : undefined,
-          timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
-        });
+
+        if (parsed.text) {
+          // This message has visible text — create a card and merge pending steps
+          const card: ChatMessage = {
+            id: `loaded-${Date.now()}-${loaded.length}`,
+            role,
+            content: parsed.text,
+            steps: parsed.steps.length > 0 ? parsed.steps : undefined,
+            timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
+          };
+          flushPending(card);
+          loaded.push(card);
+        } else {
+          // No visible text, only steps — accumulate for next card with text
+          pendingSteps.push(...parsed.steps);
+        }
       } else {
         const content = extractTextContent(msg.content);
         if (!content) continue;
-        loaded.push({
+        const card: ChatMessage = {
           id: `loaded-${Date.now()}-${loaded.length}`,
           role,
           content,
           timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
-        });
+        };
+        // If this is a user/tool message after pending steps, flush them into
+        // the last assistant card if one exists, otherwise drop them
+        if (pendingSteps.length > 0 && loaded.length > 0) {
+          const last = loaded[loaded.length - 1];
+          if (last.role === 'assistant') flushPending(last);
+        }
+        loaded.push(card);
       }
     }
     set({ messages: loaded });
