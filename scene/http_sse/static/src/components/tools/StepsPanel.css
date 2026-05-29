@@ -10,7 +10,7 @@
 .steps-panel::before {
     content: '';
     position: absolute;
-    left: 15px;
+    left: 14px;
     top: 8px;
     bottom: 8px;
     width: 1px;
@@ -24,7 +24,7 @@
     border: none;
     border-radius: 0;
     overflow: hidden;
-    padding-left: 32px;
+    padding-left: 28px;
 }
 
 .section-summary {
@@ -42,7 +42,7 @@
     align-items: center;
     user-select: none;
     touch-action: manipulation;
-    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .section-summary:hover {
@@ -59,19 +59,46 @@
 .step-section::before {
     content: '';
     position: absolute;
-    left: 12px;
-    top: 11px;
-    width: 7px;
-    height: 7px;
+    left: 11px;
+    top: 12px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background: var(--surface-card);
-    border: 1.5px solid var(--hairline-strong);
+    border: 1px solid var(--hairline-strong);
 }
 
 .step-section.active::before {
     background: var(--accent);
     border-color: var(--accent);
-    animation: statusPulse 2s ease-in-out infinite;
+}
+
+/* Sparkle burst around active dot — Claude-style radiating particles */
+.step-section.active::after {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 12px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow:
+        5px 0 0 -1.5px var(--accent),
+        -5px 0 0 -1.5px var(--accent),
+        0 5px 0 -1.5px var(--accent),
+        0 -5px 0 -1.5px var(--accent),
+        3.5px 3.5px 0 -1.5px var(--accent),
+        -3.5px 3.5px 0 -1.5px var(--accent),
+        3.5px -3.5px 0 -1.5px var(--accent),
+        -3.5px -3.5px 0 -1.5px var(--accent);
+    animation: sparkleBurst 1.8s ease-out infinite;
+}
+
+@keyframes sparkleBurst {
+    0%   { opacity: 0.8; transform: scale(0.3); }
+    30%  { opacity: 0.7; transform: scale(1); }
+    100% { opacity: 0;   transform: scale(2.4); }
 }
 
 .step-section.done-ok::before {
@@ -82,11 +109,6 @@
 .step-section.done-error::before {
     background: var(--danger);
     border-color: var(--danger);
-}
-
-@keyframes statusPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.35; }
 }
 
 .section-label {
@@ -171,7 +193,7 @@
 
 /* Subtle "waiting for next step" indicator between steps */
 .step-waiting {
-    padding: 4px 10px 4px 40px;
+    padding: 4px 10px 4px 36px;
     font-size: 11px;
     color: var(--ash);
     font-family: var(--font-mono);

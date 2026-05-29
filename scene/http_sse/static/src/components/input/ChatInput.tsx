@@ -19,10 +19,11 @@ export default function ChatInput({ onSend }: Props) {
   const loadCapabilities = useSkillStore((s) => s.loadCapabilities);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const imageRef = useRef<HTMLInputElement>(null);
+  const [showMore, setShowMore] = useState(false);
   const [showSkills, setShowSkills] = useState(false);
   const [recording, setRecording] = useState(false);
 
-  // Load skills on mount
   useEffect(() => {
     loadCapabilities();
   }, [loadCapabilities]);
@@ -40,7 +41,6 @@ export default function ChatInput({ onSend }: Props) {
     }
   };
 
-  // auto-resize textarea
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
@@ -48,10 +48,7 @@ export default function ChatInput({ onSend }: Props) {
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
   }, [inputValue]);
 
-  // Audio recorder
   const { start: startRecording, stop: stopRecording } = useAudioRecorder((base64) => {
-    // For now, just send a placeholder message indicating voice input
-    // In a real implementation, you'd send the base64 audio to a speech-to-text API
     onSend(`[语音输入] ${base64.slice(0, 50)}...`);
   });
 
@@ -69,15 +66,25 @@ export default function ChatInput({ onSend }: Props) {
     const prefix = inputValue ? inputValue + ' ' : '';
     setInputValue(`${prefix}/skill:${name} `);
     setShowSkills(false);
+    setShowMore(false);
     inputRef.current?.focus();
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // For now, just indicate file attachment in the input
     const prefix = inputValue ? inputValue + ' ' : '';
-    setInputValue(`${prefix}[附件: ${file.name}] `);
+    setInputValue(`${prefix}[文件: ${file.name}] `);
+    setShowMore(false);
+    e.target.value = '';
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const prefix = inputValue ? inputValue + ' ' : '';
+    setInputValue(`${prefix}[图片: ${file.name}] `);
+    setShowMore(false);
     e.target.value = '';
   };
 
@@ -88,45 +95,6 @@ export default function ChatInput({ onSend }: Props) {
           pending {pendingQueue.length} message(s)
         </div>
       )}
-
-      <div className="input-toolbar">
-        <div className="toolbar-left">
-          <button
-            className="toolbar-btn"
-            onClick={() => setShowSkills((v) => !v)}
-            title="选择技能"
-            aria-label="选择技能"
-          >
-            <Icon name="code" size={14} /> 技能
-          </button>
-          <button
-            className="toolbar-btn"
-            onClick={() => fileRef.current?.click()}
-            title="上传附件"
-            aria-label="上传附件"
-          >
-            <Icon name="upload" size={14} /> 附件
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            style={{ display: 'none' }}
-            onChange={handleFileSelect}
-          />
-        </div>
-
-        <div className="toolbar-right">
-          <button
-            className={`toolbar-btn${recording ? ' active' : ''}`}
-            onClick={toggleRecording}
-            title={recording ? '停止录音' : '语音输入'}
-            aria-label={recording ? '停止录音' : '语音输入'}
-          >
-            <Icon name="recording" size={14} />
-            {recording ? '录音中' : '语音'}
-          </button>
-        </div>
-      </div>
 
       {showSkills && skills.length > 0 && (
         <div className="skill-panel">
@@ -144,7 +112,7 @@ export default function ChatInput({ onSend }: Props) {
         </div>
       )}
 
-      <div className="input-row">
+      <div className="input-box">
         <textarea
           ref={inputRef}
           className="chat-textarea"
@@ -155,15 +123,64 @@ export default function ChatInput({ onSend }: Props) {
           rows={1}
           aria-label="消息输入框，按 Enter 发送，Shift+Enter 换行"
         />
-        <button
-          className="send-btn"
-          onClick={handleSend}
-          disabled={!inputValue.trim() || isStreaming}
-          aria-label="发送消息"
-        >
-          <Icon name="send" size={16} />
-        </button>
+
+        <div className="input-actions">
+          <div className="actions-left">
+            <button
+              className="action-btn"
+              onClick={() => setShowSkills((v) => !v)}
+              title="选择技能"
+              aria-label="选择技能"
+            >
+              <Icon name="code" size={16} />
+            </button>
+            <button
+              className={`action-btn${showMore ? ' active' : ''}`}
+              onClick={() => setShowMore((v) => !v)}
+              title="更多工具"
+              aria-label="更多工具"
+            >
+              <Icon name="plus" size={16} />
+            </button>
+
+            {showMore && (
+              <>
+                <div className="more-backdrop" onClick={() => setShowMore(false)} />
+                <div className="more-popover">
+                  <button onClick={() => { fileRef.current?.click(); }}>
+                    <Icon name="upload" size={14} /> 文件
+                  </button>
+                  <button onClick={() => { imageRef.current?.click(); }}>
+                    <Icon name="image" size={14} /> 图片
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="actions-right">
+            <button
+              className={`action-btn${recording ? ' recording' : ''}`}
+              onClick={toggleRecording}
+              title={recording ? '停止录音' : '语音输入'}
+              aria-label={recording ? '停止录音' : '语音输入'}
+            >
+              <Icon name="recording" size={16} />
+            </button>
+            <button
+              className="send-btn"
+              onClick={handleSend}
+              disabled={!inputValue.trim() || isStreaming}
+              aria-label="发送消息"
+            >
+              <Icon name="send" size={16} />
+            </button>
+          </div>
+        </div>
       </div>
+
+      <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={handleFileSelect} />
+      <input ref={imageRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageSelect} />
     </div>
   );
 }
