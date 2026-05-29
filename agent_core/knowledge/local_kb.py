@@ -156,9 +156,19 @@ class LocalKnowledgeBase:
             "original_name": name,
             "created": time.time(),
             "chunk_count": len(chunks),
+            "tags": [],
         }
         (doc_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False))
         return safe
+
+    def set_tags(self, name: str, tags: list[str]) -> bool:
+        """Set tags for a document."""
+        meta = self._read_meta(name)
+        if meta is None:
+            return False
+        meta["tags"] = tags
+        (self._doc_dir(name) / "meta.json").write_text(json.dumps(meta, ensure_ascii=False))
+        return True
 
     def chunk_and_save(self, name: str, content: str) -> tuple[str, int]:
         """Chunk text, save to disk. No embedding — call embed_all() async."""
@@ -219,6 +229,7 @@ class LocalKnowledgeBase:
                 "original_name": meta.get("original_name", meta["name"]),
                 "created": meta.get("created", 0),
                 "chunk_count": txt_count or meta.get("chunk_count", 0),
+                "tags": meta.get("tags", []),
             })
         return docs
 

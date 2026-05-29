@@ -189,6 +189,17 @@ export interface KnowledgeDoc {
   original_name: string;
   created: number;
   chunk_count: number;
+  tags: string[];
+}
+
+export async function setKnowledgeTags(name: string, tags: string[]): Promise<boolean> {
+  const response = await fetch(`${API_BASE}/knowledge/${encodeURIComponent(name)}/tags`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tags }),
+  });
+  if (!response.ok) return false;
+  return (await response.json() as { success: boolean }).success;
 }
 
 export interface KnowledgeDocDetail extends KnowledgeDoc {

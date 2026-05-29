@@ -235,6 +235,17 @@ class ChatAssistant:
             context_files=context_files,
         )
 
+        # Auto-retrieval: inject knowledge base context before each LLM call
+        from agent_core.knowledge.local_kb import LocalKnowledgeBase
+        from agent_core.retrieval.extension import AutoRetrievalExtension
+
+        kb_dir = os.path.join(cwd, ".pi", "knowledge")
+        _kb_retriever = LocalKnowledgeBase(kb_dir)
+        _auto_retrieval = AutoRetrievalExtension(retriever=_kb_retriever, top_k=3)
+
+        async def _transform_context(llm_messages, signal=None):
+            return await _auto_retrieval.transform_context(llm_messages, signal)
+
         agent = Agent(
             initial_state=AgentState(
                 system_prompt=prompt.text,
@@ -246,6 +257,8 @@ class ChatAssistant:
             tool_registry=tool_registry,
             tool_execution="sequential",
             before_tool_call=_auth_before_tool_call,
+            transform_context=_transform_context,
+            max_turns=10,
         )
 
         assistant = cls(

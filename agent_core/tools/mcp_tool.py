@@ -285,6 +285,17 @@ class MCPConnection:
         )
         await self._session.initialize()
 
+    def is_connected(self) -> bool:
+        return self._session is not None and self._exit_stack is not None
+
+    async def ping(self) -> bool:
+        """Health check — try listing tools. Returns True if healthy."""
+        try:
+            await self.list_tools()
+            return True
+        except Exception:
+            return False
+
     async def close(self) -> None:
         """Close the MCP server connection."""
         if self._exit_stack is not None:
@@ -414,6 +425,15 @@ class MCPManager:
         self._connections.clear()
         self._adapters.clear()
 
+    async def check_health(self) -> list[dict[str, Any]]:
+        """Ping all connections. Returns health status for each server."""
+        results = []
+        for i, conn in enumerate(self._connections):
+            name = self._configs[i].name if i < len(self._configs) else f"conn-{i}"
+            healthy = await conn.ping()
+            results.append({"name": name, "healthy": healthy})
+        return results
+
     async def reload(self, cwd: str = "") -> None:
         """Stop all connections and reload configs from .mcp.json."""
         await self.stop()
@@ -447,10 +467,20 @@ class MCPManager:
     def register_tools(self, registry: ToolRegistry) -> int:
         """Register all discovered MCP tools into the given registry.
 
-        Returns the number of tools registered.
+        If a tool name conflicts with an existing tool, prefix with server_name
+        to avoid overwriting. Otherwise keep the original name.
         """
         count = 0
         for adapter in self._adapters:
+            name = adapter.definition.name
+            if adapter.server_name and (name in registry):
+                # Rename on conflict only
+                new_name = f"{adapter.server_name}_{name}"
+                adapter.definition = ToolDefinition(
+                    name=new_name,
+                    description=adapter.definition.description,
+                    parameters=adapter.definition.parameters,
+                )
             registry.register(adapter)
             count += 1
         return count

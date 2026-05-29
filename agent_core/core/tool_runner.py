@@ -270,8 +270,13 @@ async def _run_tools_parallel(
     signal: asyncio.Event | None,
     mutation_queue: Any | None = None,
     tool_timeout: float | None = None,
+    max_concurrent: int = 8,
 ) -> list[tuple[Any, ToolResult, bool]]:
-    tasks = [
-        _run_single_tool(c, registry, before, after, signal, mutation_queue, tool_timeout=tool_timeout) for c in calls
-    ]
+    _sem = asyncio.Semaphore(max_concurrent)
+
+    async def _bounded(c):
+        async with _sem:
+            return await _run_single_tool(c, registry, before, after, signal, mutation_queue, tool_timeout=tool_timeout)
+
+    tasks = [_bounded(c) for c in calls]
     return await asyncio.gather(*tasks)

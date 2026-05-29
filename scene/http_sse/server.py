@@ -140,9 +140,26 @@ async def human_input(request: Request, human_request: HumanInputRequest) -> dic
 
 
 @app.get("/sessions")
-async def list_sessions() -> dict[str, Any]:
-    """List all persisted sessions with metadata."""
-    sessions = await manager.list_sessions()
+async def list_sessions(request: Request) -> dict[str, Any]:
+    """List persisted sessions with metadata. Supports pagination."""
+    limit = min(int(request.query_params.get("limit", "50")), 100)
+    offset = int(request.query_params.get("offset", "0"))
+    all_sessions = await manager.list_sessions(limit=200)
+    sessions = all_sessions[offset:offset + limit]
+    return {
+        "sessions": [
+            {
+                "session_id": s.session_id,
+                "created_at": s.created_at,
+                "entry_count": s.entry_count,
+                "title": s.title,
+            }
+            for s in sessions
+        ],
+        "total": len(all_sessions),
+        "offset": offset,
+        "limit": limit,
+    }
     return {
         "sessions": [
             {
@@ -353,6 +370,19 @@ async def upload_knowledge_file(request: Request) -> dict[str, Any]:
     return {"success": True, "chunks": chunk_count}
 
 
+@app.put("/knowledge/{name}/tags")
+async def set_knowledge_tags(name: str, request: Request) -> dict[str, Any]:
+    """Set tags for a knowledge document."""
+    from agent_core.knowledge.local_kb import LocalKnowledgeBase
+    import os as _os
+    body = await request.json()
+    tags = body.get("tags", [])
+    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
+    kb = LocalKnowledgeBase(kb_dir)
+    ok = kb.set_tags(name, tags)
+    return {"success": ok}
+
+
 @app.get("/knowledge/{name}")
 async def get_knowledge_doc(name: str) -> dict[str, Any]:
     """Get a single knowledge document with chunk previews."""
@@ -397,6 +427,15 @@ async def add_connector(body: ConnectorRequest) -> dict[str, Any]:
     )
     await manager.reload_mcp()
     return {"success": True}
+
+
+@app.post("/connectors/health")
+async def check_connectors_health() -> dict[str, Any]:
+    """Check health of all MCP connections."""
+    if manager._mcp_manager is None:
+        return {"results": []}
+    results = await manager._mcp_manager.check_health()
+    return {"results": results}
 
 
 @app.delete("/connectors")
