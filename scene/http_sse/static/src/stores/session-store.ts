@@ -29,6 +29,7 @@ interface SessionState {
   setPersonaId: (id: string | null) => void;
   createSession: () => void;
   switchSession: (id: string) => void;
+  removeSession: (id: string) => void;
 }
 
 function formatSessionTitle(sessions: SessionSummary[]): SessionSummary[] {
@@ -144,5 +145,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   switchSession: (id) => {
     set({ sessionId: id });
+  },
+
+  removeSession: (id) => {
+    set((state) => ({
+      sessions: state.sessions.filter((s) => s.session_id !== id),
+      sessionId: state.sessionId === id ? null : state.sessionId,
+    }));
   },
 }));

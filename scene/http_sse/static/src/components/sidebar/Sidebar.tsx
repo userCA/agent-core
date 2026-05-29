@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useSessionStore, type SessionSummary } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useChatStore } from '../../stores/chat-store';
-import { fetchSessionMessages } from '../../api/client';
+import { fetchSessionMessages, deleteSession } from '../../api/client';
 import Icon from '../shared/Icon';
 import ConnectorPanel from '../settings/ConnectorPanel';
 import './Sidebar.css';
@@ -27,6 +27,7 @@ export default function Sidebar() {
   const sessionsLoading = useSessionStore((s) => s.sessionsLoading);
   const sessionId = useSessionStore((s) => s.sessionId);
   const loadSessions = useSessionStore((s) => s.loadSessions);
+  const removeSession = useSessionStore((s) => s.removeSession);
   const createSession = useSessionStore((s) => s.createSession);
   const switchSession = useSessionStore((s) => s.switchSession);
   const personas = useSessionStore((s) => s.personas);
@@ -56,6 +57,15 @@ export default function Sidebar() {
 
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [showPersonaPicker, setShowPersonaPicker] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredSessions = useMemo(() => {
+    if (!searchQuery.trim()) return sessions;
+    const q = searchQuery.toLowerCase();
+    return sessions.filter((s) =>
+      (s.title || '未命名会话').toLowerCase().includes(q)
+    );
+  }, [sessions, searchQuery]);
 
   const handleSwitch = async (id: string) => {
     if (id === sessionId) return;
@@ -70,6 +80,19 @@ export default function Sidebar() {
       // ignore load errors
     } finally {
       setLoadingId(null);
+    }
+  };
+
+  const handleDelete = async (_e: React.MouseEvent, id: string) => {
+    try {
+      await deleteSession(id);
+      removeSession(id);
+      if (id === sessionId) {
+        resetChat();
+        setWelcomeVisible(true);
+      }
+    } catch {
+      // ignore delete errors
     }
   };
 
@@ -156,36 +179,73 @@ export default function Sidebar() {
 
         <div className="sidebar-divider" />
 
+        <div className="sidebar-search">
+          <Icon name="search" size={14} />
+          <input
+            type="text"
+            className="sidebar-search-input"
+            placeholder="搜索会话..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="搜索会话"
+          />
+          {searchQuery && (
+            <button
+              className="sidebar-search-clear"
+              onClick={() => setSearchQuery('')}
+              aria-label="清除搜索"
+            >
+              <Icon name="cancel" size={12} />
+            </button>
+          )}
+        </div>
+
         <div className="sidebar-content">
           {sessionsLoading && sessions.length === 0 && (
             <div className="sidebar-empty">加载中...</div>
           )}
 
-          {sessions.length === 0 && !sessionsLoading && (
+          {!sessionsLoading && sessions.length === 0 && (
             <div className="sidebar-empty">暂无历史会话</div>
           )}
 
-          {sessions.length > 0 && (
+          {!sessionsLoading && sessions.length > 0 && filteredSessions.length === 0 && (
+            <div className="sidebar-empty">无匹配会话</div>
+          )}
+
+          {filteredSessions.length > 0 && (
             <div className="session-list">
-              {sessions.map((s: SessionSummary) => {
+              {filteredSessions.map((s: SessionSummary) => {
                 const active = s.session_id === sessionId;
                 return (
-                  <button
+                  <div
                     key={s.session_id}
                     className={`session-item${active ? ' active' : ''}`}
-                    onClick={() => handleSwitch(s.session_id)}
-                    aria-current={active ? 'true' : undefined}
                   >
-                    <span className="session-icon">
-                      {loadingId === s.session_id ? (
-                        <Icon name="spinner" size={12} className="session-spinner" />
-                      ) : (
-                        <Icon name="message" size={12} />
-                      )}
-                    </span>
-                    <span className="session-title">{s.title || '未命名会话'}</span>
-                    <span className="session-meta">{formatTime(s.created_at)}</span>
-                  </button>
+                    <button
+                      className="session-item-main"
+                      onClick={() => handleSwitch(s.session_id)}
+                      aria-current={active ? 'true' : undefined}
+                    >
+                      <span className="session-icon">
+                        {loadingId === s.session_id ? (
+                          <Icon name="spinner" size={12} className="session-spinner" />
+                        ) : (
+                          <Icon name="message" size={12} />
+                        )}
+                      </span>
+                      <span className="session-title">{s.title || '未命名会话'}</span>
+                      <span className="session-meta">{formatTime(s.created_at)}</span>
+                    </button>
+                    <button
+                      className="session-delete"
+                      onClick={(e) => handleDelete(e, s.session_id)}
+                      title="删除会话"
+                      aria-label="删除会话"
+                    >
+                      <Icon name="cancel" size={12} />
+                    </button>
+                  </div>
                 );
               })}
             </div>

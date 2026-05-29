@@ -162,6 +162,16 @@ async def get_session(request: Request) -> dict[str, Any]:
     return {"success": True, "session_id": session_id, "messages": messages}
 
 
+@app.delete("/session")
+async def delete_session(request: Request) -> dict[str, Any]:
+    """Delete a persisted session."""
+    session_id = request.query_params.get("session_id")
+    if not session_id:
+        return {"success": False, "error": "Missing session_id"}
+    deleted = await manager.delete_session(session_id)
+    return {"success": deleted}
+
+
 @app.post("/abort")
 async def abort_session(request: Request) -> dict[str, Any]:
     """Abort the current operation for a session."""

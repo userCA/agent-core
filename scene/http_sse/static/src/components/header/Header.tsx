@@ -1,6 +1,5 @@
 import React from 'react';
 import { useChatStore } from '../../stores/chat-store';
-import { useSessionStore } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
 import Icon, { ICON_SIZES } from '../shared/Icon';
 import ConnectorPanel from '../settings/ConnectorPanel';
@@ -12,21 +11,8 @@ interface Props {
 
 export default function Header({ onAbort }: Props) {
   const isStreaming = useChatStore((s) => s.isStreaming);
-  const hasAuth = useSessionStore((s) => s.hasAuth);
-  const setAuthModalOpen = useUIStore((s) => s.setAuthModalOpen);
   const connectorPanelOpen = useUIStore((s) => s.connectorPanelOpen);
   const setConnectorPanelOpen = useUIStore((s) => s.setConnectorPanelOpen);
-  const reset = useChatStore((s) => s.reset);
-  const clearSession = useSessionStore((s) => s.clearSession);
-  const setWelcomeVisible = useUIStore((s) => s.setWelcomeVisible);
-  const setInputValue = useUIStore((s) => s.setInputValue);
-
-  const handleNewSession = () => {
-    clearSession();
-    reset();
-    setInputValue('');
-    setWelcomeVisible(true);
-  };
 
   return (
     <>
@@ -55,12 +41,6 @@ export default function Header({ onAbort }: Props) {
               <Icon name="cancel" size={ICON_SIZES.sm} /> cancel
             </button>
           )}
-          <button className="btn" onClick={() => setAuthModalOpen(true)} aria-label="设置认证信息">
-            <Icon name="key" size={ICON_SIZES.sm} /> {hasAuth ? 'authed' : 'auth'}
-          </button>
-          <button className="btn" onClick={handleNewSession} aria-label="新建会话">
-            <Icon name="plus" size={ICON_SIZES.sm} /> new
-          </button>
         </div>
       </header>
       {connectorPanelOpen && <ConnectorPanel onClose={() => setConnectorPanelOpen(false)} />}

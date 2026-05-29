@@ -5,7 +5,7 @@
 }
 
 .msg-label {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--stone);
     margin-bottom: 4px;
     font-family: var(--font-mono);
@@ -42,7 +42,7 @@
 }
 
 .bubble-assistant {
-    background: transparent;
+    background: var(--surface-soft);
     color: var(--body);
     border: 1px solid var(--hairline);
     max-width: 100%;
@@ -50,7 +50,7 @@
 
 .bubble-assistant:hover {
     border-color: var(--hairline-strong);
-    background: var(--surface-soft);
+    background: var(--surface-card);
 }
 
 .bubble-error {

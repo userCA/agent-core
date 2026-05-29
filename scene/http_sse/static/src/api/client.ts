@@ -47,6 +47,17 @@ export async function fetchSessions(): Promise<SessionMeta[]> {
   return data.sessions;
 }
 
+export async function deleteSession(sessionId: string): Promise<boolean> {
+  const response = await fetch(`${API_BASE}/session?session_id=${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete session: ${response.status}`);
+  }
+  const data = await response.json() as { success: boolean };
+  return data.success;
+}
+
 export async function fetchSessionMessages(sessionId: string): Promise<Array<{ role: string; content: unknown; timestamp?: number }>> {
   const response = await fetch(`${API_BASE}/session?session_id=${encodeURIComponent(sessionId)}`);
   if (!response.ok) {

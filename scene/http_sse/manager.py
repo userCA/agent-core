@@ -112,6 +112,21 @@ class SessionManager:
         store = JsonlStore(self._store_dir)
         return await store.list_sessions(limit=limit)
 
+    async def delete_session(self, session_id: str) -> bool:
+        """Delete a persisted session file and dispose from memory if active."""
+        _validate_session_id(session_id)
+        # Remove from in-memory active sessions
+        assistant = self._sessions.pop(session_id, None)
+        if assistant:
+            await assistant.dispose()
+        # Delete file from disk
+        store = JsonlStore(self._store_dir)
+        path = store._path(session_id)
+        if path.exists():
+            os.unlink(path)
+            return True
+        return False
+
     async def dispose_all(self) -> None:
         """Dispose all active sessions."""
         async with self._lock:
