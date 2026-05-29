@@ -81,6 +81,35 @@
 
 .page-search input::placeholder { color: var(--ash); }
 
+.page-filter-row {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.filter-tab {
+    padding: 4px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--mute);
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.filter-tab:hover {
+    background: var(--surface-soft);
+    color: var(--body);
+}
+
+.filter-tab.active {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--on-dark);
+}
+
 .page-body {
     flex: 1;
     overflow-y: auto;
@@ -251,6 +280,11 @@
     color: var(--ash);
 }
 
+.connector-item-badge.type-kb {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
 .connector-item-meta {
     display: flex;
     align-items: center;
@@ -291,7 +325,7 @@
 .form-grid {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
 }
 
 .form-field {
@@ -313,6 +347,90 @@
     font-size: 13px;
     background: var(--canvas);
     color: var(--ink);
+}
+
+.form-field select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23646262' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 28px;
+    cursor: pointer;
+}
+
+.form-dropdown {
+    position: relative;
+}
+
+.form-select {
+    width: 100%;
+    padding: 8px 28px 8px 10px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    background: var(--canvas);
+    color: var(--ink);
+    text-align: left;
+    cursor: pointer;
+    position: relative;
+}
+
+.form-select::after {
+    content: '';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23646262' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.form-select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.form-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px var(--shadow);
+    z-index: 20;
+    overflow: hidden;
+}
+
+.form-dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--body);
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.form-dropdown-item:hover {
+    background: var(--surface-soft);
+}
+
+.form-dropdown-item.selected {
+    color: var(--ink);
+    font-weight: 600;
 }
 
 .form-field input:focus,
@@ -580,6 +698,29 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+}
+
+.expert-kb-hint {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ash);
+    line-height: 1.6;
+}
+
+.expert-kb-link {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+}
+
+.tag.type-kb {
+    color: var(--accent);
+    border-color: var(--accent);
 }
 
 

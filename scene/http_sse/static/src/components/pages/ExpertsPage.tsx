@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
-import { savePersona, deletePersona, type PersonaInfo } from '../../api/client';
+import { savePersona, deletePersona, fetchConnectors, type PersonaInfo, type ConnectorInfo } from '../../api/client';
 import Icon from '../shared/Icon';
 import './Pages.css';
 
 function emptyPersona(): PersonaInfo {
-  return { id: '', name: '', description: '', system_prompt: '', enabled_tools: null };
+  return { id: '', name: '', description: '', system_prompt: '', enabled_tools: null, knowledge_bases: null };
 }
 
 const KNOWN_TOOLS = ['read', 'write', 'edit', 'bash', 'ls', 'find', 'grep', 'confirm'];
@@ -24,8 +24,13 @@ export default function ExpertsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
 
   React.useEffect(() => { loadPersonas(); }, [loadPersonas]);
+  React.useEffect(() => { fetchConnectors().then(setConnectors).catch(() => {}); }, []);
+
+  const kbConnectors = connectors.filter((c) => c.type === 'knowledge');
+  const selectedKBs: string[] = form.knowledge_bases || [];
 
   const filtered = useMemo(() => {
     if (!search.trim()) return personas;
@@ -84,6 +89,7 @@ export default function ExpertsPage() {
         description: f.description?.trim() || '',
         system_prompt: f.system_prompt?.trim() || '',
         enabled_tools: toolList.length > 0 ? toolList : undefined,
+        knowledge_bases: selectedKBs.length > 0 ? selectedKBs : undefined,
       });
       await loadPersonas();
       setShowForm(false);
@@ -193,6 +199,36 @@ export default function ExpertsPage() {
                   onChange={(e) => setForm({ ...form, system_prompt: e.target.value })} />
               </label>
               <div className="form-field">
+                <span>关联知识库</span>
+                {kbConnectors.length > 0 ? (
+                  <div className="tool-toggle-grid">
+                    {kbConnectors.map((c) => {
+                      const on = selectedKBs.includes(c.name);
+                      return (
+                        <button
+                          key={c.name}
+                          className={`tool-toggle${on ? ' on' : ''}`}
+                          onClick={() => {
+                            if (on) setForm({ ...form, knowledge_bases: selectedKBs.filter((x: string) => x !== c.name) });
+                            else setForm({ ...form, knowledge_bases: [...selectedKBs, c.name] });
+                          }}
+                          type="button"
+                        >
+                          {on && <Icon name="check" size={11} />}
+                          {c.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="expert-kb-hint">
+                    暂无知识库连接器 — 先在
+                    <button className="expert-kb-link" onClick={() => { setActivePage('connectors'); }}>连接器管理</button>
+                    中添加类型为"知识库"的连接器
+                  </span>
+                )}
+              </div>
+              <div className="form-field">
                 <span>启用的工具</span>
                 <div className="tool-toggle-grid">
                   {KNOWN_TOOLS.map((t: string) => {
@@ -231,7 +267,11 @@ export default function ExpertsPage() {
               <div key={p.id} className="expert-item">
                 <div className="expert-item-header">
                   <button className="expert-item-toggle" onClick={() => toggleExpand(p.id)} aria-expanded={isExpanded}>
-                    <span className="expert-bracket" onClick={(e) => { e.stopPropagation(); setPersonaId(isActive ? null : p.id); }} title={isActive ? '停用' : '激活'}>
+                    <span
+                      className="expert-bracket"
+                      onClick={(e) => { e.stopPropagation(); setPersonaId(isActive ? null : p.id); }}
+                      title={isActive ? '停用' : '激活'}
+                    >
                       [{isActive ? '*' : ' '}]
                     </span>
                     <div className="expert-item-info">
@@ -260,11 +300,24 @@ export default function ExpertsPage() {
                         <pre className="expert-detail-prompt">{p.system_prompt}</pre>
                       </div>
                     )}
+                    {p.knowledge_bases && p.knowledge_bases.length > 0 && (
+                      <div className="expert-detail-section">
+                        <span className="expert-detail-label">知识库</span>
+                        <div className="expert-detail-tools">
+                          {p.knowledge_bases.map((kb: string) => (
+                            <span key={kb} className="tag type-kb">{kb}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {p.enabled_tools && p.enabled_tools.length > 0 && (
-                      <div className="expert-detail-tools">
-                        {p.enabled_tools.map((t: string) => (
-                          <span key={t} className="tag">{t}</span>
-                        ))}
+                      <div className="expert-detail-section">
+                        <span className="expert-detail-label">工具</span>
+                        <div className="expert-detail-tools">
+                          {p.enabled_tools.map((t: string) => (
+                            <span key={t} className="tag">{t}</span>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

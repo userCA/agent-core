@@ -64,16 +64,26 @@ class SessionManager:
         """Get an existing assistant or create a new one."""
         if session_id:
             _validate_session_id(session_id)
-            if session_id in self._sessions:
-                return session_id, self._sessions[session_id]
+            existing = self._sessions.get(session_id)
+            if existing is not None:
+                # If persona changed, recreate the assistant with the new config
+                current_pid = getattr(existing, '_persona_id', None)
+                if current_pid == persona_id:
+                    return session_id, existing
+                await self.dispose(session_id)
 
         sid = session_id or _generate_session_id()
         _validate_session_id(sid)
         lock = self._create_locks.setdefault(sid, asyncio.Lock())
         async with lock:
             # Re-check inside lock
-            if sid in self._sessions:
-                return sid, self._sessions[sid]
+            existing = self._sessions.get(sid)
+            if existing is not None:
+                current_pid = getattr(existing, '_persona_id', None)
+                if current_pid == persona_id:
+                    return sid, existing
+                await self.dispose(sid)
+
             store = JsonlStore(self._store_dir)
 
             provider_name = os.environ.get("AGENT_PROVIDER", "openai")
@@ -92,6 +102,8 @@ class SessionManager:
                 persona=persona,
                 mcp_manager=self._mcp_manager,
             )
+            # Remember which persona was used to create this assistant
+            assistant._persona_id = persona_id
             async with self._lock:
                 self._sessions[sid] = assistant
         self._create_locks.pop(sid, None)

@@ -11,7 +11,7 @@ const TRANSPORT_OPTIONS: { value: string; label: string }[] = [
 ];
 
 function emptyPayload(): AddConnectorPayload {
-  return { name: '', transport: 'stdio', command: '', args: [], url: '', env: {} };
+  return { name: '', transport: 'stdio', command: '', args: [], url: '', env: {}, type: 'tool' };
 }
 
 export default function ConnectorsPage() {
@@ -25,6 +25,12 @@ export default function ConnectorsPage() {
   const [form, setForm] = useState<AddConnectorPayload>(emptyPayload());
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState<string>('all'); // 'all' | 'tool' | 'knowledge'
+
+  const toggleDropdown = (name: string) => {
+    setOpenDropdown((prev) => (prev === name ? null : name));
+  };
 
   const load = () => {
     setLoading(true);
@@ -36,13 +42,14 @@ export default function ConnectorsPage() {
   useEffect(() => { load(); }, []);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return connectors;
-    const q = search.toLowerCase();
-    return connectors.filter((c) =>
-      c.name.toLowerCase().includes(q) ||
-      c.tools.some((t) => t.toLowerCase().includes(q))
-    );
-  }, [connectors, search]);
+    let list = connectors;
+    if (typeFilter !== 'all') list = list.filter((c) => (c.type || 'tool') === typeFilter);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((c) => c.name.toLowerCase().includes(q) || c.tools.some((t) => t.toLowerCase().includes(q)));
+    }
+    return list;
+  }, [connectors, search, typeFilter]);
 
   const toggleExpand = (name: string) => {
     setExpanded((prev) => {
@@ -75,6 +82,7 @@ export default function ConnectorsPage() {
         args: f.transport === 'stdio' && f.args && f.args.length > 0 ? f.args : undefined,
         url: f.transport !== 'stdio' ? f.url?.trim() || undefined : undefined,
         env: f.env && Object.keys(f.env).length > 0 ? f.env : undefined,
+        type: f.type || 'tool',
       });
       setShowForm(false);
       load(); // Reload list after adding
@@ -120,6 +128,23 @@ export default function ConnectorsPage() {
       </div>
 
       <div className="page-body">
+        {!loading && connectors.length > 0 && (
+          <div className="page-filter-row">
+            {[
+              { key: 'all', label: '全部' },
+              { key: 'tool', label: '工具' },
+              { key: 'knowledge', label: '知识库' },
+            ].map((f) => (
+              <button
+                key={f.key}
+                className={`filter-tab${typeFilter === f.key ? ' active' : ''}`}
+                onClick={() => setTypeFilter(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
         {loading && <p className="page-empty">加载中...</p>}
         {error && <p className="page-empty page-error">{error}</p>}
 
@@ -145,9 +170,41 @@ export default function ConnectorsPage() {
               </label>
               <label className="form-field">
                 <span>传输方式</span>
-                <select value={form.transport} onChange={(e) => setForm({ ...form, transport: e.target.value })}>
-                  {TRANSPORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                <div className="form-dropdown">
+                  <button className="form-select" onClick={() => toggleDropdown('transport')} type="button">
+                    {TRANSPORT_OPTIONS.find((o) => o.value === form.transport)?.label || '选择...'}
+                  </button>
+                  {openDropdown === 'transport' && (
+                    <div className="form-dropdown-menu">
+                      {TRANSPORT_OPTIONS.map((o) => (
+                        <button key={o.value} className={`form-dropdown-item${form.transport === o.value ? ' selected' : ''}`}
+                          onClick={() => { setForm({ ...form, transport: o.value }); setOpenDropdown(null); }}>
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </label>
+              <label className="form-field">
+                <span>类型</span>
+                <div className="form-dropdown">
+                  <button className="form-select" onClick={() => toggleDropdown('type')} type="button">
+                    {form.type === 'knowledge' ? '知识库' : '工具'}
+                  </button>
+                  {openDropdown === 'type' && (
+                    <div className="form-dropdown-menu">
+                      <button className={`form-dropdown-item${form.type !== 'knowledge' ? ' selected' : ''}`}
+                        onClick={() => { setForm({ ...form, type: 'tool' }); setOpenDropdown(null); }}>
+                        工具
+                      </button>
+                      <button className={`form-dropdown-item${form.type === 'knowledge' ? ' selected' : ''}`}
+                        onClick={() => { setForm({ ...form, type: 'knowledge' }); setOpenDropdown(null); }}>
+                        知识库
+                      </button>
+                    </div>
+                  )}
+                </div>
               </label>
               {form.transport === 'stdio' ? (
                 <>
@@ -201,6 +258,7 @@ export default function ConnectorsPage() {
                     <span className={`dot${isConnected ? ' green' : ' red'}`} />
                     <span className="connector-item-name">{c.name}</span>
                     <span className="connector-item-badge">{c.transport}</span>
+                    {(c.type || 'tool') === 'knowledge' && <span className="connector-item-badge type-kb">知识库</span>}
                   </div>
                   <div className="connector-item-meta">
                     <span>{c.tools.length} 工具</span>

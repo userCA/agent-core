@@ -196,6 +196,7 @@ class PersonaRequest(BaseModel):
     description: str = Field(default="", max_length=500)
     system_prompt: str = Field(default="", max_length=5000)
     enabled_tools: list[str] | None = None
+    knowledge_bases: list[str] | None = None
 
 
 class ConnectorRequest(BaseModel):
@@ -277,6 +278,7 @@ async def list_personas() -> dict[str, Any]:
                 "description": p.description,
                 "system_prompt": p.system_prompt,
                 "enabled_tools": p.enabled_tools,
+                "knowledge_bases": p.knowledge_bases,
             }
             for p in personas
         ]
@@ -293,6 +295,7 @@ async def save_persona(body: PersonaRequest) -> dict[str, Any]:
         description=body.description,
         system_prompt=body.system_prompt,
         enabled_tools=body.enabled_tools,
+        knowledge_bases=body.knowledge_bases,
     )
     save_p(p, cwd=manager._cwd)
     return {"success": True}

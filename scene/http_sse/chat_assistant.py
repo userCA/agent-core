@@ -137,13 +137,23 @@ class ChatAssistant:
             mcp_manager.register_tools(tool_registry)
 
         # Apply persona tool filtering
-        if persona is not None and persona.enabled_tools is not None:
-            allowed = set(persona.enabled_tools)
-            filtered = ToolRegistry()
-            for name, tool in tool_registry:
-                if name in allowed:
-                    filtered.register(tool)
-            tool_registry = filtered
+        if persona is not None:
+            allowed: set[str] | None = None
+            if persona.enabled_tools is not None:
+                allowed = set(persona.enabled_tools)
+            # Auto-include knowledge base tools from linked MCP connectors
+            if persona.knowledge_bases and mcp_manager is not None:
+                kb_names = set(persona.knowledge_bases)
+                for adapter in mcp_manager.adapters:
+                    if adapter.server_name in kb_names:
+                        if allowed is not None:
+                            allowed.add(adapter.definition.name)
+            if allowed is not None:
+                filtered = ToolRegistry()
+                for name, tool in tool_registry:
+                    if name in allowed:
+                        filtered.register(tool)
+                tool_registry = filtered
 
         # Resolve auth
         if api_key:

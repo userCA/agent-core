@@ -15,6 +15,7 @@ class Persona:
     description: str
     system_prompt: str
     enabled_tools: list[str] | None = None
+    knowledge_bases: list[str] | None = None
 
 
 def load_personas(cwd: str = "") -> list[Persona]:
@@ -56,6 +57,7 @@ def load_personas(cwd: str = "") -> list[Persona]:
                     description=data.get("description", ""),
                     system_prompt=data.get("system_prompt", ""),
                     enabled_tools=data.get("enabled_tools"),
+                    knowledge_bases=data.get("knowledge_bases"),
                 )
             )
 
@@ -87,6 +89,8 @@ def save_persona(persona: Persona, cwd: str = "") -> None:
     }
     if persona.enabled_tools is not None:
         data["enabled_tools"] = persona.enabled_tools
+    if persona.knowledge_bases is not None:
+        data["knowledge_bases"] = persona.knowledge_bases
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")

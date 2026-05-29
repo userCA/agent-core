@@ -32,6 +32,7 @@ class MCPServerConfig:
     command: list[str] | None = None
     url: str | None = None
     env: dict[str, str] | None = None
+    server_type: str = "tool"  # "tool" | "knowledge"
 
 
 def parse_mcp_servers(raw: str) -> list[MCPServerConfig]:
@@ -106,6 +107,7 @@ def parse_mcp_json(path: str) -> list[MCPServerConfig]:
         args = cfg.get("args", [])
         env = cfg.get("env")
         url = cfg.get("url")
+        server_type = cfg.get("type", "tool")
 
         # Detect transport from config fields
         if url:
@@ -113,12 +115,14 @@ def parse_mcp_json(path: str) -> list[MCPServerConfig]:
             servers.append(MCPServerConfig(
                 name=name, transport=transport, url=url,
                 env=env if isinstance(env, dict) else None,
+                server_type=server_type,
             ))
         elif command:
             full_cmd = [command] + list(args) if args else [command]
             servers.append(MCPServerConfig(
                 name=name, transport="stdio", command=full_cmd,
                 env={k: str(v) for k, v in env.items()} if isinstance(env, dict) else None,
+                server_type=server_type,
             ))
 
     return servers
@@ -173,6 +177,7 @@ def add_mcp_server_to_json(
     args: list[str] | None = None,
     url: str | None = None,
     env: dict[str, str] | None = None,
+    server_type: str = "tool",
     cwd: str = "",
 ) -> None:
     """Add or update an MCP server entry in .mcp.json."""
@@ -188,6 +193,8 @@ def add_mcp_server_to_json(
             cfg["args"] = args
     if env:
         cfg["env"] = env
+    if server_type != "tool":
+        cfg["type"] = server_type
 
     data["mcpServers"][name] = cfg
     write_mcp_json_raw(data, cwd)
@@ -432,6 +439,7 @@ class MCPManager:
                 "name": cfg.name,
                 "transport": cfg.transport,
                 "status": status,
+                "type": cfg.server_type,
                 "tools": sorted(tools),
             })
         return result

@@ -73,6 +73,7 @@ export interface PersonaInfo {
   description: string;
   system_prompt?: string;
   enabled_tools?: string[] | null;
+  knowledge_bases?: string[] | null;
 }
 
 export async function fetchPersonas(): Promise<PersonaInfo[]> {
@@ -116,6 +117,7 @@ export interface ConnectorInfo {
   name: string;
   transport: string;
   status: string;
+  type: string;
   tools: string[];
 }
 
@@ -126,6 +128,7 @@ export interface AddConnectorPayload {
   args?: string[];
   url?: string;
   env?: Record<string, string>;
+  type?: string;
 }
 
 export async function addConnector(payload: AddConnectorPayload): Promise<boolean> {

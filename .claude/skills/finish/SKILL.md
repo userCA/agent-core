@@ -55,6 +55,12 @@ git status --short
 
 ### 4. 提交
 
+**若本次修改了 Python 后端文件，提交后必须提醒用户重启服务：**
+
+> 后端文件有改动，需要重启：`lsof -ti:8001 | xargs kill && PORT=8001 python -m scene.http_sse.server`
+
+否则用户测试时会发现新端点/新字段不生效，误以为是代码 bug。
+
 ```
 git add <具体文件>
 git commit -m "描述 WHY，引用开发日志问题编号"
