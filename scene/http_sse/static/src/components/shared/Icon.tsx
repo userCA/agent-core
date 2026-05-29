@@ -47,6 +47,7 @@ interface Props {
   name: IconName | string;
   size?: number;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -259,7 +260,7 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
 };
 
-export default function Icon({ name, size = 16, className = '' }: Props) {
+export default function Icon({ name, size = 16, className = '', style }: Props) {
   const content = ICONS[name] ?? null;
   return (
     <svg
@@ -272,6 +273,7 @@ export default function Icon({ name, size = 16, className = '' }: Props) {
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
+      style={style}
       aria-hidden="true"
       focusable="false"
     >

@@ -16,7 +16,9 @@ export default function ChatInput({ onSend }: Props) {
   const inputValue = useUIStore((s) => s.inputValue);
   const setInputValue = useUIStore((s) => s.setInputValue);
   const skills = useSkillStore((s) => s.skills);
+  const enabled = useSkillStore((s) => s.enabled);
   const loadCapabilities = useSkillStore((s) => s.loadCapabilities);
+  const visibleSkills = skills.filter((s) => enabled.has(s.name));
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
@@ -96,9 +98,9 @@ export default function ChatInput({ onSend }: Props) {
         </div>
       )}
 
-      {showSkills && skills.length > 0 && (
+      {showSkills && visibleSkills.length > 0 && (
         <div className="skill-panel">
-          {skills.map((s) => (
+          {visibleSkills.map((s) => (
             <button
               key={s.name}
               className="skill-item"

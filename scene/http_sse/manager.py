@@ -112,6 +112,11 @@ class SessionManager:
         store = JsonlStore(self._store_dir)
         return await store.list_sessions(limit=limit)
 
+    async def reload_mcp(self) -> None:
+        """Reload MCP configs from .mcp.json and reconnect."""
+        if self._mcp_manager is not None:
+            await self._mcp_manager.reload(cwd=self._cwd)
+
     async def delete_session(self, session_id: str) -> bool:
         """Delete a persisted session file and dispose from memory if active."""
         _validate_session_id(session_id)

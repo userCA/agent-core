@@ -9,12 +9,15 @@ import AuthModal from './components/header/AuthModal';
 import ChatContainer from './components/chat/ChatContainer';
 import ChatInput from './components/input/ChatInput';
 import PendingBubbles from './components/input/PendingBubbles';
+import SkillsPage from './components/pages/SkillsPage';
+import ConnectorsPage from './components/pages/ConnectorsPage';
 import './App.css';
 
 export default function App() {
   const { sendMessage, abort } = useSSE();
   const loadAuth = useSessionStore((s) => s.loadAuth);
   const authModalOpen = useUIStore((s) => s.authModalOpen);
+  const activePage = useUIStore((s) => s.activePage);
 
   useEffect(() => {
     loadAuth();
@@ -26,9 +29,15 @@ export default function App() {
         <Sidebar />
         <div className="app-main">
           <Header onAbort={abort} />
-          <ChatContainer onExampleClick={sendMessage} />
-          <PendingBubbles />
-          <ChatInput onSend={sendMessage} />
+          {activePage === 'chat' && (
+            <>
+              <ChatContainer onExampleClick={sendMessage} />
+              <PendingBubbles />
+              <ChatInput onSend={sendMessage} />
+            </>
+          )}
+          {activePage === 'skills' && <SkillsPage />}
+          {activePage === 'connectors' && <ConnectorsPage />}
         </div>
       </div>
       {authModalOpen && <AuthModal />}

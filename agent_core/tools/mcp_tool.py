@@ -139,6 +139,71 @@ def load_mcp_server_configs(cwd: str = "") -> list[MCPServerConfig]:
     return parse_mcp_servers(_os.environ.get("MCP_SERVERS", ""))
 
 
+def read_mcp_json_raw(cwd: str = "") -> dict[str, Any]:
+    """Read raw .mcp.json content for editing via API."""
+    import json as _json
+    import os as _os
+
+    search_dir = cwd or _os.getcwd()
+    json_path = _os.path.join(search_dir, ".mcp.json")
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            return _json.load(f)
+    except (FileNotFoundError, _json.JSONDecodeError, OSError):
+        return {"mcpServers": {}}
+
+
+def write_mcp_json_raw(data: dict[str, Any], cwd: str = "") -> None:
+    """Write .mcp.json file with the given data."""
+    import json as _json
+    import os as _os
+
+    search_dir = cwd or _os.getcwd()
+    json_path = _os.path.join(search_dir, ".mcp.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        _json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+def add_mcp_server_to_json(
+    name: str,
+    transport: str,
+    *,
+    command: str | None = None,
+    args: list[str] | None = None,
+    url: str | None = None,
+    env: dict[str, str] | None = None,
+    cwd: str = "",
+) -> None:
+    """Add or update an MCP server entry in .mcp.json."""
+    data = read_mcp_json_raw(cwd)
+    data.setdefault("mcpServers", {})
+
+    cfg: dict[str, Any] = {}
+    if transport in ("sse", "streamable_http") and url:
+        cfg["url"] = url
+    elif transport == "stdio" and command:
+        cfg["command"] = command
+        if args:
+            cfg["args"] = args
+    if env:
+        cfg["env"] = env
+
+    data["mcpServers"][name] = cfg
+    write_mcp_json_raw(data, cwd)
+
+
+def remove_mcp_server_from_json(name: str, cwd: str = "") -> bool:
+    """Remove an MCP server entry from .mcp.json. Returns True if found."""
+    data = read_mcp_json_raw(cwd)
+    servers = data.get("mcpServers", {})
+    if name not in servers:
+        return False
+    del servers[name]
+    write_mcp_json_raw(data, cwd)
+    return True
+
+
 # ---------------------------------------------------------------------------
 # MCP connection
 # ---------------------------------------------------------------------------
@@ -341,6 +406,12 @@ class MCPManager:
                 logger.exception("Error closing MCP connection")
         self._connections.clear()
         self._adapters.clear()
+
+    async def reload(self, cwd: str = "") -> None:
+        """Stop all connections and reload configs from .mcp.json."""
+        await self.stop()
+        self._configs = load_mcp_server_configs(cwd)
+        await self.start()
 
     def get_connector_info(self) -> list[dict[str, Any]]:
         """Return info about each connected MCP server and its tools."""

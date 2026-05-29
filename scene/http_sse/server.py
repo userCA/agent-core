@@ -21,12 +21,18 @@ from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
 from agent_core.resources.personas import load_personas
 
 from scene.http_sse.events import agent_event_to_sse_json
+from agent_core.tools.mcp_tool import add_mcp_server_to_json, remove_mcp_server_from_json
 from scene.http_sse.manager import SessionManager
 from scene.http_sse.request_context import current_request_headers
 
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=100_000)
+
+
+class SkillImportRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    content: str = Field(..., min_length=1, max_length=100_000)
 
 
 class HumanInputRequest(BaseModel):
@@ -184,7 +190,62 @@ async def abort_session(request: Request) -> dict[str, Any]:
     return {"success": True}
 
 
+class ConnectorRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    transport: str = Field(..., pattern=r"^(stdio|sse|streamable_http)$")
+    command: str | None = None
+    args: list[str] | None = None
+    url: str | None = None
+    env: dict[str, str] | None = None
+
+
+@app.post("/skills/import")
+async def import_skill(body: SkillImportRequest) -> dict[str, Any]:
+    """Import a skill file into .pi/skills/ directory and reload capabilities."""
+    import os as _os
+
+    skills_dir = _os.path.join(manager._cwd, ".pi", "skills")
+    _os.makedirs(skills_dir, exist_ok=True)
+    file_path = _os.path.join(skills_dir, f"{body.name}.md")
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(body.content)
+
+    # Invalidate capability cache so next fetch reloads
+    global _capabilities_cache
+    _capabilities_cache = None
+    return {"success": True}
+
+
 _capabilities_cache: dict[str, Any] | None = None
+
+
+@app.post("/connectors")
+async def add_connector(body: ConnectorRequest) -> dict[str, Any]:
+    """Add or update an MCP server in .mcp.json and reload."""
+    add_mcp_server_to_json(
+        name=body.name,
+        transport=body.transport,
+        command=body.command,
+        args=body.args,
+        url=body.url,
+        env=body.env,
+        cwd=manager._cwd,
+    )
+    await manager.reload_mcp()
+    return {"success": True}
+
+
+@app.delete("/connectors")
+async def remove_connector(request: Request) -> dict[str, Any]:
+    """Remove an MCP server from .mcp.json and reload."""
+    name = request.query_params.get("name")
+    if not name:
+        return {"success": False, "error": "Missing name"}
+    found = remove_mcp_server_from_json(name, cwd=manager._cwd)
+    if not found:
+        return {"success": False, "error": "Connector not found"}
+    await manager.reload_mcp()
+    return {"success": True}
 
 
 @app.get("/connectors")

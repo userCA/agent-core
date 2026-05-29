@@ -92,6 +92,16 @@ export interface Capabilities {
   tools: string[];
 }
 
+export async function importSkill(name: string, content: string): Promise<boolean> {
+  const response = await fetch(`${API_BASE}/skills/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, content }),
+  });
+  if (!response.ok) throw new Error(`Failed to import skill: ${response.status}`);
+  return (await response.json() as { success: boolean }).success;
+}
+
 export async function fetchCapabilities(): Promise<Capabilities> {
   const response = await fetch(`${API_BASE}/capabilities`);
   if (!response.ok) {
@@ -105,6 +115,33 @@ export interface ConnectorInfo {
   transport: string;
   status: string;
   tools: string[];
+}
+
+export interface AddConnectorPayload {
+  name: string;
+  transport: string;
+  command?: string;
+  args?: string[];
+  url?: string;
+  env?: Record<string, string>;
+}
+
+export async function addConnector(payload: AddConnectorPayload): Promise<boolean> {
+  const response = await fetch(`${API_BASE}/connectors`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`Failed to add connector: ${response.status}`);
+  return (await response.json() as { success: boolean }).success;
+}
+
+export async function removeConnector(name: string): Promise<boolean> {
+  const response = await fetch(`${API_BASE}/connectors?name=${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error(`Failed to remove connector: ${response.status}`);
+  return (await response.json() as { success: boolean }).success;
 }
 
 export async function fetchConnectors(): Promise<ConnectorInfo[]> {

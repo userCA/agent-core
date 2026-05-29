@@ -10,30 +10,32 @@ function getInitialCollapsed(): boolean {
   }
 }
 
+export type Page = 'chat' | 'skills' | 'connectors';
+
 interface UIState {
+  activePage: Page;
   welcomeVisible: boolean;
   authModalOpen: boolean;
-  connectorPanelOpen: boolean;
   inputValue: string;
   sidebarCollapsed: boolean;
 
+  setActivePage: (v: Page) => void;
   setWelcomeVisible: (v: boolean) => void;
   setAuthModalOpen: (v: boolean) => void;
-  setConnectorPanelOpen: (v: boolean) => void;
   setInputValue: (v: string) => void;
   toggleSidebar: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
+  activePage: 'chat',
   welcomeVisible: true,
   authModalOpen: false,
-  connectorPanelOpen: false,
   inputValue: '',
   sidebarCollapsed: getInitialCollapsed(),
 
+  setActivePage: (v) => set({ activePage: v }),
   setWelcomeVisible: (v) => set({ welcomeVisible: v }),
   setAuthModalOpen: (v) => set({ authModalOpen: v }),
-  setConnectorPanelOpen: (v) => set({ connectorPanelOpen: v }),
   setInputValue: (v) => set({ inputValue: v }),
   toggleSidebar: () =>
     set((s) => {

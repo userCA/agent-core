@@ -242,7 +242,52 @@ for await (const evt of gen) {
 
 ---
 
+## 规则 13：所有输入框必须有统一的 focus 样式
+
+**模式：** 新增页面或组件的 `<input>`、`<textarea>`、`<select>` 只改了 `border-color` 但没有 `box-shadow` 光圈，与已有的 `.chat-textarea` 不一致。用户在不同页面间切换时感受到焦点反馈不统一。
+
+**真实案例（2026-05-29）：** 技能/连接器页面中 `.page-search input` 和 `.form-field input:focus` 缺少 `box-shadow: 0 0 0 3px var(--focus-ring)` 和 `focus-within` 处理，导致焦点视觉反馈弱于聊天页。
+
+**统一 focus 样式模板：**
+```css
+/* 独立输入框容器 */
+.input-wrapper {
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    background: var(--surface-soft);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.input-wrapper:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.input-wrapper input { border: none; background: transparent; outline: none; }
+
+/* 独立表单输入框 */
+.form-field input:focus,
+.form-field select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}
+```
+
+**检查：** 新增任何 `<input>` / `<textarea>` / `<select>` 后，验证其 `:focus` 样式是否有 `border-color: var(--accent)` + `box-shadow: 0 0 0 3px var(--focus-ring)`。
+
+---
+
 ## 修改后验证
+
+```
+□ 四种场景矩阵全通过（纯文本 / think+文本 / think+工具 / 多轮对话）
+□ 没有新增镜像已有变量的状态变量
+□ 数据流从原始源 → 渲染时过滤（不是管道中途过滤）
+□ Linter/TypeScript：无新诊断
+□ git diff 已审查 —— 无意外改动的相邻代码
+□ 如果涉及 think.ts 或 useTypewriter.ts：测试了不完整 <think> 标签（流式边界情况）
+□ 如果涉及 StreamingMessage：确认流式期间没有调用 marked.parse / DOMPurify
+□ 新增输入元素：确认 :focus 有统一的 border-color + box-shadow 光圈
+```
 
 ```
 □ 四种场景矩阵全通过（纯文本 / think+文本 / think+工具 / 多轮对话）

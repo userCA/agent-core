@@ -4,7 +4,6 @@ import { useUIStore } from '../../stores/ui-store';
 import { useChatStore } from '../../stores/chat-store';
 import { fetchSessionMessages, deleteSession } from '../../api/client';
 import Icon from '../shared/Icon';
-import ConnectorPanel from '../settings/ConnectorPanel';
 import './Sidebar.css';
 
 function formatTime(ts: string): string {
@@ -35,8 +34,7 @@ export default function Sidebar() {
   const loadPersonas = useSessionStore((s) => s.loadPersonas);
   const setPersonaId = useSessionStore((s) => s.setPersonaId);
   const setAuthModalOpen = useUIStore((s) => s.setAuthModalOpen);
-  const connectorPanelOpen = useUIStore((s) => s.connectorPanelOpen);
-  const setConnectorPanelOpen = useUIStore((s) => s.setConnectorPanelOpen);
+  const setActivePage = useUIStore((s) => s.setActivePage);
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const resetChat = useChatStore((s) => s.reset);
@@ -160,7 +158,16 @@ export default function Sidebar() {
 
           <button
             className="sidebar-menu-item"
-            onClick={() => setConnectorPanelOpen(true)}
+            onClick={() => setActivePage('skills')}
+          >
+            <span className="sidebar-menu-icon"><Icon name="code" size={14} /></span>
+            <span className="sidebar-menu-label">技能</span>
+            <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
+          </button>
+
+          <button
+            className="sidebar-menu-item"
+            onClick={() => setActivePage('connectors')}
           >
             <span className="sidebar-menu-icon"><Icon name="tool" size={14} /></span>
             <span className="sidebar-menu-label">连接器</span>
@@ -252,7 +259,6 @@ export default function Sidebar() {
           )}
         </div>
       </aside>
-      {connectorPanelOpen && <ConnectorPanel onClose={() => setConnectorPanelOpen(false)} />}
     </>
   );
 }
