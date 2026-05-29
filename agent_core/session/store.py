@@ -63,6 +63,7 @@ class SessionMeta(BaseModel):
     session_id: str
     created_at: str
     entry_count: int
+    title: str = ""
 
 
 class SessionStore(Protocol):

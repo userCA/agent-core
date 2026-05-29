@@ -1,22 +1,62 @@
 import { create } from 'zustand';
+import { fetchSessions, fetchPersonas, type PersonaInfo } from '../api/client';
 import { AUTH_KEYS, AUTH_STORAGE_KEY } from '../config';
+
+export interface SessionSummary {
+  session_id: string;
+  created_at: string;
+  entry_count: number;
+  title?: string;
+}
 
 interface SessionState {
   sessionId: string | null;
   authHeaders: Record<string, string>;
   hasAuth: boolean;
+  sessions: SessionSummary[];
+  sessionsLoading: boolean;
+  personas: PersonaInfo[];
+  personasLoading: boolean;
+  personaId: string | null;
 
-  setSessionId: (id: string) => void;
+  setSessionId: (id: string | null) => void;
   clearSession: () => void;
   loadAuth: () => void;
   saveAuth: (headers: Record<string, string>) => void;
   buildAuthHeaders: () => Record<string, string>;
+  loadSessions: () => Promise<void>;
+  loadPersonas: () => Promise<void>;
+  setPersonaId: (id: string | null) => void;
+  createSession: () => void;
+  switchSession: (id: string) => void;
+}
+
+function formatSessionTitle(sessions: SessionSummary[]): SessionSummary[] {
+  return sessions.map((s, idx) => ({
+    ...s,
+    title: s.title || `会话 ${sessions.length - idx}`,
+  }));
+}
+
+const PERSONA_STORAGE_KEY = 'agent_persona_id';
+
+function getInitialPersonaId(): string | null {
+  try {
+    return localStorage.getItem(PERSONA_STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
   sessionId: null,
   authHeaders: {},
   hasAuth: false,
+  sessions: [],
+  sessionsLoading: false,
+  personas: [],
+  personasLoading: false,
+  personaId: getInitialPersonaId(),
 
   setSessionId: (id) => set({ sessionId: id }),
 
@@ -54,5 +94,55 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (h[k]) out[k] = h[k];
     }
     return out;
+  },
+
+  loadSessions: async () => {
+    set({ sessionsLoading: true });
+    try {
+      const raw = await fetchSessions();
+      const sessions = formatSessionTitle(
+        raw.map((s) => ({
+          session_id: s.session_id,
+          created_at: s.created_at,
+          entry_count: s.entry_count,
+          title: s.title,
+        }))
+      );
+      set({ sessions });
+    } catch {
+      // ignore fetch errors
+    } finally {
+      set({ sessionsLoading: false });
+    }
+  },
+
+  loadPersonas: async () => {
+    set({ personasLoading: true });
+    try {
+      const data = await fetchPersonas();
+      set({ personas: data });
+    } catch {
+      // ignore
+    } finally {
+      set({ personasLoading: false });
+    }
+  },
+
+  setPersonaId: (id) => {
+    try {
+      if (id) localStorage.setItem(PERSONA_STORAGE_KEY, id);
+      else localStorage.removeItem(PERSONA_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    set({ personaId: id });
+  },
+
+  createSession: () => {
+    set({ sessionId: null });
+  },
+
+  switchSession: (id) => {
+    set({ sessionId: id });
   },
 }));

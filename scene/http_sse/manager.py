@@ -13,9 +13,10 @@ import re
 import time
 from typing import Any
 
+from agent_core.resources.personas import get_persona
 from agent_core.tools.mcp_tool import MCPManager
 from agent_core.session.jsonl_store import JsonlStore
-from agent_core.session.store import SessionStore
+from agent_core.session.store import SessionMeta, SessionStore
 
 from scene.http_sse.chat_assistant import ChatAssistant
 
@@ -57,7 +58,9 @@ class SessionManager:
             _log = logging.getLogger(__name__)
             _log.info("MCP tools pre-loaded: %d tools", len(self._mcp_manager.adapters))
 
-    async def get_or_create(self, session_id: str | None) -> tuple[str, ChatAssistant]:
+    async def get_or_create(
+        self, session_id: str | None, persona_id: str | None = None
+    ) -> tuple[str, ChatAssistant]:
         """Get an existing assistant or create a new one."""
         if session_id:
             _validate_session_id(session_id)
@@ -72,11 +75,13 @@ class SessionManager:
             if sid in self._sessions:
                 return sid, self._sessions[sid]
             store = JsonlStore(self._store_dir)
-            
+
             provider_name = os.environ.get("AGENT_PROVIDER", "openai")
             model_id = os.environ.get("AGENT_MODEL", "gpt-4o")
             api_key_env = os.environ.get("AGENT_API_KEY_ENV")
-            
+
+            persona = get_persona(persona_id, cwd=self._cwd) if persona_id else None
+
             assistant = await ChatAssistant.create(
                 session_store=store,
                 session_id=sid,
@@ -84,6 +89,7 @@ class SessionManager:
                 provider_name=provider_name,
                 model_id=model_id,
                 api_key_env=api_key_env,
+                persona=persona,
                 mcp_manager=self._mcp_manager,
             )
             async with self._lock:
@@ -100,6 +106,11 @@ class SessionManager:
             self._create_locks.pop(session_id, None)
         if assistant:
             await assistant.dispose()
+
+    async def list_sessions(self, limit: int = 50) -> list[SessionMeta]:
+        """List persisted sessions from disk."""
+        store = JsonlStore(self._store_dir)
+        return await store.list_sessions(limit=limit)
 
     async def dispose_all(self) -> None:
         """Dispose all active sessions."""

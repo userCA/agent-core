@@ -26,6 +26,7 @@ from agent_core.session.session import AgentSession
 from agent_core.session.store import SessionStore
 from agent_core.prompts.builder import SystemPromptBuilder
 from agent_core.resources.loader import ResourceLoader
+from agent_core.resources.personas import Persona
 from agent_core.resources.types import Skill
 from agent_core.tools.base import Tool, ToolRegistry
 from agent_core.tools.aigc_creation import create_nolo_video_tool
@@ -101,6 +102,7 @@ class ChatAssistant:
         session_store: SessionStore | None = None,
         session_id: str | None = None,
         system_prompt: str | None = None,
+        persona: Persona | None = None,
         mcp_manager: Any | None = None,
         cwd: str = "",
     ) -> "ChatAssistant":
@@ -133,6 +135,15 @@ class ChatAssistant:
         # Register MCP tools (pre-loaded at server startup by manager)
         if mcp_manager is not None:
             mcp_manager.register_tools(tool_registry)
+
+        # Apply persona tool filtering
+        if persona is not None and persona.enabled_tools is not None:
+            allowed = set(persona.enabled_tools)
+            filtered = ToolRegistry()
+            for name, tool in tool_registry:
+                if name in allowed:
+                    filtered.register(tool)
+            tool_registry = filtered
 
         # Resolve auth
         if api_key:
@@ -174,8 +185,9 @@ class ChatAssistant:
         if model is None:
             model = provider.list_models()[0]
 
-        # Build system prompt
-        prompt = SystemPromptBuilder(base_prompt=system_prompt).build(
+        # Build system prompt — persona overrides base_prompt
+        effective_prompt = persona.system_prompt if persona is not None else system_prompt
+        prompt = SystemPromptBuilder(base_prompt=effective_prompt).build(
             cwd=cwd,
             active_tools=tool_registry.to_definitions(),
             skills=skills,

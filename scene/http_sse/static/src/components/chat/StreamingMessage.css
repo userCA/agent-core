@@ -51,12 +51,11 @@
     vertical-align: text-bottom;
     margin-left: 2px;
     border-radius: 1px;
-    box-shadow: 0 0 4px 1px rgba(0, 122, 255, 0.25);
 }
 
 @keyframes cursorBlink {
-    0%, 100% { opacity: 1; box-shadow: 0 0 4px 1px rgba(0, 122, 255, 0.25); }
-    50% { opacity: 0.3; box-shadow: 0 0 2px 0px rgba(0, 122, 255, 0.1); }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
 }
 
 /* Thinking dots — shown while waiting for the first token */
@@ -73,6 +72,7 @@
     border-radius: 50%;
     background: var(--accent);
     animation: dotWave 1.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+    will-change: transform, opacity;
 }
 
 .thinking-dot:nth-child(1) { animation-delay: 0s; }

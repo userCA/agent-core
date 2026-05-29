@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { WidgetDisplay, AudioDisplay, InputSchema } from '../api/types';
+import { extractThinkSteps, getDisplayableText } from '../utils/think';
 
 /* ------------------------------------------------------------------ */
 /* Message & ToolStep value types                                     */
@@ -75,6 +76,7 @@ interface ChatState {
   setHitlRequest: (h: HitlRequest | null) => void;
   resetSteps: () => void;
   reset: () => void;
+  loadMessages: (rawMessages: Array<{ role: string; content: unknown; timestamp?: number }>) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -157,4 +159,109 @@ export const useChatStore = create<ChatState>((set, get) => ({
       audios: [],
       hitlRequest: null,
     }),
+
+  loadMessages: (rawMessages) => {
+    const loaded: ChatMessage[] = [];
+    for (const msg of rawMessages) {
+      const role = msg.role as 'user' | 'assistant' | 'tool';
+      if (role !== 'user' && role !== 'assistant' && role !== 'tool') continue;
+
+      if (role === 'assistant') {
+        const parsed = parseAssistantMessage(msg.content);
+        if (!parsed.text && parsed.steps.length === 0) continue;
+        loaded.push({
+          id: `loaded-${Date.now()}-${loaded.length}`,
+          role,
+          content: parsed.text,
+          steps: parsed.steps.length > 0 ? parsed.steps : undefined,
+          timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
+        });
+      } else {
+        const content = extractTextContent(msg.content);
+        if (!content) continue;
+        loaded.push({
+          id: `loaded-${Date.now()}-${loaded.length}`,
+          role,
+          content,
+          timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
+        });
+      }
+    }
+    set({ messages: loaded });
+  },
 }));
+
+function extractTextContent(raw: unknown): string {
+  if (typeof raw === 'string') return raw;
+  if (Array.isArray(raw)) {
+    const parts: string[] = [];
+    for (const item of raw) {
+      if (typeof item === 'string') {
+        parts.push(item);
+      } else if (item && typeof item === 'object') {
+        const type = (item as Record<string, unknown>).type;
+        const text = (item as Record<string, unknown>).text;
+        if (type === 'text' && typeof text === 'string') {
+          parts.push(text);
+        }
+      }
+    }
+    return parts.join('');
+  }
+  return '';
+}
+
+function parseAssistantMessage(raw: unknown): { text: string; steps: ToolStep[] } {
+  const steps: ToolStep[] = [];
+  let fullText = '';
+
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue;
+      const type = (item as Record<string, unknown>).type;
+
+      if (type === 'text') {
+        const text = (item as Record<string, unknown>).text as string;
+        if (text) fullText += text;
+      } else if (type === 'tool_call') {
+        const name = (item as Record<string, unknown>).name as string;
+        const args = (item as Record<string, unknown>).arguments as Record<string, unknown>;
+        const callId = (item as Record<string, unknown>).id as string;
+        steps.push({
+          id: `step-${callId || name}-${Date.now()}`,
+          type: 'tool',
+          label: name || 'tool',
+          detail: JSON.stringify(args || {}),
+          renderedDetail: '',
+          status: 'done',
+          isError: false,
+          isSlow: false,
+          startTime: Date.now(),
+          toolCallId: callId || '',
+        });
+      }
+    }
+  } else if (typeof raw === 'string') {
+    fullText = raw;
+  }
+
+  // Extract think blocks
+  const seenThinks = new Set<string>();
+  const thinkBlocks = extractThinkSteps(fullText, seenThinks);
+  for (const block of thinkBlocks) {
+    steps.push({
+      id: `think-${block.content.slice(0, 16).replace(/\s+/g, '-')}-${Date.now()}`,
+      type: 'think',
+      label: '思考过程',
+      detail: block.content,
+      renderedDetail: '',
+      status: 'done',
+      isError: false,
+      isSlow: false,
+      startTime: Date.now(),
+      toolCallId: '',
+    });
+  }
+
+  return { text: getDisplayableText(fullText), steps };
+}

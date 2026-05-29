@@ -237,9 +237,10 @@ class MCPConnection:
 class MCPToolAdapter:
     """Wraps a single MCP server tool as an agent_core Tool."""
 
-    def __init__(self, connection: MCPConnection, tool_def: dict[str, Any]) -> None:
+    def __init__(self, connection: MCPConnection, tool_def: dict[str, Any], server_name: str = "") -> None:
         self._connection = connection
         self._tool_def = tool_def
+        self.server_name = server_name
         self.definition = ToolDefinition(
             name=tool_def["name"],
             description=tool_def.get("description", ""),
@@ -321,7 +322,7 @@ class MCPManager:
                 await conn.connect()
                 tool_defs = await conn.list_tools()
                 for td in tool_defs:
-                    self._adapters.append(MCPToolAdapter(conn, td))
+                    self._adapters.append(MCPToolAdapter(conn, td, server_name=cfg.name))
 
                 self._connections.append(conn)
                 logger.info(
@@ -340,6 +341,29 @@ class MCPManager:
                 logger.exception("Error closing MCP connection")
         self._connections.clear()
         self._adapters.clear()
+
+    def get_connector_info(self) -> list[dict[str, Any]]:
+        """Return info about each connected MCP server and its tools."""
+        from collections import defaultdict
+
+        tools_by_server: dict[str, list[str]] = defaultdict(list)
+        for adapter in self._adapters:
+            tools_by_server[adapter.server_name].append(adapter.definition.name)
+
+        # Map connection to config for transport info
+        config_map = {cfg.name: cfg for cfg in self._configs}
+
+        result = []
+        for cfg in self._configs:
+            tools = tools_by_server.get(cfg.name, [])
+            status = "connected" if tools else "error"
+            result.append({
+                "name": cfg.name,
+                "transport": cfg.transport,
+                "status": status,
+                "tools": sorted(tools),
+            })
+        return result
 
     def register_tools(self, registry: ToolRegistry) -> int:
         """Register all discovered MCP tools into the given registry.

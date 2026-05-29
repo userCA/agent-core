@@ -7,6 +7,13 @@ export interface SessionIdEvent {
   session_id: string;
 }
 
+export interface SessionMeta {
+  session_id: string;
+  created_at: string;
+  entry_count: number;
+  title?: string;
+}
+
 export interface ThinkingDeltaEvent {
   event: 'thinking_delta';
   text: string;

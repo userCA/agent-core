@@ -59,19 +59,49 @@ class JsonlStore:
 
     async def list_sessions(self, *, owner: str | None = None, limit: int = 50) -> list[SessionMeta]:
         result: list[SessionMeta] = []
-        for file_path in sorted(self._dir.glob("*.jsonl")):
+        for file_path in sorted(self._dir.glob("*.jsonl"), reverse=True):
             sid = file_path.stem
             with open(file_path, "r", encoding="utf-8") as f:
                 first = f.readline()
                 if not first:
                     continue
                 header = SessionHeader.model_validate(json.loads(first))
-                entry_count = sum(1 for _ in f)
+                lines = f.readlines()
+                entry_count = len(lines)
+                # Extract title from first user message
+                title = ""
+                for line in lines:
+                    if not line.strip():
+                        continue
+                    try:
+                        data = json.loads(line)
+                        if data.get("type") == "message":
+                            msg = data.get("message", {})
+                            role = msg.get("role", "")
+                            content = msg.get("content", "")
+                            if role == "user" and content:
+                                if isinstance(content, list) and len(content) > 0:
+                                    text_parts = [
+                                        p.get("text", "")
+                                        for p in content
+                                        if isinstance(p, dict) and p.get("type") == "text"
+                                    ]
+                                    content_text = "".join(text_parts)
+                                elif isinstance(content, str):
+                                    content_text = content
+                                else:
+                                    content_text = str(content)
+                                if content_text:
+                                    title = content_text[:30] + ("..." if len(content_text) > 30 else "")
+                                    break
+                    except (json.JSONDecodeError, AttributeError):
+                        continue
             result.append(
                 SessionMeta(
                     session_id=sid,
                     created_at=header.timestamp,
                     entry_count=entry_count,
+                    title=title,
                 )
             )
         return result[:limit]

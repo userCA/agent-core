@@ -1,46 +1,92 @@
 .steps-panel {
-    margin: 0;
+    margin: 0 0 8px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0;
+    position: relative;
+}
+
+/* Timeline connector on the left */
+.steps-panel::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 8px;
+    bottom: 8px;
+    width: 1px;
+    background: var(--hairline);
 }
 
 /* Each step is its own collapsible block */
 .step-section {
-    background: var(--surface-soft);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-sm);
+    position: relative;
+    background: transparent;
+    border: none;
+    border-radius: 0;
     overflow: hidden;
+    padding-left: 32px;
 }
 
 .section-summary {
     width: 100%;
-    padding: 7px 12px;
-    background: transparent;
-    border: none;
+    padding: 5px 10px 5px 8px;
+    background: var(--surface-soft);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-family: var(--font-mono);
     font-size: 12px;
-    color: var(--mute);
+    color: var(--body);
     display: flex;
     justify-content: space-between;
     align-items: center;
     user-select: none;
     touch-action: manipulation;
-    transition: background 0.1s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .section-summary:hover {
     background: var(--surface-card);
+    border-color: var(--hairline-strong);
 }
 
 .section-summary:focus-visible {
     outline: 2px solid var(--accent);
-    outline-offset: -2px;
+    outline-offset: 2px;
 }
 
-.section-summary:active {
-    background: var(--hairline);
+/* Status dot on the left timeline */
+.step-section::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 11px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--surface-card);
+    border: 1.5px solid var(--hairline-strong);
+}
+
+.step-section.active::before {
+    background: var(--accent);
+    border-color: var(--accent);
+    animation: statusPulse 2s ease-in-out infinite;
+}
+
+.step-section.done-ok::before {
+    background: var(--ink);
+    border-color: var(--ink);
+}
+
+.step-section.done-error::before {
+    background: var(--danger);
+    border-color: var(--danger);
+}
+
+@keyframes statusPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
 }
 
 .section-label {
@@ -51,7 +97,8 @@
 
 .section-icon {
     color: var(--stone);
-    font-size: 11px;
+    display: flex;
+    align-items: center;
 }
 
 .section-status-text {
@@ -68,33 +115,38 @@
 .section-arrow {
     font-size: 11px;
     opacity: 0.55;
+    color: var(--mute);
 }
 
 .section-spinner-icon {
     animation: spin 0.8s linear infinite;
+    will-change: transform;
 }
 
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
 
-/* Active step gets a subtle accent border */
-.step-section.active {
+/* Active step accent border only, no glow */
+.step-section.active .section-summary {
     border-color: var(--accent);
 }
 
 .section-status-icon {
     font-size: 11px;
     color: var(--mute);
-    min-width: 20px;
+    min-width: 16px;
     text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .section-detail {
     max-height: 0;
     opacity: 0;
     overflow: hidden;
-    padding: 0 12px;
+    padding: 0 10px 0 8px;
     transition: max-height 0.3s cubic-bezier(0.22, 1, 0.36, 1),
                 opacity 0.25s ease,
                 padding 0.3s cubic-bezier(0.22, 1, 0.36, 1);
@@ -104,7 +156,7 @@
 .section-detail.open {
     max-height: 240px;
     opacity: 1;
-    padding: 0 12px 10px;
+    padding: 4px 10px 8px 8px;
     overflow-y: auto;
 }
 
@@ -119,7 +171,7 @@
 
 /* Subtle "waiting for next step" indicator between steps */
 .step-waiting {
-    padding: 6px 12px;
+    padding: 4px 10px 4px 40px;
     font-size: 11px;
     color: var(--ash);
     font-family: var(--font-mono);

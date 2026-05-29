@@ -227,7 +227,8 @@ export function useSSE() {
 
     try {
       const authHeaders = session.buildAuthHeaders();
-      const gen = streamChat(text, session.sessionId, authHeaders, controller.signal);
+      const personaId = useSessionStore.getState().personaId;
+      const gen = streamChat(text, session.sessionId, authHeaders, controller.signal, personaId);
 
       for await (const evt of gen) {
         processEvent(evt);

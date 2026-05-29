@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
+from agent_core.resources.personas import load_personas
 
 from scene.http_sse.events import agent_event_to_sse_json
 from scene.http_sse.manager import SessionManager
@@ -53,9 +54,10 @@ def _format_sse(data: dict[str, Any]) -> str:
 async def _event_stream(
     session_id: str | None,
     message: str,
+    persona_id: str | None = None,
 ) -> AsyncIterator[str]:
     """Yield SSE-formatted events for a chat turn."""
-    sid, assistant = await manager.get_or_create(session_id)
+    sid, assistant = await manager.get_or_create(session_id, persona_id=persona_id)
 
     # Send session_id first
     yield _format_sse({"event": "session_id", "session_id": sid})
@@ -102,9 +104,10 @@ async def _event_stream(
 @app.post("/chat/stream")
 async def chat_stream(request: Request, chat_request: ChatRequest) -> StreamingResponse:
     session_id = request.query_params.get("session_id")
+    persona_id = request.query_params.get("persona_id")
     current_request_headers.set(dict(request.headers))
     return StreamingResponse(
-        _event_stream(session_id, chat_request.message),
+        _event_stream(session_id, chat_request.message, persona_id=persona_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -125,6 +128,40 @@ async def human_input(request: Request, human_request: HumanInputRequest) -> dic
     return {"success": accepted}
 
 
+@app.get("/sessions")
+async def list_sessions() -> dict[str, Any]:
+    """List all persisted sessions with metadata."""
+    sessions = await manager.list_sessions()
+    return {
+        "sessions": [
+            {
+                "session_id": s.session_id,
+                "created_at": s.created_at,
+                "entry_count": s.entry_count,
+                "title": s.title,
+            }
+            for s in sessions
+        ]
+    }
+
+
+@app.get("/session")
+async def get_session(request: Request) -> dict[str, Any]:
+    """Get session history messages."""
+    session_id = request.query_params.get("session_id")
+    if not session_id:
+        return {"success": False, "error": "Missing session_id"}
+
+    _, assistant = await manager.get_or_create(session_id)
+    messages = []
+    for msg in assistant.messages:
+        try:
+            messages.append(msg.model_dump(mode="json"))
+        except Exception:
+            pass
+    return {"success": True, "session_id": session_id, "messages": messages}
+
+
 @app.post("/abort")
 async def abort_session(request: Request) -> dict[str, Any]:
     """Abort the current operation for a session."""
@@ -135,6 +172,50 @@ async def abort_session(request: Request) -> dict[str, Any]:
     _, assistant = await manager.get_or_create(session_id)
     assistant.abort()
     return {"success": True}
+
+
+_capabilities_cache: dict[str, Any] | None = None
+
+
+@app.get("/connectors")
+async def list_connectors() -> dict[str, Any]:
+    """List all connected MCP servers and their tools."""
+    connectors = []
+    if manager._mcp_manager is not None:
+        connectors = manager._mcp_manager.get_connector_info()
+    return {"connectors": connectors}
+
+
+@app.get("/personas")
+async def list_personas() -> dict[str, Any]:
+    """List available agent personas / roles."""
+    personas = load_personas(cwd=manager._cwd)
+    return {
+        "personas": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "description": p.description,
+            }
+            for p in personas
+        ]
+    }
+
+
+@app.get("/capabilities")
+async def get_capabilities() -> dict[str, Any]:
+    """Get available skills and tools (cached after first call)."""
+    global _capabilities_cache
+    if _capabilities_cache is None:
+        _, assistant = await manager.get_or_create(None)
+        _capabilities_cache = {
+            "skills": [
+                {"name": s.name, "description": s.description}
+                for s in assistant.skills
+            ],
+            "tools": assistant.tool_names,
+        }
+    return _capabilities_cache
 
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")

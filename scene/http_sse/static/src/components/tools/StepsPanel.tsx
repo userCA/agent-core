@@ -28,6 +28,7 @@ function StepSection({
 
   const running = step.status === 'running';
   const done = step.status === 'done';
+  const isError = done && step.isError;
 
   let label = step.label;
   if (step.type === 'think') label = '思考过程';
@@ -39,8 +40,16 @@ function StepSection({
     if (step.isSlow) statusSuffix += ' (slow)';
   }
 
+  const sectionClass = [
+    'step-section',
+    expanded ? 'open' : '',
+    running ? 'active' : '',
+    done && !step.isError ? 'done-ok' : '',
+    isError ? 'done-error' : '',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className={`step-section${expanded ? ' open' : ''}${running ? ' active' : ''}`}>
+    <div className={sectionClass}>
       <button
         className="section-summary"
         onClick={onToggle}

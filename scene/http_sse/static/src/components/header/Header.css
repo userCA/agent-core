@@ -51,12 +51,23 @@
 }
 
 .status-dot.pulse {
-    animation: pulseRing 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    position: relative;
     background: var(--accent);
 }
 
+.status-dot.pulse::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.25;
+    animation: pulseRing 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    will-change: transform, opacity;
+}
+
 @keyframes pulseRing {
-    0% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 122, 255, 0.35); }
-    60% { opacity: 0.6; transform: scale(1.15); box-shadow: 0 0 0 4px rgba(0, 122, 255, 0); }
-    100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 122, 255, 0); }
+    0% { transform: scale(1); opacity: 0.25; }
+    60% { transform: scale(2.2); opacity: 0; }
+    100% { transform: scale(2.2); opacity: 0; }
 }
