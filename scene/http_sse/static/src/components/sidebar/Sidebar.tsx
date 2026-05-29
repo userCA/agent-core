@@ -54,7 +54,6 @@ export default function Sidebar() {
   };
 
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [showPersonaPicker, setShowPersonaPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredSessions = useMemo(() => {
@@ -131,30 +130,13 @@ export default function Sidebar() {
         <div className="sidebar-menu">
           <button
             className="sidebar-menu-item"
-            onClick={() => setShowPersonaPicker((v) => !v)}
-            aria-expanded={showPersonaPicker}
+            onClick={() => setActivePage('experts')}
           >
             <span className="sidebar-menu-icon"><Icon name="briefcase" size={14} /></span>
-            <span className="sidebar-menu-label">角色</span>
+            <span className="sidebar-menu-label">专家</span>
             <span className="sidebar-menu-value">{currentPersona?.name ?? '通用助手'}</span>
-            <span className="sidebar-menu-arrow">
-              {showPersonaPicker ? <Icon name="chevron-up" size={12} /> : <Icon name="chevron-down" size={12} />}
-            </span>
+            <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
           </button>
-          {showPersonaPicker && (
-            <div className="sidebar-submenu">
-              {personas.map((p) => (
-                <button
-                  key={p.id}
-                  className={`sidebar-submenu-item${p.id === personaId ? ' active' : ''}`}
-                  onClick={() => { setPersonaId(p.id); setShowPersonaPicker(false); }}
-                  title={p.description}
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
-          )}
 
           <button
             className="sidebar-menu-item"

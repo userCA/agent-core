@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { fetchSessions, fetchPersonas, type PersonaInfo } from '../api/client';
+
+export type { PersonaInfo };
 import { AUTH_KEYS, AUTH_STORAGE_KEY } from '../config';
 
 export interface SessionSummary {

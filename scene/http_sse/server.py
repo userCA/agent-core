@@ -190,6 +190,14 @@ async def abort_session(request: Request) -> dict[str, Any]:
     return {"success": True}
 
 
+class PersonaRequest(BaseModel):
+    id: str = Field(..., min_length=1, max_length=50)
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str = Field(default="", max_length=500)
+    system_prompt: str = Field(default="", max_length=5000)
+    enabled_tools: list[str] | None = None
+
+
 class ConnectorRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     transport: str = Field(..., pattern=r"^(stdio|sse|streamable_http)$")
@@ -259,7 +267,7 @@ async def list_connectors() -> dict[str, Any]:
 
 @app.get("/personas")
 async def list_personas() -> dict[str, Any]:
-    """List available agent personas / roles."""
+    """List available agent personas / experts."""
     personas = load_personas(cwd=manager._cwd)
     return {
         "personas": [
@@ -267,10 +275,38 @@ async def list_personas() -> dict[str, Any]:
                 "id": p.id,
                 "name": p.name,
                 "description": p.description,
+                "system_prompt": p.system_prompt,
+                "enabled_tools": p.enabled_tools,
             }
             for p in personas
         ]
     }
+
+
+@app.post("/personas")
+async def save_persona(body: PersonaRequest) -> dict[str, Any]:
+    """Create or update a persona."""
+    from agent_core.resources.personas import Persona, save_persona as save_p
+    p = Persona(
+        id=body.id,
+        name=body.name,
+        description=body.description,
+        system_prompt=body.system_prompt,
+        enabled_tools=body.enabled_tools,
+    )
+    save_p(p, cwd=manager._cwd)
+    return {"success": True}
+
+
+@app.delete("/personas")
+async def remove_persona(request: Request) -> dict[str, Any]:
+    """Delete a persona by id."""
+    pid = request.query_params.get("id")
+    if not pid:
+        return {"success": False, "error": "Missing id"}
+    from agent_core.resources.personas import delete_persona
+    found = delete_persona(pid, cwd=manager._cwd)
+    return {"success": found}
 
 
 @app.get("/capabilities")

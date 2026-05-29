@@ -11,6 +11,7 @@ import ChatInput from './components/input/ChatInput';
 import PendingBubbles from './components/input/PendingBubbles';
 import SkillsPage from './components/pages/SkillsPage';
 import ConnectorsPage from './components/pages/ConnectorsPage';
+import ExpertsPage from './components/pages/ExpertsPage';
 import './App.css';
 
 export default function App() {
@@ -38,6 +39,7 @@ export default function App() {
           )}
           {activePage === 'skills' && <SkillsPage />}
           {activePage === 'connectors' && <ConnectorsPage />}
+          {activePage === 'experts' && <ExpertsPage />}
         </div>
       </div>
       {authModalOpen && <AuthModal />}

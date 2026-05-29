@@ -71,6 +71,8 @@ export interface PersonaInfo {
   id: string;
   name: string;
   description: string;
+  system_prompt?: string;
+  enabled_tools?: string[] | null;
 }
 
 export async function fetchPersonas(): Promise<PersonaInfo[]> {
@@ -141,6 +143,24 @@ export async function removeConnector(name: string): Promise<boolean> {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error(`Failed to remove connector: ${response.status}`);
+  return (await response.json() as { success: boolean }).success;
+}
+
+export async function savePersona(payload: PersonaInfo): Promise<boolean> {
+  const response = await fetch(`${API_BASE}/personas`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`Failed to save persona: ${response.status}`);
+  return (await response.json() as { success: boolean }).success;
+}
+
+export async function deletePersona(id: string): Promise<boolean> {
+  const response = await fetch(`${API_BASE}/personas?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error(`Failed to delete persona: ${response.status}`);
   return (await response.json() as { success: boolean }).success;
 }
 

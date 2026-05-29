@@ -68,3 +68,36 @@ def get_persona(persona_id: str, cwd: str = "") -> Persona | None:
         if p.id == persona_id:
             return p
     return None
+
+
+def _personas_dir(cwd: str = "") -> str:
+    return os.path.join(cwd or os.getcwd(), ".pi", "personas")
+
+
+def save_persona(persona: Persona, cwd: str = "") -> None:
+    """Save (create or update) a persona JSON file."""
+    directory = _personas_dir(cwd)
+    os.makedirs(directory, exist_ok=True)
+    filepath = os.path.join(directory, f"{persona.id}.json")
+    data: dict[str, Any] = {
+        "id": persona.id,
+        "name": persona.name,
+        "description": persona.description,
+        "system_prompt": persona.system_prompt,
+    }
+    if persona.enabled_tools is not None:
+        data["enabled_tools"] = persona.enabled_tools
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+def delete_persona(persona_id: str, cwd: str = "") -> bool:
+    """Delete a persona JSON file. Returns True if found."""
+    directory = _personas_dir(cwd)
+    filepath = os.path.join(directory, f"{persona_id}.json")
+    try:
+        os.unlink(filepath)
+        return True
+    except FileNotFoundError:
+        return False
