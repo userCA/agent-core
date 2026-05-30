@@ -18,3 +18,5 @@ demo/
 .worktrees/
 node_modules/
 quicksort.py
+.mcp.json
+.pi/
