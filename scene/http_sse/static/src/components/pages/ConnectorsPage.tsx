@@ -1,7 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { fetchConnectors, addConnector, removeConnector, type ConnectorInfo, type AddConnectorPayload } from '../../api/client';
 import { useUIStore } from '../../stores/ui-store';
+import { useConfirmStore } from '../../stores/confirm-store';
 import Icon from '../shared/Icon';
+import Loading from '../shared/Loading';
+import EmptyState from '../shared/EmptyState';
 import './Pages.css';
 
 const TRANSPORT_OPTIONS: { value: string; label: string }[] = [
@@ -25,7 +28,28 @@ export default function ConnectorsPage() {
   const [form, setForm] = useState<AddConnectorPayload>(emptyPayload());
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+
+  const validateField = (name: string, value: string) => {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (name === 'name') {
+        if (!value.trim()) next.name = '名称不能为空';
+        else delete next.name;
+      } else if (name === 'url') {
+        if (form.transport !== 'stdio' && !value.trim()) next.url = '远程连接需要填写 URL';
+        else delete next.url;
+      } else if (name === 'command') {
+        if (form.transport === 'stdio' && !value.trim()) next.command = 'STDIO 连接需要填写命令';
+        else delete next.command;
+      }
+      return next;
+    });
+  };
+
+  const isFormValid = !!form.name.trim() &&
+    (form.transport === 'stdio' ? !!form.command?.trim() : !!form.url?.trim());
   const [typeFilter, setTypeFilter] = useState<string>('all'); // 'all' | 'tool' | 'knowledge'
 
   const toggleDropdown = (name: string) => {
@@ -63,14 +87,16 @@ export default function ConnectorsPage() {
   const handleAdd = () => {
     setForm(emptyPayload());
     setFormError('');
+    setFieldErrors({});
     setShowForm(true);
   };
 
   const handleSubmit = async () => {
     const f = form;
-    if (!f.name.trim()) { setFormError('名称不能为空'); return; }
-    if (f.transport !== 'stdio' && !f.url?.trim()) { setFormError('远程连接需要填写 URL'); return; }
-    if (f.transport === 'stdio' && !f.command?.trim()) { setFormError('STDIO 连接需要填写命令'); return; }
+    setFieldErrors({});
+    if (!f.name.trim()) { setFieldErrors({ name: '名称不能为空' }); return; }
+    if (f.transport !== 'stdio' && !f.url?.trim()) { setFieldErrors({ url: '远程连接需要填写 URL' }); return; }
+    if (f.transport === 'stdio' && !f.command?.trim()) { setFieldErrors({ command: 'STDIO 连接需要填写命令' }); return; }
 
     setSubmitting(true);
     setFormError('');
@@ -93,14 +119,20 @@ export default function ConnectorsPage() {
     }
   };
 
-  const handleDelete = async (name: string) => {
-    if (!window.confirm(`确定要删除连接器 "${name}" 吗？`)) return;
-    try {
-      await removeConnector(name);
-      load();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '删除失败');
-    }
+  const handleDelete = (name: string) => {
+    useConfirmStore.getState().requestConfirm({
+      title: '删除连接器',
+      message: `确定要删除连接器 "${name}" 吗？此操作不可恢复。`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await removeConnector(name);
+          load();
+        } catch (err: unknown) {
+          setError(err instanceof Error ? err.message : '删除失败');
+        }
+      },
+    });
   };
 
   return (
@@ -145,17 +177,19 @@ export default function ConnectorsPage() {
             ))}
           </div>
         )}
-        {loading && <p className="page-empty">加载中...</p>}
+        {loading && <Loading />}
         {error && <p className="page-empty page-error">{error}</p>}
 
         {!loading && !error && connectors.length === 0 && !showForm && (
-          <p className="page-empty">
-            暂无连接器。在项目根目录创建 <code>.mcp.json</code> 或点击"添加"。
-          </p>
+          <EmptyState
+            icon="tool"
+            title="暂无连接器"
+            description={`在项目根目录创建 .mcp.json 或点击"添加"`}
+          />
         )}
 
         {!loading && connectors.length > 0 && search && filtered.length === 0 && (
-          <p className="page-empty">无匹配连接器</p>
+          <EmptyState icon="search" title="无匹配连接器" />
         )}
 
         {showForm && (
@@ -166,7 +200,15 @@ export default function ConnectorsPage() {
             <div className="form-grid">
               <label className="form-field">
                 <span>名称</span>
-                <input type="text" value={form.name} placeholder="例如 amap" onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <input
+                  type="text"
+                  value={form.name}
+                  placeholder="例如 amap"
+                  className={fieldErrors.name ? 'field-invalid' : ''}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onBlur={(e) => validateField('name', e.target.value)}
+                />
+                {fieldErrors.name && <span className="field-error">{fieldErrors.name}</span>}
               </label>
               <label className="form-field">
                 <span>传输方式</span>
@@ -210,7 +252,15 @@ export default function ConnectorsPage() {
                 <>
                   <label className="form-field">
                     <span>命令</span>
-                    <input type="text" value={form.command || ''} placeholder="例如 npx" onChange={(e) => setForm({ ...form, command: e.target.value })} />
+                    <input
+                      type="text"
+                      value={form.command || ''}
+                      placeholder="例如 npx"
+                      className={fieldErrors.command ? 'field-invalid' : ''}
+                      onChange={(e) => setForm({ ...form, command: e.target.value })}
+                      onBlur={(e) => validateField('command', e.target.value)}
+                    />
+                    {fieldErrors.command && <span className="field-error">{fieldErrors.command}</span>}
                   </label>
                   <label className="form-field">
                     <span>参数 (逗号分隔)</span>
@@ -221,8 +271,15 @@ export default function ConnectorsPage() {
               ) : (
                 <label className="form-field">
                   <span>URL</span>
-                  <input type="text" value={form.url || ''} placeholder="https://mcp.example.com/sse"
-                    onChange={(e) => setForm({ ...form, url: e.target.value })} />
+                  <input
+                    type="text"
+                    value={form.url || ''}
+                    placeholder="https://mcp.example.com/sse"
+                    className={fieldErrors.url ? 'field-invalid' : ''}
+                    onChange={(e) => setForm({ ...form, url: e.target.value })}
+                    onBlur={(e) => validateField('url', e.target.value)}
+                  />
+                  {fieldErrors.url && <span className="field-error">{fieldErrors.url}</span>}
                 </label>
               )}
               <label className="form-field">
@@ -235,7 +292,7 @@ export default function ConnectorsPage() {
             </div>
             {formError && <p className="card-form-error">{formError}</p>}
             <div className="card-form-actions">
-              <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+              <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting || !isFormValid}>
                 {submitting ? '保存中...' : '保存'}
               </button>
               <button className="btn" onClick={() => setShowForm(false)}>取消</button>

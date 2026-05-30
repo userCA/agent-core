@@ -148,7 +148,7 @@
 }
 
 .section-detail.open {
-    max-height: 240px;
+    max-height: 60vh;
     opacity: 1;
     padding: 4px 10px 8px 8px;
     overflow-y: auto;

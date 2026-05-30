@@ -162,56 +162,106 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadMessages: (rawMessages) => {
     const loaded: ChatMessage[] = [];
-    let pendingSteps: ToolStep[] = [];
+    let currentAssistant: ChatMessage | null = null;
 
-    const flushPending = (into: ChatMessage) => {
-      if (pendingSteps.length > 0) {
-        into.steps = [...pendingSteps, ...(into.steps || [])];
-        pendingSteps = [];
+    const flushAssistant = () => {
+      if (currentAssistant) {
+        if (
+          currentAssistant.content ||
+          (currentAssistant.steps && currentAssistant.steps.length > 0)
+        ) {
+          loaded.push(currentAssistant);
+        }
+        currentAssistant = null;
       }
     };
 
     for (const msg of rawMessages) {
-      const role = msg.role as 'user' | 'assistant' | 'tool';
-      if (role !== 'user' && role !== 'assistant' && role !== 'tool') continue;
+      const role = msg.role as string;
+      if (
+        role !== 'user' &&
+        role !== 'assistant' &&
+        role !== 'tool' &&
+        role !== 'tool_result'
+      )
+        continue;
 
-      if (role === 'assistant') {
+      if (role === 'user') {
+        flushAssistant();
+        const content = extractTextContent(msg.content);
+        if (!content) continue;
+        loaded.push({
+          id: `loaded-${Date.now()}-${loaded.length}`,
+          role: 'user',
+          content,
+          timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
+        });
+      } else if (role === 'assistant') {
         const parsed = parseAssistantMessage(msg.content);
         if (!parsed.text && parsed.steps.length === 0) continue;
 
-        if (parsed.text) {
-          // This message has visible text — create a card and merge pending steps
-          const card: ChatMessage = {
+        if (!currentAssistant) {
+          currentAssistant = {
             id: `loaded-${Date.now()}-${loaded.length}`,
-            role,
+            role: 'assistant',
             content: parsed.text,
             steps: parsed.steps.length > 0 ? parsed.steps : undefined,
             timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
           };
-          flushPending(card);
-          loaded.push(card);
         } else {
-          // No visible text, only steps — accumulate for next card with text
-          pendingSteps.push(...parsed.steps);
+          // Merge consecutive assistant messages into one card
+          if (parsed.text) {
+            currentAssistant.content = currentAssistant.content
+              ? currentAssistant.content + '\n\n' + parsed.text
+              : parsed.text;
+          }
+          if (parsed.steps.length > 0) {
+            currentAssistant.steps = [
+              ...(currentAssistant.steps || []),
+              ...parsed.steps,
+            ];
+          }
         }
       } else {
+        // tool or tool_result
         const content = extractTextContent(msg.content);
         if (!content) continue;
-        const card: ChatMessage = {
-          id: `loaded-${Date.now()}-${loaded.length}`,
-          role,
-          content,
-          timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
-        };
-        // If this is a user/tool message after pending steps, flush them into
-        // the last assistant card if one exists, otherwise drop them
-        if (pendingSteps.length > 0 && loaded.length > 0) {
-          const last = loaded[loaded.length - 1];
-          if (last.role === 'assistant') flushPending(last);
+
+        const toolCallId =
+          (msg as Record<string, unknown>).tool_call_id || '';
+        const isError =
+          (msg as Record<string, unknown>).is_error || false;
+
+        // Try to match tool_result to an existing tool step in currentAssistant
+        if (
+          currentAssistant &&
+          currentAssistant.steps &&
+          role === 'tool_result'
+        ) {
+          const matchingStep = currentAssistant.steps.find(
+            (s) => s.toolCallId === toolCallId
+          );
+          if (matchingStep) {
+            matchingStep.detail = content;
+            matchingStep.renderedDetail = content;
+            matchingStep.isError = Boolean(isError);
+            continue;
+          }
         }
-        loaded.push(card);
+
+        // No match or legacy tool message — flush assistant and add as tool card
+        flushAssistant();
+        loaded.push({
+          id: `loaded-${Date.now()}-${loaded.length}`,
+          role: 'tool',
+          content,
+          toolCallId: String(toolCallId),
+          timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
+        });
       }
     }
+
+    flushAssistant();
     set({ messages: loaded });
   },
 }));

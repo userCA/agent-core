@@ -86,7 +86,7 @@ export default function StreamingMessage() {
   if (!hasContent && !hitlRequest && steps.length === 0) {
     return (
       <div className="msg-wrapper msg-assistant">
-        <span className="msg-label">assistant</span>
+        <span className="msg-label">助手</span>
         <div className="bubble bubble-assistant streaming-bubble">
           <div className="thinking-indicator">
             <span className="thinking-dot" />
@@ -100,7 +100,7 @@ export default function StreamingMessage() {
 
   return (
     <div className="msg-wrapper msg-assistant">
-      <span className="msg-label">assistant</span>
+      <span className="msg-label">助手</span>
       <div className={`bubble bubble-assistant streaming-bubble${!isStreaming ? ' fade-out' : ''}`}>
         <div className="msg-content">
           <StepsPanel />

@@ -3,6 +3,7 @@ import { streamChat, abortSession } from '../api/client';
 import { useChatStore } from '../stores/chat-store';
 import { useSessionStore } from '../stores/session-store';
 import { useUIStore } from '../stores/ui-store';
+import { useToastStore } from '../stores/toast-store';
 import { getDisplayableText, extractThinkSteps, getStreamingThinkContent } from '../utils/think';
 import type { SSEEvent } from '../api/types';
 import type { ToolStep, HitlRequest } from '../stores/chat-store';
@@ -257,6 +258,7 @@ export function useSSE() {
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       const msg = err instanceof Error ? err.message : String(err);
+      useToastStore.getState().addToast(msg, 'error');
       addMessage({
         id: `err-${Date.now()}`,
         role: 'error',

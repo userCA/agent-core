@@ -17,7 +17,7 @@ export default function MessageBubble({ message }: Props) {
   if (role === 'user') {
     return (
       <div className="msg-wrapper msg-user">
-        <span className="msg-label">&gt; you</span>
+        <span className="msg-label">&gt; 你</span>
         <div className="bubble bubble-user">
           <pre className="user-text">{content}</pre>
         </div>
@@ -28,7 +28,7 @@ export default function MessageBubble({ message }: Props) {
   if (role === 'error') {
     return (
       <div className="msg-wrapper msg-error">
-        <span className="msg-label"><Icon name="alert" size={ICON_SIZES.sm} /> error</span>
+        <span className="msg-label"><Icon name="alert" size={ICON_SIZES.sm} /> 错误</span>
         <div className="bubble bubble-error">{content}</div>
       </div>
     );
@@ -37,7 +37,7 @@ export default function MessageBubble({ message }: Props) {
   if (role === 'tool') {
     return (
       <div className="msg-wrapper msg-tool">
-        <span className="msg-label"><Icon name="tool" size={ICON_SIZES.sm} /> tool</span>
+        <span className="msg-label"><Icon name="tool" size={ICON_SIZES.sm} /> 工具</span>
         <div className="bubble bubble-tool">
           <pre className="tool-text">{content}</pre>
         </div>
@@ -48,7 +48,7 @@ export default function MessageBubble({ message }: Props) {
   // assistant
   return (
     <div className="msg-wrapper msg-assistant">
-      <span className="msg-label">assistant</span>
+      <span className="msg-label">助手</span>
       <div className="bubble bubble-assistant">
         <div className="msg-content">
           {steps && steps.length > 0 && <StepsPanel steps={steps} />}
@@ -60,7 +60,7 @@ export default function MessageBubble({ message }: Props) {
         {audios?.map((a, i) => <AudioPlayer key={`a-${i}`} audio={a} />)}
         {usage && (
           <div className="usage-info">
-            {usage.input_tokens} in / {usage.output_tokens} out / {usage.total_tokens} total
+            {usage.input_tokens} 输入 / {usage.output_tokens} 输出 / {usage.total_tokens} 总计
           </div>
         )}
       </div>

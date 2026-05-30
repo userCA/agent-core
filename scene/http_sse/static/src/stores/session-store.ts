@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { fetchSessions, fetchPersonas, type PersonaInfo } from '../api/client';
+import { useToastStore } from './toast-store';
 
 export type { PersonaInfo };
 import { AUTH_KEYS, AUTH_STORAGE_KEY } from '../config';
@@ -112,8 +113,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         }))
       );
       set({ sessions });
-    } catch {
-      // ignore fetch errors
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '加载会话失败';
+      useToastStore.getState().addToast(msg, 'error');
     } finally {
       set({ sessionsLoading: false });
     }
@@ -124,8 +126,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     try {
       const data = await fetchPersonas();
       set({ personas: data });
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '加载专家失败';
+      useToastStore.getState().addToast(msg, 'error');
     } finally {
       set({ personasLoading: false });
     }

@@ -31,7 +31,7 @@ export default function ChatContainer({ onExampleClick }: Props) {
 
   return (
     <div className="chat-container" ref={containerRef} onScroll={onScroll}>
-      <div className="chat-inner">
+      <div className="chat-inner" role="log" aria-live="polite" aria-atomic="false" aria-relevant="additions">
         {welcomeVisible && <WelcomeScreen onSelect={onExampleClick} />}
         {displayMessages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />

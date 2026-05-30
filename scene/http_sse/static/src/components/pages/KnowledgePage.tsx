@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useUIStore } from '../../stores/ui-store';
+import { useToastStore } from '../../stores/toast-store';
+import { useConfirmStore } from '../../stores/confirm-store';
 import { fetchKnowledgeDocs, fetchKnowledgeDoc, uploadKnowledgeDoc, uploadKnowledgeFile, deleteKnowledgeDoc, type KnowledgeDoc, type KnowledgeDocDetail } from '../../api/client';
 import Icon from '../shared/Icon';
+import Loading from '../shared/Loading';
+import EmptyState from '../shared/EmptyState';
 import './Pages.css';
 
 const UPLOAD_TIMEOUT = 120_000; // 2 min timeout for large PDF uploads
@@ -114,12 +118,21 @@ export default function KnowledgePage() {
     }
   };
 
-  const handleDelete = async (docName: string) => {
-    if (!window.confirm(`确定要删除 "${docName}" 吗？`)) return;
-    try {
-      await deleteKnowledgeDoc(docName);
-      load();
-    } catch { /* ignore */ }
+  const handleDelete = (docName: string) => {
+    useConfirmStore.getState().requestConfirm({
+      title: '删除文档',
+      message: `确定要删除 "${docName}" 吗？此操作不可恢复。`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await deleteKnowledgeDoc(docName);
+          load();
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : '删除文档失败';
+          useToastStore.getState().addToast(msg, 'error');
+        }
+      },
+    });
   };
 
   return (
@@ -148,15 +161,14 @@ export default function KnowledgePage() {
           </div>
         )}
 
-        {loading && <p className="page-empty">加载中...</p>}
+        {loading && <Loading />}
 
         {!loading && docs.length === 0 && !showForm && (
-          <div className="page-empty">
-            <p>暂无知识库文档。</p>
-            <p style={{ marginTop: 8 }}>
-              点击"导入文件"上传 .txt/.md/.pdf 文件，或"新建"手动编写。
-            </p>
-          </div>
+          <EmptyState
+            icon="file"
+            title="暂无知识库文档"
+            description={`点击"导入文件"上传 .txt/.md/.pdf 文件，或"新建"手动编写`}
+          />
         )}
 
         {showForm && (
@@ -227,7 +239,7 @@ export default function KnowledgePage() {
                         </div>
                       ))
                     ) : (
-                      <span className="expert-detail-empty">加载中...</span>
+                      <span className="expert-detail-empty"><Loading text="加载中..." size="sm" /></span>
                     )}
                   </div>
                 )}

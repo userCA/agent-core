@@ -72,9 +72,9 @@ export default function AuthModal() {
         className="auth-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Authentication headers"
+        aria-label="认证信息"
       >
-        <h3>[key] auth headers</h3>
+        <h3>[key] 认证信息</h3>
         {AUTH_KEYS.map((k) => (
           <label key={k} className="auth-field">
             <span>{k}</span>
@@ -82,13 +82,13 @@ export default function AuthModal() {
               type="password"
               value={values[k] || ''}
               onChange={(e) => set(k, e.target.value)}
-              placeholder={`Enter ${k}`}
+              placeholder={`请输入 ${k}`}
             />
           </label>
         ))}
         <div className="auth-actions">
-          <button className="btn btn-primary" onClick={handleSave}>save</button>
-          <button className="btn" onClick={() => setAuthModalOpen(false)}>cancel</button>
+          <button className="btn btn-primary" onClick={handleSave}>保存</button>
+          <button className="btn" onClick={() => setAuthModalOpen(false)}>取消</button>
         </div>
       </div>
     </div>
