@@ -290,6 +290,7 @@
 .connector-item-header:hover { background: var(--surface-card); }
 .connector-item-header:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
+
 .connector-item-head {
     display: flex;
     align-items: center;
