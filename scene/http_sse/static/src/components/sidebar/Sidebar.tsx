@@ -2,8 +2,11 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useSessionStore, type SessionSummary } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useChatStore } from '../../stores/chat-store';
+import { useToastStore } from '../../stores/toast-store';
 import { fetchSessionMessages, deleteSession } from '../../api/client';
 import Icon from '../shared/Icon';
+import Loading from '../shared/Loading';
+import EmptyState from '../shared/EmptyState';
 import './Sidebar.css';
 
 function formatTime(ts: string): string {
@@ -73,8 +76,9 @@ export default function Sidebar() {
       setWelcomeVisible(false);
       const messages = await fetchSessionMessages(id);
       useChatStore.getState().loadMessages(messages);
-    } catch {
-      // ignore load errors
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '加载会话失败';
+      useToastStore.getState().addToast(msg, 'error');
     } finally {
       setLoadingId(null);
     }
@@ -88,8 +92,9 @@ export default function Sidebar() {
         resetChat();
         setWelcomeVisible(true);
       }
-    } catch {
-      // ignore delete errors
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '删除会话失败';
+      useToastStore.getState().addToast(msg, 'error');
     }
   };
 
@@ -167,6 +172,15 @@ export default function Sidebar() {
 
           <button
             className="sidebar-menu-item"
+            onClick={() => setActivePage('channels')}
+          >
+            <span className="sidebar-menu-icon"><Icon name="send" size={14} /></span>
+            <span className="sidebar-menu-label">渠道管理</span>
+            <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
+          </button>
+
+          <button
+            className="sidebar-menu-item"
             onClick={() => setAuthModalOpen(true)}
           >
             <span className="sidebar-menu-icon"><Icon name="key" size={14} /></span>
@@ -200,15 +214,15 @@ export default function Sidebar() {
 
         <div className="sidebar-content">
           {sessionsLoading && sessions.length === 0 && (
-            <div className="sidebar-empty">加载中...</div>
+            <Loading size="sm" text="加载中..." />
           )}
 
           {!sessionsLoading && sessions.length === 0 && (
-            <div className="sidebar-empty">暂无历史会话</div>
+            <EmptyState icon="message" title="暂无历史会话" />
           )}
 
           {!sessionsLoading && sessions.length > 0 && filteredSessions.length === 0 && (
-            <div className="sidebar-empty">无匹配会话</div>
+            <EmptyState icon="search" title="无匹配会话" />
           )}
 
           {filteredSessions.length > 0 && (

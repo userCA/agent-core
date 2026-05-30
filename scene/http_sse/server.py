@@ -522,6 +522,86 @@ async def get_capabilities() -> dict[str, Any]:
     return _capabilities_cache
 
 
+# ---- Channel management ----
+
+from scene.http_sse.channel_config import load_channels, save_channels  # noqa: E402
+
+_channel_runner: Any = None  # reference to running channel process
+
+
+class ChannelRequest(BaseModel):
+    id: str = Field(..., min_length=1, max_length=50)
+    name: str = Field(..., min_length=1, max_length=50)
+    type: str = Field(default="feishu")
+    enabled: bool = Field(default=True)
+    app_id: str = Field(default="")
+    app_secret: str = Field(default="")
+    allowed_users: str = Field(default="")
+
+
+@app.get("/channels")
+async def list_channels() -> dict[str, Any]:
+    """List all channel configurations (secrets masked)."""
+    channels = load_channels(manager._cwd)
+    # Mask secrets in response
+    safe = []
+    for c in channels:
+        sc = dict(c)
+        if sc.get("app_secret"):
+            sc["app_secret"] = sc["app_secret"][:4] + "****" + sc["app_secret"][-4:] if len(sc["app_secret"]) > 8 else "****"
+        safe.append(sc)
+    return {"channels": safe}
+
+
+@app.post("/channels")
+async def save_channel(body: ChannelRequest) -> dict[str, Any]:
+    """Add or update a channel configuration."""
+    channels = load_channels(manager._cwd)
+    existing = next((c for c in channels if c["id"] == body.id), None)
+    if existing:
+        existing.update({
+            "name": body.name, "type": body.type,
+            "enabled": body.enabled, "app_id": body.app_id,
+        })
+        if body.app_secret and body.app_secret != "****":
+            existing["app_secret"] = body.app_secret
+        if body.allowed_users:
+            existing["allowed_users"] = body.allowed_users
+    else:
+        channels.append({
+            "id": body.id, "name": body.name, "type": body.type,
+            "enabled": body.enabled, "app_id": body.app_id,
+            "app_secret": body.app_secret,
+        })
+    save_channels(manager._cwd, channels)
+    # Reload channel runner
+    _reload_channels(channels)
+    return {"success": True}
+
+
+@app.delete("/channels/{channel_id}")
+async def delete_channel(channel_id: str) -> dict[str, Any]:
+    """Delete a channel configuration."""
+    channels = load_channels(manager._cwd)
+    channels = [c for c in channels if c["id"] != channel_id]
+    save_channels(manager._cwd, channels)
+    _reload_channels(channels)
+    return {"success": True}
+
+
+def _reload_channels(channels: list[dict[str, Any]]) -> None:
+    """Reload channel configurations — restart enabled channel runners."""
+    global _channel_runner
+    # Find feishu config
+    feishu = next((c for c in channels if c["type"] == "feishu" and c.get("enabled")), None)
+    if feishu:
+        os.environ["FEISHU_APP_ID"] = feishu.get("app_id", "")
+        os.environ["FEISHU_APP_SECRET"] = feishu.get("app_secret", "")
+    else:
+        os.environ.pop("FEISHU_APP_ID", None)
+        os.environ.pop("FEISHU_APP_SECRET", None)
+
+
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 DIST_DIR = os.path.join(STATIC_DIR, "dist")
 DIST_ASSETS = os.path.join(DIST_DIR, "assets")

@@ -1,0 +1,186 @@
+import React, { useState, useEffect } from 'react';
+import { useChannelStore } from '../../stores/channel-store';
+import { useUIStore } from '../../stores/ui-store';
+import { useConfirmStore } from '../../stores/confirm-store';
+import type { ChannelInfo } from '../../api/client';
+import Icon from '../shared/Icon';
+import Loading from '../shared/Loading';
+import EmptyState from '../shared/EmptyState';
+import './Pages.css';
+
+const emptyChannel = (): ChannelInfo => ({
+  id: '', name: '', type: 'feishu', enabled: true,
+  app_id: '', app_secret: '',
+});
+
+export default function ChannelsPage() {
+  const { channels, loading, load, save, remove } = useChannelStore();
+  const setActivePage = useUIStore((s) => s.setActivePage);
+  const requestConfirm = useConfirmStore((s) => s.requestConfirm);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<ChannelInfo>(emptyChannel());
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  };
+
+  const startNew = () => {
+    setForm(emptyChannel()); setEditingId(null); setShowForm(true);
+    setFormError(''); setFieldErrors({});
+  };
+
+  const startEdit = (ch: ChannelInfo) => {
+    setForm({ ...ch }); setEditingId(ch.id); setShowForm(true);
+    setFormError(''); setFieldErrors({});
+  };
+
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!form.id.trim()) errs.id = '标识不能为空';
+    else if (!/^[a-zA-Z0-9_-]+$/.test(form.id)) errs.id = '只允许英文、数字、下划线、横线';
+    if (!form.name.trim()) errs.name = '名称不能为空';
+    if (form.type === 'feishu' && !form.app_id.trim()) errs.app_id = 'App ID 不能为空';
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setSubmitting(true); setFormError('');
+    try { await save(form); setShowForm(false); setForm(emptyChannel()); }
+    catch (err: unknown) { setFormError(err instanceof Error ? err.message : '保存失败'); }
+    finally { setSubmitting(false); }
+  };
+
+  const handleDelete = (id: string) => {
+    requestConfirm({
+      title: '删除渠道',
+      message: `确定删除渠道 "${id}"？此操作不可恢复。`,
+      confirmText: '删除', danger: true,
+      onConfirm: async () => { setSubmitting(true); try { await remove(id); } finally { setSubmitting(false); } },
+    });
+  };
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <button className="page-back" onClick={() => setActivePage('chat')} aria-label="返回聊天">
+          <Icon name="chevron-up" size={18} style={{ transform: 'rotate(-90deg)' }} />
+        </button>
+        <h1 className="page-title">渠道管理</h1>
+        <div className="page-header-right">
+          <button className="btn" onClick={startNew} disabled={submitting}>
+            <Icon name="plus" size={14} /> 添加
+          </button>
+        </div>
+      </div>
+
+      <div className="page-body">
+        {loading && <Loading />}
+
+        {!loading && channels.length === 0 && !showForm && (
+          <EmptyState icon="send" title="暂无渠道" description="点击「添加」配置消息渠道，支持飞书、微信等" />
+        )}
+
+        {!loading && channels.length > 0 && (
+          <p className="page-section-title">已配置 {channels.length} 个渠道</p>
+        )}
+
+        <div className="connector-list">
+          {channels.map((ch) => {
+            const isExpanded = expanded.has(ch.id);
+            return (
+              <div key={ch.id} className={`connector-item${ch.enabled ? ' ok' : ''}`}>
+                <button
+                  className="connector-item-header"
+                  onClick={() => toggleExpand(ch.id)}
+                  aria-expanded={isExpanded}
+                >
+                  <div className="connector-item-head">
+                    <span className={`dot${ch.enabled ? ' green' : ''}`} />
+                    <span className="connector-item-name">{ch.name}</span>
+                    <span className="connector-item-badge type-kb">{ch.type}</span>
+                  </div>
+                  <div className="connector-item-meta">
+                    <span>{ch.app_id?.slice(0, 20) || '未配置'}</span>
+                    <span className="connector-item-arrow">
+                      {isExpanded ? <Icon name="chevron-up" size={12} /> : <Icon name="chevron-down" size={12} />}
+                    </span>
+                  </div>
+                </button>
+                {isExpanded && (
+                  <div className="connector-item-tools">
+                    <span className="connector-tool-badge">App ID: {ch.app_id || '-'}</span>
+                    <span className="connector-tool-badge">Secret: ****</span>
+                    <div className="connector-item-tool-actions" style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn" onClick={() => startEdit(ch)} disabled={submitting}>编辑</button>
+                      <button className="btn btn-danger" onClick={() => handleDelete(ch.id)} disabled={submitting}>删除</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {showForm && (
+          <div className="card form-card">
+            <div className="card-form-head">
+              <span className="card-title">{editingId ? `编辑: ${editingId}` : '新增渠道'}</span>
+              <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => setShowForm(false)} disabled={submitting}>取消</button>
+            </div>
+            <div className="form-grid">
+              <div className="form-field">
+                <span>标识 *</span>
+                <input value={form.id} onChange={e => setForm({ ...form, id: e.target.value })}
+                  className={fieldErrors.id ? 'field-invalid' : ''}
+                  placeholder="英文标识，如 feishu-vip" disabled={!!editingId || submitting} />
+                {fieldErrors.id && <span className="field-error">{fieldErrors.id}</span>}
+              </div>
+              <div className="form-field">
+                <span>名称 *</span>
+                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                  className={fieldErrors.name ? 'field-invalid' : ''}
+                  placeholder="显示名称，如 飞书 VIP" disabled={submitting} />
+                {fieldErrors.name && <span className="field-error">{fieldErrors.name}</span>}
+              </div>
+              <div className="form-field">
+                <span>类型</span>
+                <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} disabled={submitting}>
+                  <option value="feishu">飞书 (Lark)</option>
+                  <option value="wechat">微信 (即将支持)</option>
+                </select>
+              </div>
+              <div className="form-field">
+                <span>App ID</span>
+                <input value={form.app_id} onChange={e => setForm({ ...form, app_id: e.target.value })}
+                  className={fieldErrors.app_id ? 'field-invalid' : ''}
+                  placeholder="cli_xxxxxxxx" disabled={submitting} />
+                {fieldErrors.app_id && <span className="field-error">{fieldErrors.app_id}</span>}
+              </div>
+              <div className="form-field">
+                <span>App Secret</span>
+                <input type="password" value={form.app_secret} onChange={e => setForm({ ...form, app_secret: e.target.value })}
+                  placeholder={editingId ? '留空表示不修改' : '输入密钥'} disabled={submitting} />
+              </div>
+            </div>
+            {formError && <p className="card-form-error">{formError}</p>}
+            <div className="card-form-actions">
+              <button className="btn btn-primary" onClick={handleSubmit}
+                disabled={submitting || !form.id.trim() || !form.name.trim()}>
+                {submitting ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

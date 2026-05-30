@@ -310,3 +310,39 @@ export async function submitHumanInput(
     throw new Error(`Human input failed: ${response.status}`);
   }
 }
+
+// ---- Channel management ----
+
+export interface ChannelInfo {
+  id: string;
+  name: string;
+  type: string;
+  enabled: boolean;
+  app_id: string;
+  app_secret: string;
+}
+
+export async function fetchChannels(): Promise<ChannelInfo[]> {
+  const resp = await fetch(`${API_BASE}/channels`);
+  if (!resp.ok) throw new Error(`Fetch channels failed: ${resp.status}`);
+  const data = await resp.json() as { channels: ChannelInfo[] };
+  return data.channels;
+}
+
+export async function saveChannel(ch: ChannelInfo): Promise<boolean> {
+  const resp = await fetch(`${API_BASE}/channels`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(ch),
+  });
+  if (!resp.ok) throw new Error(`Save channel failed: ${resp.status}`);
+  return (await resp.json() as { success: boolean }).success;
+}
+
+export async function deleteChannel(channelId: string): Promise<boolean> {
+  const resp = await fetch(`${API_BASE}/channels/${encodeURIComponent(channelId)}`, {
+    method: 'DELETE',
+  });
+  if (!resp.ok) throw new Error(`Delete channel failed: ${resp.status}`);
+  return (await resp.json() as { success: boolean }).success;
+}
