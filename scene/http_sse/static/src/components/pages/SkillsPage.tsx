@@ -131,7 +131,7 @@ export default function SkillsPage() {
     <div className="page">
       <div className="page-header">
         <button className="page-back" onClick={() => setActivePage('chat')} aria-label="返回聊天">
-          <Icon name="chevron-up" size={18} style={{ transform: 'rotate(-90deg)' }} />
+          <Icon name="chevron-up" size={18} className="page-back-icon" />
         </button>
         <h1 className="page-title">技能管理</h1>
         <div className="page-header-right">

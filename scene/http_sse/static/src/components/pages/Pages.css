@@ -34,6 +34,8 @@
 .page-back:hover { background: var(--surface-soft); color: var(--ink); }
 .page-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+.page-back-icon { transform: rotate(-90deg); }
+
 .page-title {
     font-family: var(--font-mono);
     font-size: 15px;

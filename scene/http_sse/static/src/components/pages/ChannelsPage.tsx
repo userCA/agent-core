@@ -24,11 +24,27 @@ export default function ChannelsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const toggleDropdown = (name: string) => setOpenDropdown(prev => prev === name ? null : name);
 
   useEffect(() => { load(); }, [load]);
 
+  // Esc to close form, dropdown
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (openDropdown) { setOpenDropdown(null); return; }
+      if (showForm && !submitting) { setShowForm(false); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showForm, submitting, openDropdown]);
+
   const toggleExpand = (id: string) => {
-    setExpanded((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+    setExpanded((prev) => {
+      if (prev.has(id)) { prev.delete(id); return new Set(prev); }
+      return new Set([id]); // Close others, open only this one
+    });
   };
 
   const startNew = () => {
@@ -134,7 +150,6 @@ export default function ChannelsPage() {
           <div className="card form-card">
             <div className="card-form-head">
               <span className="card-title">{editingId ? `编辑: ${editingId}` : '新增渠道'}</span>
-              <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => setShowForm(false)} disabled={submitting}>取消</button>
             </div>
             <div className="form-grid">
               <div className="form-field">
@@ -153,10 +168,26 @@ export default function ChannelsPage() {
               </div>
               <div className="form-field">
                 <span>类型</span>
-                <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} disabled={submitting}>
-                  <option value="feishu">飞书 (Lark)</option>
-                  <option value="wechat">微信 (即将支持)</option>
-                </select>
+                <div className="form-dropdown">
+                  <button className="form-select" onClick={() => toggleDropdown('type')} type="button" disabled={submitting}>
+                    {form.type === 'wechat' ? '微信 (即将支持)' : '飞书 (Lark)'}
+                  </button>
+                  {openDropdown === 'type' && (
+                    <>
+                      <div className="more-backdrop" onClick={() => setOpenDropdown(null)} />
+                      <div className="form-dropdown-menu">
+                        <button className={`form-dropdown-item${form.type === 'feishu' ? ' selected' : ''}`}
+                          onClick={() => { setForm({ ...form, type: 'feishu' }); setOpenDropdown(null); }}>
+                          飞书 (Lark)
+                        </button>
+                        <button className={`form-dropdown-item${form.type === 'wechat' ? ' selected' : ''}`}
+                          onClick={() => { setForm({ ...form, type: 'wechat' }); setOpenDropdown(null); }}>
+                          微信 (即将支持)
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
               <div className="form-field">
                 <span>App ID</span>
@@ -177,6 +208,7 @@ export default function ChannelsPage() {
                 disabled={submitting || !form.id.trim() || !form.name.trim()}>
                 {submitting ? '保存中...' : '保存'}
               </button>
+              <button className="btn" onClick={() => setShowForm(false)} disabled={submitting}>取消</button>
             </div>
           </div>
         )}

@@ -150,11 +150,23 @@ def _send(channel_id: str, chat_id: str, content: str) -> str | None:
     elif fmt == "post":
         payload = _build_post_payload(content)
     else:
+        # Card JSON 2.0 with clean design
+        model_name = os.environ.get("AGENT_MODEL", "agent")
         payload = json.dumps({
-            "schema": "2.0", "config": {"enable_forward": True, "width_mode": "fill"},
-            "header": {"template": "blue", "title": {"tag": "plain_text", "content": ch["name"]}},
-            "body": {"direction": "vertical", "vertical_spacing": "8px",
-                     "elements": [{"tag": "markdown", "content": content[:30000]}]},
+            "schema": "2.0",
+            "config": {"enable_forward": True, "width_mode": "fill"},
+            "header": {
+                "template": "blue",
+                "title": {"tag": "plain_text", "content": ch["name"]},
+                "subtitle": {"tag": "plain_text", "content": f"model: {model_name}"},
+            },
+            "body": {
+                "direction": "vertical",
+                "vertical_spacing": "12px",
+                "elements": [
+                    {"tag": "markdown", "content": content[:30000]},
+                ],
+            },
         }, ensure_ascii=False)
 
     try:
@@ -227,6 +239,7 @@ async def _process_one(channel_id: str, open_id: str, reply_to: str, user_text: 
 
         unsub = assistant.on_event(collector)
         loop = asyncio.get_running_loop()
+        started = time.time()
         await loop.run_in_executor(None, _send, channel_id, reply_to, "⏳ 思考中...")
 
         try:
@@ -252,9 +265,12 @@ async def _process_one(channel_id: str, open_id: str, reply_to: str, user_text: 
             unsub()
 
         text = "".join(accumulated)
-        _log.info("[%s] Agent response: len=%d", channel_id, len(text))
+        elapsed = time.time() - started
+        _log.info("[%s] Agent: len=%d %.1fs", channel_id, len(text), elapsed)
+        # Append processing stats as a clean markdown line
         if text.strip():
-            await loop.run_in_executor(None, _send, channel_id, reply_to, text)
+            stats = f"\n\n---\n⏱ {elapsed:.1f}s"
+            await loop.run_in_executor(None, _send, channel_id, reply_to, text + stats)
 
 
 # ---- Event handler factory (each channel gets its own) ----

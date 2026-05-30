@@ -65,6 +65,17 @@ export default function ConnectorsPage() {
 
   useEffect(() => { load(); }, []);
 
+  // Esc to close
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (openDropdown) { setOpenDropdown(null); return; }
+      if (showForm && !submitting) { setShowForm(false); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showForm, submitting, openDropdown]);
+
   const filtered = useMemo(() => {
     let list = connectors;
     if (typeFilter !== 'all') list = list.filter((c) => (c.type || 'tool') === typeFilter);
@@ -217,7 +228,9 @@ export default function ConnectorsPage() {
                     {TRANSPORT_OPTIONS.find((o) => o.value === form.transport)?.label || '选择...'}
                   </button>
                   {openDropdown === 'transport' && (
-                    <div className="form-dropdown-menu">
+                    <>
+                      <div className="more-backdrop" onClick={() => setOpenDropdown(null)} />
+                      <div className="form-dropdown-menu">
                       {TRANSPORT_OPTIONS.map((o) => (
                         <button key={o.value} className={`form-dropdown-item${form.transport === o.value ? ' selected' : ''}`}
                           onClick={() => { setForm({ ...form, transport: o.value }); setOpenDropdown(null); }}>
@@ -225,6 +238,7 @@ export default function ConnectorsPage() {
                         </button>
                       ))}
                     </div>
+                    </>
                   )}
                 </div>
               </label>
@@ -235,7 +249,9 @@ export default function ConnectorsPage() {
                     {form.type === 'knowledge' ? '知识库' : '工具'}
                   </button>
                   {openDropdown === 'type' && (
-                    <div className="form-dropdown-menu">
+                    <>
+                      <div className="more-backdrop" onClick={() => setOpenDropdown(null)} />
+                      <div className="form-dropdown-menu">
                       <button className={`form-dropdown-item${form.type !== 'knowledge' ? ' selected' : ''}`}
                         onClick={() => { setForm({ ...form, type: 'tool' }); setOpenDropdown(null); }}>
                         工具
@@ -245,6 +261,7 @@ export default function ConnectorsPage() {
                         知识库
                       </button>
                     </div>
+                    </>
                   )}
                 </div>
               </label>

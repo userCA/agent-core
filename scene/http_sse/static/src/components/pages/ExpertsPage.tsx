@@ -7,6 +7,7 @@ import { useConfirmStore } from '../../stores/confirm-store';
 import { savePersona, deletePersona, fetchConnectors, type PersonaInfo, type ConnectorInfo } from '../../api/client';
 import Icon from '../shared/Icon';
 import EmptyState from '../shared/EmptyState';
+import Loading from '../shared/Loading';
 import './Pages.css';
 
 function emptyPersona(): PersonaInfo {
@@ -15,6 +16,7 @@ function emptyPersona(): PersonaInfo {
 
 export default function ExpertsPage() {
   const personas = useSessionStore((s) => s.personas);
+  const personasLoading = useSessionStore((s) => s.personasLoading);
   const loadPersonas = useSessionStore((s) => s.loadPersonas);
   const allTools = useSkillStore((s) => s.tools.map(t => t.name));
   const loadCapabilities = useSkillStore((s) => s.loadCapabilities);
@@ -194,6 +196,8 @@ export default function ExpertsPage() {
       </div>
 
       <div className="page-body">
+        {personasLoading && <Loading />}
+
         {/* Active expert card */}
         {activePersona && (
           <div className="expert-active-card">
@@ -226,7 +230,7 @@ export default function ExpertsPage() {
           </div>
         )}
 
-        {personas.length === 0 && !showForm && (
+        {!personasLoading && personas.length === 0 && !showForm && (
           <EmptyState icon="briefcase" title="暂无专家" description={`点击"添加"创建第一个`} />
         )}
 

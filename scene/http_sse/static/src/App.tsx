@@ -47,7 +47,13 @@ export default function App() {
     <BridgeProvider>
       <div className="app-layout">
         <Sidebar />
-        <div className="app-main">
+        <div className="app-main" onClick={() => {
+          // Close sidebar on mobile when clicking content area
+          const collapsed = useUIStore.getState().sidebarCollapsed;
+          if (!collapsed && window.innerWidth <= 768) {
+            useUIStore.getState().toggleSidebar();
+          }
+        }}>
           <Header onAbort={abort} />
           {activePage === 'chat' && (
             <>
