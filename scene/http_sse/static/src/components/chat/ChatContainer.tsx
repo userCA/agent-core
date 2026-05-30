@@ -2,6 +2,7 @@ import React from 'react';
 import { useChatStore } from '../../stores/chat-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
+import Icon from '../shared/Icon';
 import MessageBubble from './MessageBubble';
 import StreamingMessage from './StreamingMessage';
 import WelcomeScreen from './WelcomeScreen';
@@ -25,7 +26,7 @@ export default function ChatContainer({ onExampleClick }: Props) {
   const hideLastBubble = showStreaming && lastMsg?.role === 'assistant';
   const displayMessages = hideLastBubble ? messages.slice(0, -1) : messages;
 
-  const { containerRef, onScroll, scrollToBottom } = useAutoScroll([
+  const { containerRef, onScroll, showButton, forceScrollToBottom } = useAutoScroll([
     messages, currentText, steps.length,
   ]);
 
@@ -38,6 +39,11 @@ export default function ChatContainer({ onExampleClick }: Props) {
         ))}
         {showStreaming && <StreamingMessage />}
       </div>
+      {showButton && (
+        <button className="scroll-to-bottom" onClick={forceScrollToBottom} aria-label="滚动到底部">
+          <Icon name="chevron-down" size={18} />
+        </button>
+      )}
     </div>
   );
 }

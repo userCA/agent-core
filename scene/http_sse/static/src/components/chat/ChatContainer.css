@@ -51,4 +51,33 @@
     to   { opacity: 1; transform: translateX(0) scale(1); }
 }
 
-/* Streaming message has its own animation in StreamingMessage.css */
+/* Scroll-to-bottom button */
+.scroll-to-bottom {
+    position: fixed;
+    bottom: 110px;
+    right: 32px;
+    width: 36px; height: 36px;
+    border: 1px solid var(--hairline);
+    border-radius: 50%;
+    background: var(--canvas);
+    color: var(--mute);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 10px var(--shadow);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+    z-index: 5;
+    animation: btnIn 0.2s ease;
+}
+.scroll-to-bottom:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px var(--shadow);
+    color: var(--ink);
+    border-color: var(--hairline-strong);
+}
+
+@keyframes btnIn {
+    from { opacity: 0; transform: scale(0.8); }
+    to   { opacity: 1; transform: scale(1); }
+}

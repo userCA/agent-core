@@ -1,6 +1,7 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 
-const NEAR_BOTTOM_THRESHOLD = 80; // px from bottom to trigger auto-scroll
+const NEAR_BOTTOM_THRESHOLD = 80;
+const SHOW_BUTTON_DISTANCE = 200;
 
 export function useAutoScroll(deps: unknown[]) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -8,6 +9,7 @@ export function useAutoScroll(deps: unknown[]) {
   const scrollTimeout = useRef<ReturnType<typeof setTimeout>>();
   const scrollRaf = useRef<number>();
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [showButton, setShowButton] = useState(false);
 
   const isNearBottom = useCallback(() => {
     const el = containerRef.current;
@@ -21,22 +23,33 @@ export function useAutoScroll(deps: unknown[]) {
     scrollTimeout.current = setTimeout(() => {
       userScrolling.current = false;
     }, 1500);
+    // Show button when scrolled > 200px from bottom
+    const el = containerRef.current;
+    if (el) {
+      setShowButton(el.scrollHeight - el.scrollTop - el.clientHeight > SHOW_BUTTON_DISTANCE);
+    }
   }, []);
 
   const scrollToBottom = useCallback((smooth = false) => {
-    if (userScrolling.current) return;
-    // Only auto-scroll if user is already near the bottom
-    if (!isNearBottom()) return;
+    if (userScrolling.current && !smooth) return;
+    if (!smooth && !isNearBottom()) return;
 
     if (scrollRaf.current) cancelAnimationFrame(scrollRaf.current);
     scrollRaf.current = requestAnimationFrame(() => {
       const el = containerRef.current;
       if (!el) return;
       el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+      setShowButton(false);
     });
   }, [isNearBottom]);
 
-  // Debounced auto-scroll: coalesce rapid dep changes into a single scroll
+  const forceScrollToBottom = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    setShowButton(false);
+  }, []);
+
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
@@ -53,5 +66,5 @@ export function useAutoScroll(deps: unknown[]) {
     };
   }, []);
 
-  return { containerRef, onScroll, scrollToBottom };
+  return { containerRef, onScroll, scrollToBottom, showButton, forceScrollToBottom };
 }
