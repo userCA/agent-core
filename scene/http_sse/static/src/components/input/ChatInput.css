@@ -89,7 +89,7 @@
 
 .action-btn.active {
     background: var(--ink);
-    color: var(--on-dark);
+    color: var(--canvas);
 }
 
 .action-btn.recording {
@@ -222,7 +222,7 @@
     border: none;
     border-radius: var(--radius-sm);
     background: var(--ink);
-    color: var(--on-dark);
+    color: var(--canvas);
     cursor: pointer;
     flex-shrink: 0;
     transition: transform 0.15s ease, background 0.15s ease;

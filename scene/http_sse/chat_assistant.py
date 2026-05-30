@@ -336,6 +336,18 @@ class ChatAssistant:
     def tool_names(self) -> list[str]:
         return list(self._tool_registry)
 
+    @property
+    def tool_infos(self) -> list[dict[str, str]]:
+        """Return tool name + description for each registered tool."""
+        result: list[dict[str, str]] = []
+        for name, tool in self._tool_registry._tools.items():
+            result.append({
+                "name": name,
+                "description": tool.definition.description,
+            })
+        result.sort(key=lambda t: t["name"])
+        return result
+
     def _expand_skill_command(self, text: str) -> str:
         """Expand /skill:name commands to inject skill content.
 

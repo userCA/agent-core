@@ -89,7 +89,7 @@
 .scene-tab.active {
     background: var(--ink);
     border-color: var(--ink);
-    color: var(--on-dark);
+    color: var(--canvas);
 }
 
 /* ---- Prompt grid ---- */

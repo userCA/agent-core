@@ -2,8 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useSkillStore } from '../../stores/skill-store';
 import { useUIStore } from '../../stores/ui-store';
+import { useToastStore } from '../../stores/toast-store';
+import { useConfirmStore } from '../../stores/confirm-store';
 import { savePersona, deletePersona, fetchConnectors, type PersonaInfo, type ConnectorInfo } from '../../api/client';
 import Icon from '../shared/Icon';
+import EmptyState from '../shared/EmptyState';
 import './Pages.css';
 
 function emptyPersona(): PersonaInfo {
@@ -13,7 +16,7 @@ function emptyPersona(): PersonaInfo {
 export default function ExpertsPage() {
   const personas = useSessionStore((s) => s.personas);
   const loadPersonas = useSessionStore((s) => s.loadPersonas);
-  const allTools = useSkillStore((s) => s.tools);
+  const allTools = useSkillStore((s) => s.tools.map(t => t.name));
   const loadCapabilities = useSkillStore((s) => s.loadCapabilities);
   const personaId = useSessionStore((s) => s.personaId);
   const setPersonaId = useSessionStore((s) => s.setPersonaId);
@@ -24,6 +27,20 @@ export default function ExpertsPage() {
   const [form, setForm] = useState<PersonaInfo>(emptyPersona());
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const validateField = (name: string, value: string) => {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (name === 'id' || name === 'name') {
+        if (!value.trim()) next[name] = name === 'id' ? 'ID 不能为空' : '名称不能为空';
+        else delete next[name];
+      }
+      return next;
+    });
+  };
+
+  const isFormValid = !!form.id.trim() && !!form.name.trim();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
 
@@ -72,6 +89,7 @@ export default function ExpertsPage() {
     setForm(emptyPersona());
     setEditingId(null);
     setFormError('');
+    setFieldErrors({});
     setShowForm(true);
   };
 
@@ -79,6 +97,7 @@ export default function ExpertsPage() {
     setForm({ ...p, system_prompt: p.system_prompt || '', enabled_tools: p.enabled_tools || null, knowledge_bases: p.knowledge_bases || null });
     setEditingId(p.id);
     setFormError('');
+    setFieldErrors({});
     setShowForm(true);
   };
 
@@ -106,8 +125,9 @@ export default function ExpertsPage() {
 
   const handleSubmit = async () => {
     const f = form;
-    if (!f.id.trim()) { setFormError('ID 不能为空'); return; }
-    if (!f.name.trim()) { setFormError('名称不能为空'); return; }
+    setFieldErrors({});
+    if (!f.id.trim()) { setFieldErrors({ id: 'ID 不能为空' }); return; }
+    if (!f.name.trim()) { setFieldErrors({ name: '名称不能为空' }); return; }
 
     setSubmitting(true);
     setFormError('');
@@ -130,15 +150,23 @@ export default function ExpertsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm(`确定要删除专家 "${id}" 吗？`)) return;
-    try {
-      await deletePersona(id);
-      if (personaId === id) setPersonaId(null);
-      await loadPersonas();
-    } catch {
-      // ignore
-    }
+  const handleDelete = (id: string) => {
+    const persona = personas.find((p) => p.id === id);
+    useConfirmStore.getState().requestConfirm({
+      title: '删除专家',
+      message: `确定要删除专家 "${persona?.name || id}" 吗？此操作不可恢复。`,
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await deletePersona(id);
+          if (personaId === id) setPersonaId(null);
+          await loadPersonas();
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : '删除专家失败';
+          useToastStore.getState().addToast(msg, 'error');
+        }
+      },
+    });
   };
 
   return (
@@ -199,11 +227,11 @@ export default function ExpertsPage() {
         )}
 
         {personas.length === 0 && !showForm && (
-          <p className="page-empty">暂无专家。点击"添加"创建第一个。</p>
+          <EmptyState icon="briefcase" title="暂无专家" description={`点击"添加"创建第一个`} />
         )}
 
         {personas.length > 0 && search && filtered.length === 0 && (
-          <p className="page-empty">无匹配专家</p>
+          <EmptyState icon="search" title="无匹配专家" />
         )}
 
         {showForm && (
@@ -214,14 +242,28 @@ export default function ExpertsPage() {
             <div className="form-grid">
               <label className="form-field">
                 <span>ID (英文标识)</span>
-                <input type="text" value={form.id} disabled={!!editingId}
+                <input
+                  type="text"
+                  value={form.id}
+                  disabled={!!editingId}
                   placeholder="例如 coder"
-                  onChange={(e) => setForm({ ...form, id: e.target.value })} />
+                  className={fieldErrors.id ? 'field-invalid' : ''}
+                  onChange={(e) => setForm({ ...form, id: e.target.value })}
+                  onBlur={(e) => validateField('id', e.target.value)}
+                />
+                {fieldErrors.id && <span className="field-error">{fieldErrors.id}</span>}
               </label>
               <label className="form-field">
                 <span>名称</span>
-                <input type="text" value={form.name} placeholder="例如 代码专家"
-                  onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                <input
+                  type="text"
+                  value={form.name}
+                  placeholder="例如 代码专家"
+                  className={fieldErrors.name ? 'field-invalid' : ''}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onBlur={(e) => validateField('name', e.target.value)}
+                />
+                {fieldErrors.name && <span className="field-error">{fieldErrors.name}</span>}
               </label>
               <label className="form-field">
                 <span>描述</span>
@@ -333,7 +375,7 @@ export default function ExpertsPage() {
             </div>
             {formError && <p className="card-form-error">{formError}</p>}
             <div className="card-form-actions">
-              <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+              <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting || !isFormValid}>
                 {submitting ? '保存中...' : '保存'}
               </button>
               <button className="btn" onClick={() => setShowForm(false)}>取消</button>

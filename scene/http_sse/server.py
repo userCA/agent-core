@@ -517,7 +517,7 @@ async def get_capabilities() -> dict[str, Any]:
                 {"name": s.name, "description": s.description}
                 for s in assistant.skills
             ],
-            "tools": assistant.tool_names,
+            "tools": assistant.tool_infos,
         }
     return _capabilities_cache
 

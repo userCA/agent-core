@@ -1,10 +1,7 @@
 import { create } from 'zustand';
 import { fetchCapabilities } from '../api/client';
-
-export interface SkillInfo {
-  name: string;
-  description: string;
-}
+import type { SkillInfo, ToolInfo } from '../api/client';
+import { useToastStore } from './toast-store';
 
 const SKILL_ENABLED_KEY = 'agent_skill_enabled';
 
@@ -24,7 +21,7 @@ function saveEnabled(enabled: Set<string>) {
 
 interface SkillState {
   skills: SkillInfo[];
-  tools: string[];
+  tools: ToolInfo[];
   loading: boolean;
   enabled: Set<string>;
 
@@ -44,8 +41,9 @@ export const useSkillStore = create<SkillState>((set, get) => ({
     try {
       const caps = await fetchCapabilities();
       set({ skills: caps.skills, tools: caps.tools });
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '加载技能失败';
+      useToastStore.getState().addToast(msg, 'error');
     } finally {
       set({ loading: false });
     }

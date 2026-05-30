@@ -1,8 +1,11 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useSkillStore } from '../../stores/skill-store';
 import { useUIStore } from '../../stores/ui-store';
+import { useToastStore } from '../../stores/toast-store';
 import { importSkill } from '../../api/client';
 import Icon from '../shared/Icon';
+import Loading from '../shared/Loading';
+import EmptyState from '../shared/EmptyState';
 import './Pages.css';
 
 export default function SkillsPage() {
@@ -16,6 +19,20 @@ export default function SkillsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState('');
+
+  // Tools section state
+  const [toolSearch, setToolSearch] = useState('');
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+  const [toolPage, setToolPage] = useState(1);
+  const TOOLS_PER_PAGE = 24;
+  const DESC_PREVIEW_LEN = 60;
+
+  // Create skill modal state
+  const [showCreate, setShowCreate] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createDesc, setCreateDesc] = useState('');
+  const [createContent, setCreateContent] = useState('');
+  const [creating, setCreating] = useState(false);
 
   React.useEffect(() => {
     loadCapabilities();
@@ -31,6 +48,26 @@ export default function SkillsPage() {
 
   const enabledCount = skills.filter((s) => enabled.has(s.name)).length;
 
+  const filteredTools = useMemo(() => {
+    if (!toolSearch.trim()) return tools;
+    const q = toolSearch.toLowerCase();
+    return tools.filter((t) =>
+      t.name.toLowerCase().includes(q) || t.description.toLowerCase().includes(q)
+    );
+  }, [tools, toolSearch]);
+
+  const totalToolPages = Math.ceil(filteredTools.length / TOOLS_PER_PAGE);
+  const pagedTools = useMemo(() => {
+    const start = (toolPage - 1) * TOOLS_PER_PAGE;
+    return filteredTools.slice(start, start + TOOLS_PER_PAGE);
+  }, [filteredTools, toolPage, TOOLS_PER_PAGE]);
+
+  // Reset page when search changes
+  const handleToolSearch = (v: string) => {
+    setToolSearch(v);
+    setToolPage(1);
+  };
+
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -40,11 +77,53 @@ export default function SkillsPage() {
       const name = file.name.replace(/\.md$/i, '');
       await importSkill(name, content);
       await loadCapabilities();
-    } catch {
-      // ignore import errors
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '导入技能失败';
+      useToastStore.getState().addToast(msg, 'error');
     } finally {
       setImporting(false);
       e.target.value = '';
+    }
+  };
+
+  const toggleToolExpand = (name: string) => {
+    setExpandedTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const resetCreateForm = () => {
+    setCreateName('');
+    setCreateDesc('');
+    setCreateContent('');
+  };
+
+  const handleCreate = async () => {
+    const name = createName.trim();
+    if (!name || !createContent.trim()) return;
+    setCreating(true);
+    try {
+      // Generate proper YAML frontmatter
+      let frontmatter = '---\n';
+      frontmatter += `name: ${name}\n`;
+      if (createDesc.trim()) {
+        frontmatter += `description: ${createDesc.trim()}\n`;
+      }
+      frontmatter += '---\n\n';
+      const fullContent = frontmatter + createContent.trim() + '\n';
+      await importSkill(name, fullContent);
+      await loadCapabilities();
+      setShowCreate(false);
+      resetCreateForm();
+      useToastStore.getState().addToast(`技能 "${name}" 创建成功`, 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '创建技能失败';
+      useToastStore.getState().addToast(msg, 'error');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -68,6 +147,17 @@ export default function SkillsPage() {
           </div>
           <button
             className="btn"
+            onClick={() => {
+              resetCreateForm();
+              setShowCreate(true);
+            }}
+            title="粘贴技能描述创建"
+            disabled={importing}
+          >
+            <Icon name="plus" size={14} /> 创建
+          </button>
+          <button
+            className="btn"
             onClick={() => fileRef.current?.click()}
             title="导入 .md 技能文件"
             disabled={importing}
@@ -79,12 +169,14 @@ export default function SkillsPage() {
       </div>
 
       <div className="page-body">
-        {loading && <p className="page-empty">加载中...</p>}
+        {loading && <Loading />}
 
-        {!loading && skills.length === 0 && <p className="page-empty">暂无技能</p>}
+        {!loading && skills.length === 0 && (
+          <EmptyState icon="code" title="暂无技能" description={`点击"导入"按钮添加技能文件`} />
+        )}
 
         {!loading && skills.length > 0 && search && filtered.length === 0 && (
-          <p className="page-empty">无匹配技能</p>
+          <EmptyState icon="search" title="无匹配技能" />
         )}
 
         {!loading && skills.length > 0 && (
@@ -122,15 +214,133 @@ export default function SkillsPage() {
 
         {tools.length > 0 && (
           <>
-            <h2 className="page-section-title">内置工具 ({tools.length})</h2>
-            <div className="tag-cloud">
-              {tools.map((t) => (
-                <span key={t} className="tag">{t}</span>
-              ))}
+            <h2 className="page-section-title">可用工具 ({filteredTools.length}{filteredTools.length !== tools.length ? ` / ${tools.length}` : ''})</h2>
+
+            <div className="page-search" style={{ marginBottom: 8 }}>
+              <Icon name="search" size={14} />
+              <input
+                type="text"
+                placeholder="搜索工具名称或描述..."
+                value={toolSearch}
+                onChange={(e) => handleToolSearch(e.target.value)}
+                aria-label="搜索工具"
+              />
             </div>
+
+            {filteredTools.length === 0 ? (
+              <p className="page-empty">无匹配工具</p>
+            ) : (
+              <>
+                <div className="card-grid">
+                  {pagedTools.map((t) => {
+                    const isOpen = expandedTools.has(t.name);
+                    const needsExpand = t.description.length > DESC_PREVIEW_LEN;
+                    const preview = needsExpand && !isOpen
+                      ? t.description.slice(0, DESC_PREVIEW_LEN) + '…'
+                      : t.description;
+                    return (
+                      <div
+                        key={t.name}
+                        className={`card${needsExpand ? ' card-clickable' : ''}`}
+                        onClick={() => needsExpand && toggleToolExpand(t.name)}
+                      >
+                        <div className="card-head">
+                          <span className="card-title">{t.name}</span>
+                          {needsExpand && (
+                            <span style={{ fontSize: 10, color: 'var(--mute)', flexShrink: 0 }}>
+                              {isOpen ? '▼' : '▶'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="card-desc">{preview}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {totalToolPages > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
+                    <button
+                      className="btn"
+                      disabled={toolPage <= 1}
+                      onClick={() => setToolPage((p) => Math.max(1, p - 1))}
+                    >
+                      上一页
+                    </button>
+                    <span style={{ fontSize: 12, color: 'var(--ash)', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center' }}>
+                      {toolPage} / {totalToolPages}
+                    </span>
+                    <button
+                      className="btn"
+                      disabled={toolPage >= totalToolPages}
+                      onClick={() => setToolPage((p) => Math.min(totalToolPages, p + 1))}
+                    >
+                      下一页
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </>
         )}
       </div>
+
+      {/* Create skill modal */}
+      {showCreate && (
+        <div className="auth-backdrop" onClick={() => { if (!creating) { setShowCreate(false); } }}>
+          <div className="auth-modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+            <h3>创建技能</h3>
+            <div className="auth-field">
+              <span>名称 <span className="required" style={{ color: 'var(--danger)' }}>*</span></span>
+              <input
+                type="text"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="英文名称，如 my-skill"
+                disabled={creating}
+                autoFocus
+              />
+            </div>
+            <div className="auth-field">
+              <span>描述</span>
+              <input
+                type="text"
+                value={createDesc}
+                onChange={(e) => setCreateDesc(e.target.value)}
+                placeholder="可选，简要描述技能用途"
+                disabled={creating}
+              />
+            </div>
+            <div className="auth-field">
+              <span>内容 <span style={{ color: 'var(--danger)' }}>*</span></span>
+              <textarea
+                value={createContent}
+                onChange={(e) => setCreateContent(e.target.value)}
+                placeholder="粘贴 Markdown 技能描述..."
+                disabled={creating}
+                rows={12}
+                style={{ resize: 'vertical', minHeight: 200 }}
+              />
+            </div>
+            <div className="auth-actions">
+              <button
+                className="btn"
+                onClick={() => { if (!creating) { setShowCreate(false); } }}
+                disabled={creating}
+              >
+                取消
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleCreate}
+                disabled={creating || !createName.trim() || !createContent.trim()}
+              >
+                {creating ? '创建中...' : '创建'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

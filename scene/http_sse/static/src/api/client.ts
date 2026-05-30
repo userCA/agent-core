@@ -1,6 +1,33 @@
 import type { SSEEvent, SessionMeta } from './types';
 import { API_BASE } from '../config';
 
+/* ------------------------------------------------------------------ */
+/* Retry helper                                                       */
+/* ------------------------------------------------------------------ */
+
+function isRetryableError(err: unknown): boolean {
+  if (err instanceof Error) {
+    if (err.name === 'AbortError' || err.name === 'DOMException') return false;
+    if (err.message.startsWith('HTTP 4')) return false;
+    return true;
+  }
+  return false;
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      lastErr = err;
+      if (i === retries || !isRetryableError(err)) throw err;
+      await new Promise((r) => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 export async function* streamChat(
   message: string,
   sessionId: string | null,
@@ -12,20 +39,22 @@ export async function* streamChat(
   if (sessionId) url.searchParams.set('session_id', sessionId);
   if (personaId) url.searchParams.set('persona_id', personaId);
 
-  const response = await fetch(url.toString(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders,
-    },
-    body: JSON.stringify({ message }),
-    signal,
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
-  }
+  const response = await withRetry(async () => {
+    const res = await fetch(url.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+      },
+      body: JSON.stringify({ message }),
+      signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+    }
+    return res;
+  }, 2, 1000);
 
   // lazy import to avoid circular dependency at module level
   const { parseSSEStream } = await import('./sse-parser');
@@ -90,16 +119,24 @@ export interface SkillInfo {
   description: string;
 }
 
+export interface ToolInfo {
+  name: string;
+  description: string;
+}
+
 export interface Capabilities {
   skills: SkillInfo[];
-  tools: string[];
+  tools: ToolInfo[];
 }
 
 export async function uploadFile(file: File): Promise<{ filename: string; path: string; size: number }> {
   const form = new FormData();
   form.append('file', file);
-  const response = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
-  if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
+  const response = await withRetry(async () => {
+    const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    return res;
+  }, 2, 1500);
   return response.json() as Promise<{ success: boolean; filename: string; path: string; size: number } & { success: boolean }>;
 }
 
@@ -217,21 +254,27 @@ export async function fetchKnowledgeDocs(): Promise<KnowledgeDoc[]> {
 export async function uploadKnowledgeFile(file: File): Promise<{ success: boolean; chunks: number }> {
   const form = new FormData();
   form.append('file', file);
-  const response = await fetch(`${API_BASE}/knowledge/upload`, {
-    method: 'POST',
-    body: form,
-  });
-  if (!response.ok) throw new Error(`Failed to upload: ${response.status}`);
+  const response = await withRetry(async () => {
+    const res = await fetch(`${API_BASE}/knowledge/upload`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!res.ok) throw new Error(`Failed to upload: ${res.status}`);
+    return res;
+  }, 2, 1500);
   return response.json() as Promise<{ success: boolean; chunks: number }>;
 }
 
 export async function uploadKnowledgeDoc(name: string, content: string): Promise<{ success: boolean; chunks: number }> {
-  const response = await fetch(`${API_BASE}/knowledge`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, content }),
-  });
-  if (!response.ok) throw new Error(`Failed to upload: ${response.status}`);
+  const response = await withRetry(async () => {
+    const res = await fetch(`${API_BASE}/knowledge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, content }),
+    });
+    if (!res.ok) throw new Error(`Failed to upload: ${res.status}`);
+    return res;
+  }, 2, 1000);
   return response.json() as Promise<{ success: boolean; chunks: number }>;
 }
 
