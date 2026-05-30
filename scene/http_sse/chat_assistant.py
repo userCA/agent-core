@@ -155,6 +155,14 @@ class ChatAssistant:
 
             tool_registry.register(_KBAdapter())
         tool_registry.register(ShowWidgetTool())
+
+        # Register Feishu CLI tool — agent can use lark-cli for Feishu operations
+        try:
+            from agent_core.tools.feishu_cli_tool import feishu_cli_tool
+            tool_registry.register(feishu_cli_tool)
+        except ImportError:
+            pass
+
         if tools:
             for tool in tools:
                 tool_registry.register(tool)

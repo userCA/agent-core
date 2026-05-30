@@ -51,6 +51,13 @@ manager = SessionManager(cwd=os.getcwd())
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await manager.start()
+    # Auto-start Feishu bots when channels are configured (default on)
+    if os.environ.get("FEISHU_BOT_ENABLED", "true").lower() != "false":
+        try:
+            from scene.feishu.server import start_channels
+            start_channels(manager)
+        except Exception:
+            pass
     yield
     await manager.dispose_all()
 

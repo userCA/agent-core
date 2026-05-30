@@ -33,6 +33,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 
 DEDUP_TTL = 24 * 3600
 DEDUP_PATH = Path(os.getcwd()) / ".pi" / "feishu_seen_ids.json"
+USER_MAP_PATH = Path(os.getcwd()) / ".pi" / "feishu_user_chat_ids.json"
 BATCH_DELAY = 0.6
 BATCH_MAX_CHARS = 4000
 
@@ -43,6 +44,25 @@ _main_loop: asyncio.AbstractEventLoop | None = None
 
 # Per-channel state: channel_id → {client, ws_client, ws_thread, data}
 _channels: dict[str, dict[str, Any]] = {}
+
+# ---- User → P2P chat_id mapping ----
+
+_user_chat_ids: dict[str, str] = {}
+
+def _load_user_chat_ids() -> None:
+    try:
+        _user_chat_ids.update(json.loads(USER_MAP_PATH.read_text(encoding="utf-8")))
+    except Exception:
+        pass
+
+def _save_user_chat_id(open_id: str, chat_id: str) -> None:
+    if open_id not in _user_chat_ids:
+        _user_chat_ids[open_id] = chat_id
+        try:
+            USER_MAP_PATH.parent.mkdir(parents=True, exist_ok=True)
+            USER_MAP_PATH.write_text(json.dumps(_user_chat_ids, ensure_ascii=False, indent=2))
+        except Exception:
+            pass
 
 # ---- Regex for format detection ----
 
@@ -112,10 +132,10 @@ def _build_post_payload(content: str) -> str:
     return json.dumps({"zh_cn": {"content": rows or [[{"tag": "text", "text": content}]]}}, ensure_ascii=False)
 
 
-# ---- Per-channel message sending ----
+# ---- Message sending via Lark SDK (full format control, low latency) ----
 
 def _send(channel_id: str, chat_id: str, content: str) -> str | None:
-    """Send message using the channel's Lark client."""
+    """Send message via Lark SDK. Supports text / post / interactive card."""
     import lark_oapi.api.im.v1 as v1
     ch = _channels.get(channel_id)
     if not ch:
@@ -142,14 +162,16 @@ def _send(channel_id: str, chat_id: str, content: str) -> str | None:
                .request_body(v1.CreateMessageRequestBody.builder()
                              .receive_id(chat_id).msg_type(fmt).content(payload).build()).build())
         resp = client.im.v1.message.create(req)
-        if resp.success(): return resp.data.message_id
+        if resp.success():
+            return resp.data.message_id
         if fmt != "text":
             fb = json.dumps({"text": content}, ensure_ascii=False)
             req2 = (v1.CreateMessageRequest.builder().receive_id_type(receive_type)
                     .request_body(v1.CreateMessageRequestBody.builder()
                                   .receive_id(chat_id).msg_type("text").content(fb).build()).build())
             resp2 = client.im.v1.message.create(req2)
-            if resp2.success(): return resp2.data.message_id
+            if resp2.success():
+                return resp2.data.message_id
         _log.error("[%s] Send failed: code=%s msg=%s", channel_id, resp.code, resp.msg)
     except Exception as e:
         _log.error("[%s] Send error: %s", channel_id, e)
@@ -266,7 +288,12 @@ async def _on_message(channel_id: str, data: lark.im.v1.P2ImMessageReceiveV1) ->
         chat_type = message.chat_type
         reply_to = message.chat_id if chat_type == "group" else open_id
 
-        _log.info("[%s] 📩 [%s] %s: %s", channel_id, chat_type, open_id[:12], text[:60])
+        _log.info("[%s] 📩 [%s] sender=%s chat_id=%s text=%s", channel_id, chat_type, open_id, message.chat_id, text[:60])
+
+        # Auto-register user → chat_id mapping for CLI use
+        if chat_type == "p2p" and open_id and message.chat_id:
+            _save_user_chat_id(open_id, message.chat_id)
+
         _enqueue_batch(channel_id, open_id, reply_to, text, chat_type)
     except Exception:
         _log.exception("[%s] _on_message", channel_id)
@@ -350,14 +377,28 @@ def _sync_channels() -> None:
         _stop_bot(rid)
 
 
-# ---- Main ----
+# ---- Public API (called from HTTP SSE server) ----
+
+def start_channels(mgr: SessionManager) -> None:
+    """Start all enabled Feishu channels. Called by HTTP SSE server at startup."""
+    global _main_loop, manager
+    manager = mgr
+    _main_loop = asyncio.get_running_loop()
+    _load_dedup()
+    _load_user_chat_ids()
+    _sync_channels()
+    _log.info("Feishu: %d bot(s) running — %s", len(_channels), list(_channels.keys()))
+
+
+# ---- Standalone entry ----
 
 def main() -> None:
     global _main_loop
     _main_loop = asyncio.get_event_loop()
     _main_loop.run_until_complete(manager.start())
     _load_dedup()
-    _log.info("Ready (dedup: %d ids)", len(_dedup_ids))
+    _load_user_chat_ids()
+    _log.info("Ready (dedup: %d ids, users: %d)", len(_dedup_ids), len(_user_chat_ids))
 
     # Start all enabled feishu channels
     _sync_channels()
