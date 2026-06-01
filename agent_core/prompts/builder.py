@@ -71,8 +71,13 @@ class SystemPromptBuilder:
             guideline_text = "\n".join(["", "## Guidelines", ""] + guidelines)
             sections.append(SystemPromptSection(name="guidelines", content=guideline_text))
 
-        # 4. Tool-specific guidelines
-        tool_guidelines: list[str] = []
+        # 4. Global tool output guidelines
+        tool_guidelines: list[str] = [
+            "判断工具结果是中间过程还是最终产物：",
+            "- 最终产物（图片、生成的文件、用户直接需要的内容）→ 必须在回复中原样包含，不要只描述",
+            "- 中间步骤（读文件用于推理、查状态、执行命令）→ 基于结果继续回答，不需要展示原始输出",
+        ]
+        # Tool-specific guidelines
         for tool in tools:
             for g in tool.prompt_guidelines:
                 tool_guidelines.append(f"- {g}")

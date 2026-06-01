@@ -3,7 +3,7 @@ import { useChatStore } from '../../stores/chat-store';
 import { useTypewriter } from '../../hooks/useTypewriter';
 import { getDisplayableText } from '../../utils/think';
 
-import StepsPanel from '../tools/StepsPanel';
+import BlocksRenderer from './BlocksRenderer';
 import WidgetFrame from '../tools/WidgetFrame';
 import AudioPlayer from '../tools/AudioPlayer';
 import HitlCard from '../hitl/HitlCard';
@@ -12,7 +12,7 @@ import './StreamingMessage.css';
 
 export default function StreamingMessage() {
   const {
-    currentText, steps,
+    currentText, streamBlocks,
     widgets, audios, hitlRequest,
     isStreaming, setHitlRequest,
   } = useChatStore();
@@ -81,9 +81,9 @@ export default function StreamingMessage() {
     wasStreaming.current = isStreaming;
   }, [isStreaming, typewriter]);
 
-  const hasContent = currentText.length > 0 || steps.length > 0;
+  const hasContent = currentText.length > 0 || streamBlocks.length > 0;
 
-  if (!hasContent && !hitlRequest && steps.length === 0) {
+  if (!hasContent && !hitlRequest && !streamBlocks.length) {
     return (
       <div className="msg-wrapper msg-assistant">
         <span className="msg-label">助手</span>
@@ -103,8 +103,8 @@ export default function StreamingMessage() {
       <span className="msg-label">助手</span>
       <div className={`bubble bubble-assistant streaming-bubble${!isStreaming ? ' fade-out' : ''}`}>
         <div className="msg-content">
-          <StepsPanel />
-          {isStreaming ? (
+          <BlocksRenderer blocks={streamBlocks} />
+          {isStreaming && !streamBlocks.length && (
             <div
               ref={contentRef}
               className="final-content markdown-body streaming"
@@ -112,10 +112,6 @@ export default function StreamingMessage() {
               aria-atomic="false"
               aria-label="AI 正在生成回复"
             />
-          ) : (
-            <div className="final-content markdown-body">
-              <Markdown text={getDisplayableText(currentText)} />
-            </div>
           )}
         </div>
 

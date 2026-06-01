@@ -164,6 +164,9 @@
 }
 
 /* Subtle "waiting for next step" indicator between steps */
+/* Text block within steps panel — aligned with timeline */
+.block-text { padding-left: 28px; }
+
 .step-waiting {
     padding: 4px 10px 4px 36px;
     font-size: 11px;

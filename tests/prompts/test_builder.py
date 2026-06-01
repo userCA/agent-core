@@ -130,8 +130,9 @@ def test_builder_sections_ordered():
     assert names == ["base", "tools", "guidelines", "tool_guidelines", "context_files", "skills", "meta"]
 
 
-def test_builder_empty_tools_no_guidelines():
+def test_builder_empty_tools_with_guidelines():
     builder = SystemPromptBuilder()
     result = builder.build(cwd="/tmp", active_tools=[])
-    assert "Guidelines" not in result.text
-    assert "Tool Guidelines" not in result.text
+    # Global guidelines are always present
+    assert "Tool Guidelines" in result.text
+    assert "最终产物" in result.text

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
 from agent_core.compaction.compactor import Compactor, CompactionResult
-from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
+from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd, ToolExecutionEnd
 from agent_core.core.messages import deserialize_message
 from agent_core.extensions.base import ExtensionContext, ExtensionRunner
 from agent_core.session.store import CompactionEntry, MessageEntry, SessionHeader, SessionStore
@@ -201,6 +201,8 @@ class AgentSession:
     async def _on_agent_event(self, evt: AgentEvent) -> None:
         if isinstance(evt, MessageEnd):
             await self._persist_message(evt.message)
+        elif isinstance(evt, ToolExecutionEnd):
+            await self._persist_tool_result(evt)
         elif isinstance(evt, AgentEnd):
             if self._compactor is not None:
                 await self._maybe_compact()
@@ -218,10 +220,37 @@ class AgentSession:
             message=message.model_dump(mode="json"),
             id=f"msg-{int(time.time() * 1000)}",
         )
+        await self._store_entry(entry)
+
+    async def _persist_tool_result(self, evt: ToolExecutionEnd) -> None:
+        """Persist tool results as tool_result messages in the session."""
+        result_text = ""
+        result = getattr(evt, "result", None)
+        if result and hasattr(result, "content"):
+            for item in result.content:
+                if hasattr(item, "text"):
+                    result_text = item.text
+                    break
+        elif result and hasattr(result, "text"):
+            result_text = result.text
+
+        entry = MessageEntry(
+            message={
+                "role": "tool_result",
+                "tool_call_id": evt.tool_call_id,
+                "tool_name": evt.tool_name,
+                "content": [{"type": "text", "text": result_text}] if result_text else [],
+                "is_error": getattr(evt, "is_error", False),
+            },
+            id=f"tool-{int(time.time() * 1000)}",
+        )
+        await self._store_entry(entry)
+
+    async def _store_entry(self, entry: MessageEntry) -> None:
         try:
             await self._store.append_entry(self._session_id, entry)
         except Exception as exc:
-            logger.warning("Failed to persist message for session %s: %s", self._session_id, exc)
+            logger.warning("Failed to persist entry for session %s: %s", self._session_id, exc)
 
     async def _maybe_compact(self) -> None:
         if self._compactor is None:

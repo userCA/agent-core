@@ -16,7 +16,6 @@ export default function ChatContainer({ onExampleClick }: Props) {
   const messages = useChatStore((s) => s.messages);
   const isStreaming = useChatStore((s) => s.isStreaming);
   const currentText = useChatStore((s) => s.currentText);
-  const steps = useChatStore((s) => s.steps);
   const welcomeVisible = useUIStore((s) => s.welcomeVisible) && messages.length === 0;
 
   // While StreamingMessage is fading out (after stream ends), hide the last
@@ -27,7 +26,7 @@ export default function ChatContainer({ onExampleClick }: Props) {
   const displayMessages = hideLastBubble ? messages.slice(0, -1) : messages;
 
   const { containerRef, onScroll, showButton, forceScrollToBottom } = useAutoScroll([
-    messages, currentText, steps.length,
+    messages, currentText,
   ]);
 
   return (

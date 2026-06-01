@@ -1,7 +1,7 @@
 import React from 'react';
 import type { ChatMessage } from '../../stores/chat-store';
 import Markdown from '../shared/Markdown';
-import StepsPanel from '../tools/StepsPanel';
+import BlocksRenderer from './BlocksRenderer';
 import WidgetFrame from '../tools/WidgetFrame';
 import AudioPlayer from '../tools/AudioPlayer';
 import Icon, { ICON_SIZES } from '../shared/Icon';
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function MessageBubble({ message }: Props) {
-  const { role, content, usage, toolCallId, steps, widgets, audios } = message;
+  const { role, content, usage, toolCallId, blocks, widgets, audios } = message;
 
   if (role === 'user') {
     return (
@@ -51,10 +51,11 @@ export default function MessageBubble({ message }: Props) {
       <span className="msg-label">助手</span>
       <div className="bubble bubble-assistant">
         <div className="msg-content">
-          {steps && steps.length > 0 && <StepsPanel steps={steps} />}
-          <div className="final-content">
-            <Markdown text={content} />
-          </div>
+          {blocks && blocks.length > 0 ? (
+            <BlocksRenderer blocks={blocks} />
+          ) : (
+            <div className="final-content"><Markdown text={content} /></div>
+          )}
         </div>
         {widgets?.map((w, i) => <WidgetFrame key={`w-${i}`} widget={w} />)}
         {audios?.map((a, i) => <AudioPlayer key={`a-${i}`} audio={a} />)}
