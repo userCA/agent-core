@@ -150,6 +150,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   switchSession: (id) => {
     set({ sessionId: id });
+    // Load historical messages for this session
+    import('./chat-store').then(({ useChatStore }) => {
+      const cs = useChatStore.getState();
+      cs.loadSessionMessages(id);
+    }).catch(() => {});
   },
 
   removeSession: (id) => {

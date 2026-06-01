@@ -211,6 +211,36 @@
     white-space: nowrap;
 }
 
+/* ---- Model selector ---- */
+.model-bar {
+    display: flex;
+    justify-content: flex-start;
+    padding: 2px 4px 0;
+    position: relative;
+}
+
+.model-pick {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    background: var(--surface-soft);
+    color: var(--body);
+    font-size: 11px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+}
+.model-pick:hover {
+    border-color: var(--hairline-strong);
+}
+
+.model-label {
+    color: var(--body);
+}
+
 /* Send button */
 .send-btn {
     display: flex;

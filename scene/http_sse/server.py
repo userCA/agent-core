@@ -28,6 +28,8 @@ from scene.http_sse.request_context import current_request_headers
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=100_000)
+    provider: str | None = Field(default=None, max_length=50)
+    model: str | None = Field(default=None, max_length=50)
 
 
 class KnowledgeDocRequest(BaseModel):
@@ -73,9 +75,14 @@ async def _event_stream(
     session_id: str | None,
     message: str,
     persona_id: str | None = None,
+    provider_name: str | None = None,
+    model_id: str | None = None,
 ) -> AsyncIterator[str]:
     """Yield SSE-formatted events for a chat turn."""
-    sid, assistant = await manager.get_or_create(session_id, persona_id=persona_id)
+    sid, assistant = await manager.get_or_create(
+        session_id, persona_id=persona_id,
+        provider_name=provider_name, model_id=model_id,
+    )
 
     # Send session_id first
     yield _format_sse({"event": "session_id", "session_id": sid})
@@ -99,7 +106,7 @@ async def _event_stream(
 
         # Wait until message_end arrives, then send done
         while True:
-            evt = await asyncio.wait_for(queue.get(), timeout=60.0)
+            evt = await asyncio.wait_for(queue.get(), timeout=600.0)
             if evt is None:
                 break
             data = agent_event_to_sse_json(evt)
@@ -107,7 +114,7 @@ async def _event_stream(
                 yield _format_sse(data)
             if isinstance(evt, AgentEnd):
                 break
-                
+
         # Ensure the task is completed
         await run_task
     except asyncio.TimeoutError:
@@ -125,7 +132,8 @@ async def chat_stream(request: Request, chat_request: ChatRequest) -> StreamingR
     persona_id = request.query_params.get("persona_id")
     current_request_headers.set(dict(request.headers))
     return StreamingResponse(
-        _event_stream(session_id, chat_request.message, persona_id=persona_id),
+        _event_stream(session_id, chat_request.message, persona_id=persona_id,
+                      provider_name=chat_request.provider, model_id=chat_request.model),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -513,6 +521,23 @@ async def remove_persona(request: Request) -> dict[str, Any]:
     return {"success": found}
 
 
+@app.get("/models")
+async def list_models() -> dict[str, Any]:
+    """List available model configurations."""
+    return {
+        "current": {
+            "provider": os.environ.get("AGENT_PROVIDER", "openai"),
+            "model": os.environ.get("AGENT_MODEL", "gpt-4o"),
+        },
+        "available": [
+            {"provider": "agnes", "model": "agnes-2.0-flash", "label": "Agnes 2.0 Flash", "desc": "256K context, fast agentic"},
+            {"provider": "minimax", "model": "minimax-m2.7", "label": "MiniMax M2.7", "desc": "256K context, 4K output"},
+            {"provider": "openai", "model": "gpt-4o", "label": "GPT-4o", "desc": "OpenAI flagship"},
+            {"provider": "anthropic", "model": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4", "desc": "Anthropic high-perf"},
+        ],
+    }
+
+
 @app.get("/capabilities")
 async def get_capabilities() -> dict[str, Any]:
     """Get available skills and tools (cached after first call)."""
@@ -616,6 +641,12 @@ DIST_ASSETS = os.path.join(DIST_DIR, "assets")
 # Serve built Vite assets if dist exists
 if os.path.isdir(DIST_ASSETS):
     app.mount("/assets", StaticFiles(directory=DIST_ASSETS), name="assets")
+
+# Serve local uploads for cached tool outputs (images, audio, etc.)
+UPLOADS_DIR = os.path.join(manager._cwd, ".pi", "uploads")
+if not os.path.isdir(UPLOADS_DIR):
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 
 @app.get("/")

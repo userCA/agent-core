@@ -8,6 +8,15 @@ const URL_RE = /(https?:\/\/[^\s]+)/g;
 export function renderToolResult(text: string): string {
   if (!text) return '';
 
+  // Multi-image URLs detection
+  const lines = text.trim().split('\n');
+  const allImages = lines.length > 1 && lines.every(l => IMG_EXTS.test(l.trim()));
+  if (allImages) {
+    return lines.map(url =>
+      `<img src="${escapeHtml(url.trim())}" alt="generated" class="result-img" />`
+    ).join('');
+  }
+
   // audio URL detection
   if (AUDIO_EXTS.test(text)) {
     return `<audio class="result-audio" controls src="${escapeHtml(text.trim())}"></audio>`;

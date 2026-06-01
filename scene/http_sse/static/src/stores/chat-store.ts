@@ -77,6 +77,7 @@ interface ChatState {
   resetSteps: () => void;
   reset: () => void;
   loadMessages: (rawMessages: Array<{ role: string; content: unknown; timestamp?: number }>) => void;
+  loadSessionMessages: (sessionId: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -159,6 +160,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       audios: [],
       hitlRequest: null,
     }),
+
+  loadSessionMessages: async (sessionId) => {
+    try {
+      const resp = await fetch(`/session?session_id=${encodeURIComponent(sessionId)}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.messages && data.messages.length > 0) {
+        get().loadMessages(data.messages);
+      }
+    } catch { /* best-effort */ }
+  },
 
   loadMessages: (rawMessages) => {
     const loaded: ChatMessage[] = [];

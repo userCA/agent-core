@@ -16,6 +16,7 @@ import KnowledgePage from './components/pages/KnowledgePage';
 import ChannelsPage from './components/pages/ChannelsPage';
 import ToastContainer from './components/shared/Toast';
 import ConfirmDialog from './components/shared/ConfirmDialog';
+import { useModelStore } from './stores/model-store';
 import './App.css';
 
 const VALID_PAGES = ['chat', 'skills', 'connectors', 'experts', 'knowledge', 'channels'];
@@ -23,13 +24,15 @@ const VALID_PAGES = ['chat', 'skills', 'connectors', 'experts', 'knowledge', 'ch
 export default function App() {
   const { sendMessage, abort } = useSSE();
   const loadAuth = useSessionStore((s) => s.loadAuth);
+  const loadModels = useModelStore((s) => s.loadModels);
   const authModalOpen = useUIStore((s) => s.authModalOpen);
   const activePage = useUIStore((s) => s.activePage);
   const setActivePage = useUIStore((s) => s.setActivePage);
 
   useEffect(() => {
     loadAuth();
-  }, [loadAuth]);
+    loadModels();
+  }, [loadAuth, loadModels]);
 
   // Sync activePage with browser back/forward buttons
   useEffect(() => {

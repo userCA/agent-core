@@ -34,6 +34,8 @@ export async function* streamChat(
   authHeaders: Record<string, string>,
   signal?: AbortSignal,
   personaId?: string | null,
+  providerId?: string | null,
+  modelId?: string | null,
 ): AsyncGenerator<SSEEvent> {
   const url = new URL(`${API_BASE}/chat/stream`, window.location.origin);
   if (sessionId) url.searchParams.set('session_id', sessionId);
@@ -46,7 +48,7 @@ export async function* streamChat(
         'Content-Type': 'application/json',
         ...authHeaders,
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, provider: providerId, model: modelId }),
       signal,
     });
     if (!res.ok) {

@@ -67,16 +67,21 @@ class SessionManager:
             _log.warning("Embedding model warm-up failed (pip install sentence-transformers?)")
 
     async def get_or_create(
-        self, session_id: str | None, persona_id: str | None = None
+        self, session_id: str | None, persona_id: str | None = None,
+        provider_name: str | None = None, model_id: str | None = None,
     ) -> tuple[str, ChatAssistant]:
         """Get an existing assistant or create a new one."""
         if session_id:
             _validate_session_id(session_id)
             existing = self._sessions.get(session_id)
             if existing is not None:
-                # If persona changed, recreate the assistant with the new config
+                # Check if persona or model changed → rebuild
                 current_pid = getattr(existing, '_persona_id', None)
-                if current_pid == persona_id:
+                current_provider = getattr(existing, '_provider_name', None)
+                current_model = getattr(existing, '_model_id', None)
+                if (current_pid == persona_id and
+                    current_provider == (provider_name or os.environ.get("AGENT_PROVIDER", "openai")) and
+                    current_model == (model_id or os.environ.get("AGENT_MODEL", "gpt-4o"))):
                     return session_id, existing
                 await self.dispose(session_id)
 
@@ -88,14 +93,18 @@ class SessionManager:
             existing = self._sessions.get(sid)
             if existing is not None:
                 current_pid = getattr(existing, '_persona_id', None)
-                if current_pid == persona_id:
+                current_provider = getattr(existing, '_provider_name', None)
+                current_model = getattr(existing, '_model_id', None)
+                if (current_pid == persona_id and
+                    current_provider == (provider_name or os.environ.get("AGENT_PROVIDER", "openai")) and
+                    current_model == (model_id or os.environ.get("AGENT_MODEL", "gpt-4o"))):
                     return sid, existing
                 await self.dispose(sid)
 
             store = JsonlStore(self._store_dir)
 
-            provider_name = os.environ.get("AGENT_PROVIDER", "openai")
-            model_id = os.environ.get("AGENT_MODEL", "gpt-4o")
+            provider_name = provider_name or os.environ.get("AGENT_PROVIDER", "openai")
+            model_id = model_id or os.environ.get("AGENT_MODEL", "gpt-4o")
             api_key_env = os.environ.get("AGENT_API_KEY_ENV")
 
             persona = get_persona(persona_id, cwd=self._cwd) if persona_id else None
@@ -110,8 +119,10 @@ class SessionManager:
                 persona=persona,
                 mcp_manager=self._mcp_manager,
             )
-            # Remember which persona was used to create this assistant
+            # Remember persona + model used to create this assistant
             assistant._persona_id = persona_id
+            assistant._provider_name = provider_name
+            assistant._model_id = model_id
             async with self._lock:
                 self._sessions[sid] = assistant
         self._create_locks.pop(sid, None)

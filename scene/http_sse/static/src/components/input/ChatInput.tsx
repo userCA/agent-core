@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { useChatStore } from '../../stores/chat-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useSkillStore } from '../../stores/skill-store';
+import { useModelStore } from '../../stores/model-store';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import Icon from '../shared/Icon';
 import './ChatInput.css';
@@ -19,16 +20,19 @@ export default function ChatInput({ onSend }: Props) {
   const enabled = useSkillStore((s) => s.enabled);
   const loadCapabilities = useSkillStore((s) => s.loadCapabilities);
   const visibleSkills = skills.filter((s) => enabled.has(s.name));
+  const { models, currentProvider, currentModel, loadModels, selectModel } = useModelStore();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const [showMore, setShowMore] = useState(false);
   const [showSkills, setShowSkills] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [showModels, setShowModels] = useState(false);
 
   useEffect(() => {
     loadCapabilities();
-  }, [loadCapabilities]);
+    loadModels();
+  }, [loadCapabilities, loadModels]);
 
   const handleSend = useCallback(() => {
     const text = inputValue.trim();
@@ -154,6 +158,28 @@ export default function ChatInput({ onSend }: Props) {
           rows={1}
           aria-label="消息输入框，按 Enter 发送，Shift+Enter 换行"
         />
+
+        <div className="model-bar">
+          <button className="model-pick" onClick={() => setShowModels(!showModels)} title="切换模型">
+            <span className="model-label">{models.find(m => m.provider === currentProvider && m.model === currentModel)?.label || `${currentProvider}/${currentModel}`}</span>
+            <Icon name="chevron-down" size={10} />
+          </button>
+          {showModels && (
+            <>
+              <div className="more-backdrop" onClick={() => setShowModels(false)} />
+              <div className="more-popover" style={{ bottom: 'auto', top: '100%', marginTop: 4 }}>
+                {models.map((m) => (
+                  <button key={`${m.provider}/${m.model}`}
+                    className={currentProvider === m.provider && currentModel === m.model ? 'active' : ''}
+                    onClick={() => { selectModel(m.provider, m.model); setShowModels(false); }}>
+                    <span style={{ fontWeight: 600 }}>{m.label}</span>
+                    <span style={{ fontSize: 10, color: 'var(--ash)', marginLeft: 8 }}>{m.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="input-actions">
           <div className="actions-left">
