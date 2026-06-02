@@ -19,7 +19,7 @@
 | 2026-05-28 | 31. 修复 SSE 流式输出被 agent_loop 缓冲的问题 | [2026-05-28.md](development-log/2026-05-28.md) |
 | 2026-05-29 | 32. 前端交互优化 P0-P2（侧边栏/欢迎页/工具栏/连接器/多角色）33. 历史消息格式修复 34. UI/UX 5 阶段审计优化 | [2026-05-29.md](development-log/2026-05-29.md) |
 | 2026-05-30 | 35. 暗色主题对比度修复 36. 技能创建功能 37. 工具描述 API 38. 工具展示优化 39. 全局设计一致性审查 | [2026-05-30.md](development-log/2026-05-30.md) |
-| 2026-06-02 | 47. ToolResultMessage 持久化字段缺失 48. get_or_create 误销毁 assistant 49. Agnes 视频工具 50. 历史 widget 渲染 51. widget 重复渲染 52. widget timeline 对齐 53. 切换会话保留流式状态 54. 模型选择器移到底部 | [2026-06-02.md](development-log/2026-06-02.md) |
+| 2026-06-02 | 47. ToolResultMessage 持久化字段缺失 48. get_or_create 误销毁 assistant 49. Agnes 视频工具 50. 历史 widget 渲染 51. widget 重复渲染 52. widget timeline 对齐 53. 切换会话保留流式状态 54. 模型选择器移到底部 55. 视频 API 字段修复+重试 56. 快速轮询+check 工具 57. 视频播放器渲染 58. UX 审查修复 | [2026-06-02.md](development-log/2026-06-02.md) |
 
 ---
 

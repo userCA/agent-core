@@ -49,6 +49,13 @@ export interface ToolEndEvent {
 export interface DisplayPayload {
   widget?: WidgetDisplay;
   audio?: AudioDisplay;
+  video?: VideoDisplay;
+}
+
+export interface VideoDisplay {
+  url: string;
+  size?: string;
+  seconds?: string;
 }
 
 export interface WidgetDisplay {

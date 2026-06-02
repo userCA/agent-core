@@ -172,8 +172,9 @@ class ChatAssistant:
 
         # Register Agnes Video tool — text-to-video, image-to-video, keyframes
         try:
-            from agent_core.tools.agnes_video_tool import agnes_video_tool
+            from agent_core.tools.agnes_video_tool import agnes_video_tool, check_video_tool
             tool_registry.register(agnes_video_tool)
+            tool_registry.register(check_video_tool)
         except ImportError:
             pass
 

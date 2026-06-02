@@ -243,15 +243,31 @@ if provider_name is not None and current_provider != provider_name:
 
 **真实案例（2026-06-02）：** `generate_video` 工具轮询最多 600s，期间零反馈。SSE 有 600s timeout。超时后返回 error → 模型看到错误可能重试 → 重复创建视频任务。
 
-**修复：**
-1. 轮询期间通过 `ctx.on_update` 定期（如每 15s）上报进度
-2. 超时不报错，返回 task_id 和"仍在处理中"状态，让用户后续查询
-3. `prompt_guidelines` 明确告知模型：不要重复调用此工具
-4. `tool_timeout` 设置为轮询时长 + buffer，不与 SSE timeout 重叠
+**修复（2026-06-02 更新）：**
+1. 不要在 `execute` 内长时间轮询。改为快查（≤30s），完成则返回结果，否则返回 task_id
+2. 额外提供独立的 `check_xxx_status` 工具让用户查询进度
+3. `prompt_guidelines` 明确告知模型：只调用一次，不重试
+4. 超时/未完成返回的是"可继续"的状态（含 task_id），不是错误
 
 **检查清单：**
-- 异步工具的 `timeout_seconds` < SSE timeout（600s）- 至少留 60s buffer
-- 轮询期间有进度上报（`ctx.on_update`）
-- 超时返回的是"可继续"的状态（含 task_id），不是错误
+- 异步工具 `execute` 耗时 ≤30s（快查窗口）
+- 提供独立的 `check_xxx_status` 工具用于查询进度
+- 两个工具输出格式一致，前端可统一解析
 - prompt_guidelines 告知模型不要重试
+```
+
+---
+
+## 规则 16：集成第三方 API —— 先本地验证响应字段
+
+**模式：** 根据 API 文档写代码，但实际响应字段名和文档不一致。轮询等待 `video_url` 字段但 API 返回的是 `remixed_from_video_id` → 永远匹配不到。
+
+**真实案例（2026-06-02）：** Agnes Video API 文档写返回 `video_url`，实际响应中是 `remixed_from_video_id`。工具轮询到 status=completed 但 `video_url` 为空 → 返回"未返回视频URL"。
+
+**规则：** 集成新的第三方 API 前，先写一个最小的 curl/Python 脚本测试实际响应格式，确认字段名后再写正式代码。
+
+**检查：**
+- 新增 API 集成 → 先跑一遍本地测试脚本
+- 验证所有需要读取的字段在实际响应中存在且格式正确
+- 测试脚本提交到 `tests/` 或保存为注释供后续参考
 ```

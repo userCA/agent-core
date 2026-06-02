@@ -345,3 +345,32 @@ for (let i = blocks.length - 1; i >= 0; i--) {
 - 确认 timeline 左侧圆点（`::before`，`left: 11px`）
 - 如果有内嵌 iframe/大内容，确认 `overflow: visible`
 ```
+
+---
+
+## 规则 17：工具结果渲染 —— 前端从文本解析，不依赖 display 字段
+
+**模式：** 后端 `ToolResult.display` 字段嵌入前端渲染逻辑（HTML/widget 结构），既增加了后端定制负担，又导致流式和历史走不同渲染路径。`display` 不持久化 → 历史消息丢失渲染。
+
+**真实案例（2026-06-02）：** 视频工具最初用 `display.video` 传递结构化数据，后来发现前端完全可以从 result text 中的 `.mp4` URL 正则提取。删掉 `display` 后，流式和历史走同一套文本解析逻辑，行为一致。
+
+**规则：** 后端只输出结构化文本（含 URL/关键字段），前端统一从文本内容解析并渲染。`display` 字段仅在 widget/audio 等无法从文本推断的场景使用。
+
+**检查清单：**
+- 新增工具结果渲染 → 先确认能否从文本内容解析（正则提取 URL、JSON 等）
+- 如果可以 → 不添加 `display` 字段，前端解析
+- 如果不行（如 widget HTML）→ 用 `display.widget`，并同时处理历史重建逻辑
+- 流式和历史必须走同一套渲染判断
+
+---
+
+## 规则 18：媒体元素 —— 默认 click-to-play，不自动播放
+
+**模式：** `<video autoplay loop>` 在聊天消息中自动播放，消耗流量和电量，违反可持续性 UX 规范。
+
+**真实案例（2026-06-02）：** 视频播放器 block 最初设置了 `autoPlay loop`，UX 审查发现不符合可持续性规范。
+
+**修复：** 改为 `controls` + `preload="metadata"`，用户点击后才播放。
+
+**规则：** 聊天消息中的 `<video>`/`<audio>` 默认 click-to-play，使用 `controls` + `preload="metadata"`，不加 `autoplay`。
+```

@@ -57,7 +57,7 @@
 .actions-right {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     position: relative;
 }
 
@@ -222,7 +222,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 2px 8px;
+    padding: 4px 8px;
     border: 1px solid var(--hairline);
     border-radius: var(--radius-sm);
     background: transparent;
@@ -231,7 +231,7 @@
     font-family: var(--font-mono);
     cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease;
-    height: 28px;
+    height: 32px;
 }
 .model-pick:hover {
     border-color: var(--hairline-strong);

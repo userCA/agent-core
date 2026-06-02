@@ -9,13 +9,16 @@ import { getDisplayableText } from '../utils/think';
 import type { SSEEvent } from '../api/types';
 
 interface _Block {
-  type: 'text' | 'think' | 'tool' | 'widget';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video';
   content?: string;
   toolName?: string;
   toolCallId?: string;
   status?: 'running' | 'done';
   isError?: boolean;
   widget?: any;
+  videoUrl?: string;
+  videoSize?: string;
+  videoSeconds?: string;
 }
 
 export function useSSE() {
@@ -87,6 +90,22 @@ export function useSSE() {
           blocks.push({ type: 'widget', widget: evt.display.widget as any, status: 'done' });
         }
         if (evt.display?.audio) addAudio(evt.display.audio);
+        // Detect video URL from result text (frontend parses instead of relying on display field)
+        if ((evt.tool_name === 'generate_video' || evt.tool_name === 'check_video_status') && evt.result) {
+          const vm = (evt.result as string).match(/https?:\/\/\S+\.mp4\b/);
+          if (vm) {
+            const sm = (evt.result as string).match(/分辨率\**:\s*(\S+)/);
+            const tm = (evt.result as string).match(/时长\**:\s*([\d.]+)s/);
+            blocks.push({
+              type: 'video',
+              content: vm[0],
+              videoUrl: vm[0],
+              videoSize: sm?.[1],
+              videoSeconds: tm?.[1],
+              status: 'done',
+            } as any);
+          }
+        }
         break;
       }
 
@@ -107,9 +126,13 @@ export function useSSE() {
       type: b.type,
       text: b.type === 'text' ? b.content : undefined,
       label: b.type === 'tool' ? b.toolName : undefined,
-      detail: b.content,
+      detail: b.type === 'video' ? (b as any).videoUrl : b.content,
       isError: b.isError,
       status: b.status as 'running' | 'done' | undefined,
+      videoUrl: b.type === 'video' ? (b as any).videoUrl : undefined,
+      videoSize: b.type === 'video' ? (b as any).videoSize : undefined,
+      videoSeconds: b.type === 'video' ? (b as any).videoSeconds : undefined,
+      widget: b.type === 'widget' ? (b as any).widget : undefined,
     } as MessageBlock)));
   }, [appendText, setStreamBlocks, addWidget, addAudio, setHitlRequest, setUsage, addMessage, setSessionId]);
 
@@ -158,6 +181,14 @@ export function useSSE() {
           msgBlocks.push({ type: 'tool', label: b.toolName, detail: c, isError: b.isError });
         } else if (b.type === 'widget') {
           msgBlocks.push({ type: 'widget', widget: (b as any).widget });
+        } else if (b.type === 'video') {
+          msgBlocks.push({
+            type: 'video',
+            videoUrl: (b as any).videoUrl,
+            videoSize: (b as any).videoSize,
+            videoSeconds: (b as any).videoSeconds,
+            detail: (b as any).videoUrl,
+          });
         }
       }
       const content = contentParts.join('').trim() || '(empty)';

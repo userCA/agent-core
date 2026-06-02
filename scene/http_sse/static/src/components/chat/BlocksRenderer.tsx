@@ -54,6 +54,46 @@ export default function BlocksRenderer({ blocks }: Props) {
           );
         }
 
+        if (b.type === 'video' && b.videoUrl) {
+          return (
+            <div key={i} className="block-widget">
+              <div className="video-container" style={{ margin: '8px 0' }}>
+                <video
+                  controls
+                  preload="metadata"
+                  style={{
+                    width: '100%',
+                    maxHeight: 480,
+                    borderRadius: 'var(--radius-sm)',
+                    background: '#000',
+                  }}
+                  src={b.videoUrl}
+                />
+                <div style={{
+                  marginTop: 6,
+                  fontSize: 12,
+                  color: 'var(--mute)',
+                  fontFamily: 'var(--font-mono)',
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'center',
+                }}>
+                  {b.videoSize && <span>{b.videoSize}</span>}
+                  {b.videoSeconds && <span>{b.videoSeconds}s</span>}
+                  <a
+                    href={b.videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    下载
+                  </a>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         const isThink = b.type === 'think';
         const label = isThink ? '思考过程' : (b.label || '工具');
         const icon = isThink ? 'think' : 'tool';

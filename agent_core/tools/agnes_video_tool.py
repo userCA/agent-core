@@ -15,9 +15,8 @@ from agent_core.tools.base import Tool, ToolContext, ToolDefinition, ToolResult
 API_BASE = "https://apihub.agnes-ai.com/v1/videos"
 API_KEY = os.environ.get("AGNES_API_KEY", "")
 REQUEST_TIMEOUT = 30
-POLL_INTERVAL = 8
-MAX_WAIT_SECONDS = 300
-PROGRESS_INTERVAL = 15  # report progress to frontend every N seconds
+QUICK_POLL_SECONDS = 30   # quick poll window before returning task_id
+QUICK_POLL_INTERVAL = 6   # short interval for quick checks
 
 VALID_FRAMES = {
     81, 121, 161, 201, 241, 281, 321, 361, 401, 441,
@@ -82,13 +81,14 @@ class AgnesVideoTool(Tool):
                 },
                 "required": ["prompt"],
             },
-            prompt_snippet="generate_video $ARGUMENTS — 生成视频，返回视频URL",
+            prompt_snippet="当用户要求生成视频、制作视频时，必须调用 generate_video 工具。只调用一次，等待结果。",
             prompt_guidelines=[
-                "生成视频后，必须在最终回复中包含视频URL，以便用户查看。",
-                "视频生成需要较长时间（通常1-5分钟），调用工具后耐心等待结果，不要重复调用。",
-                "如果工具返回了 task_id 而不是视频URL，说明视频仍在生成中，告知用户稍后可以询问进度，不要重试。",
+                "用户说'生成视频'时必须调用 generate_video，不要只描述而不调用。",
+                "只调用一次！返回结果后不要再调用第二次。",
+                "如果返回了视频URL，在回复中展示给用户。",
+                "如果返回了 task_id（视频仍在生成中），告诉用户'视频正在后台生成，预计2-5分钟，稍后可以让我检查进度'。",
             ],
-            timeout_seconds=MAX_WAIT_SECONDS + 30,
+            timeout_seconds=QUICK_POLL_SECONDS + 10,
         )
 
     async def execute(
@@ -107,6 +107,15 @@ class AgnesVideoTool(Tool):
         if not API_KEY:
             return ToolResult(
                 content=[TextContent(text="错误：未设置 AGNES_API_KEY 环境变量")]
+            )
+
+        # Validate: keyframes mode requires images
+        if mode == "keyframes" and not images and not image:
+            return ToolResult(
+                content=[TextContent(
+                    text="错误：关键帧模式（keyframes）必须提供 images 参数（至少2张图片URL）。"
+                    "请使用文字转视频模式（不传 mode 参数），或提供图片URL列表。"
+                )]
             )
 
         # Validate num_frames
@@ -161,21 +170,23 @@ class AgnesVideoTool(Tool):
                     content=[TextContent(text=f"创建视频任务失败: {json.dumps(data, ensure_ascii=False)}")]
                 )
 
-            # Poll for completion with progress reporting
+            # Quick poll: return result immediately if video completes fast,
+            # otherwise return task_id so the frontend doesn't block waiting.
             started = asyncio.get_event_loop().time()
-            last_progress = 0.0
+            last_status = ""
             async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
                 while True:
                     elapsed = asyncio.get_event_loop().time() - started
-                    if elapsed > MAX_WAIT_SECONDS:
+                    if elapsed > QUICK_POLL_SECONDS:
                         return ToolResult(
                             content=[TextContent(
-                                text=f"视频仍在生成中（已等待 {MAX_WAIT_SECONDS}s）。"
-                                f"任务ID: {task_id}，请稍后询问'检查视频 {task_id}的状态'。"
+                                text=f"视频任务已创建，正在后台生成中。"
+                                f"任务ID: {task_id}，当前状态: {last_status or 'queued'}。"
+                                f"通常需要2-5分钟，请告诉用户稍后询问进度。不要重复调用。"
                             )]
                         )
 
-                    await asyncio.sleep(POLL_INTERVAL)
+                    await asyncio.sleep(QUICK_POLL_INTERVAL)
 
                     poll_resp = await client.get(
                         f"{API_BASE}/{task_id}", headers=headers
@@ -184,32 +195,25 @@ class AgnesVideoTool(Tool):
                     poll_data = poll_resp.json()
 
                     status = poll_data.get("status", "")
-                    progress = poll_data.get("progress", 0)
-
-                    # Send progress update to frontend (works in sequential mode)
-                    if ctx and ctx.on_update and (elapsed - last_progress) >= PROGRESS_INTERVAL:
-                        last_progress = elapsed
-                        try:
-                            ctx.on_update(ToolResult(
-                                content=[TextContent(
-                                    text=f"视频生成中... {status} ({progress}%)"
-                                )]
-                            ))
-                        except Exception:
-                            pass
+                    last_status = status
 
                     if status == "completed":
-                        video_url = poll_data.get("video_url", "")
-                        seconds = poll_data.get("seconds", "?")
-                        size = poll_data.get("size", "?")
+                        video_url = (
+                            poll_data.get("remixed_from_video_id", "")
+                            or poll_data.get("video_url", "")
+                        )
                         if not video_url:
                             return ToolResult(
-                                content=[TextContent(text="生成完成但未返回视频URL")]
+                                content=[TextContent(
+                                    text=f"视频生成完成但未返回视频URL。"
+                                    f"任务ID: {task_id}，原始响应: {json.dumps(poll_data, ensure_ascii=False)}"
+                                )]
                             )
+                        seconds = poll_data.get("seconds", "?")
+                        size = poll_data.get("size", "?")
                         return ToolResult(
                             content=[TextContent(
-                                text=f"视频已生成！\n\n"
-                                f"![视频封面]({video_url})\n\n"
+                                text=f"视频已生成！\n"
                                 f"**视频URL**: {video_url}\n"
                                 f"**分辨率**: {size} | **时长**: {seconds}s"
                             )],
@@ -222,10 +226,12 @@ class AgnesVideoTool(Tool):
                             },
                         )
                     elif status == "failed":
+                        error_info = poll_data.get("error", "")
                         return ToolResult(
-                            content=[TextContent(text=f"视频生成失败。任务ID: {task_id}")]
+                            content=[TextContent(
+                                text=f"视频生成失败。任务ID: {task_id}，错误: {error_info}"
+                            )]
                         )
-                    # else: queued or in_progress — keep polling
 
         except httpx.HTTPStatusError as e:
             return ToolResult(
@@ -235,4 +241,82 @@ class AgnesVideoTool(Tool):
             return ToolResult(content=[TextContent(text=f"生成失败: {e}")])
 
 
+class CheckVideoTool(Tool):
+    """Query the status of a previously submitted video generation task."""
+
+    def __init__(self) -> None:
+        self.definition = ToolDefinition(
+            name="check_video_status",
+            description="查询视频生成任务的进度。传入 task_id，返回当前状态和视频URL（如已完成）。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "视频任务ID，由 generate_video 返回",
+                    },
+                },
+                "required": ["task_id"],
+            },
+            prompt_snippet="check_video_status $ARGUMENTS — 查询视频任务进度",
+            prompt_guidelines=[
+                "当用户问'视频好了吗'、'检查进度'时，调用此工具查询。",
+                "只调用一次。如果视频已完成，把URL展示给用户。",
+            ],
+            timeout_seconds=15,
+        )
+
+    async def execute(
+        self, tool_call_id: str, params: dict[str, Any], ctx: ToolContext | None
+    ) -> ToolResult:
+        task_id = params.get("task_id", "")
+        if not task_id:
+            return ToolResult(content=[TextContent(text="请提供 task_id")])
+
+        if not API_KEY:
+            return ToolResult(content=[TextContent(text="错误：未设置 AGNES_API_KEY")])
+
+        headers = {"Authorization": f"Bearer {API_KEY}"}
+        try:
+            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+                resp = await client.get(f"{API_BASE}/{task_id}", headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+
+            status = data.get("status", "?")
+            progress = data.get("progress", 0)
+
+            if status == "completed":
+                video_url = data.get("remixed_from_video_id", "") or data.get("video_url", "")
+                if video_url:
+                    return ToolResult(
+                        content=[TextContent(
+                            text=f"视频已生成！\n"
+                            f"**视频URL**: {video_url}\n"
+                            f"**分辨率**: {data.get('size', '?')} | **时长**: {data.get('seconds', '?')}s"
+                        )],
+                        details={
+                            "video_url": video_url,
+                            "task_id": task_id,
+                            "size": data.get("size"),
+                            "seconds": data.get("seconds"),
+                            "usage": data.get("usage", {}),
+                        },
+                    )
+                return ToolResult(content=[TextContent(
+                    text=f"视频已完成但未返回URL。任务ID: {task_id}"
+                )])
+            elif status == "failed":
+                return ToolResult(content=[TextContent(
+                    text=f"视频生成失败。任务ID: {task_id}，错误: {data.get('error', '')}"
+                )])
+            else:
+                return ToolResult(content=[TextContent(
+                    text=f"视频仍在生成中。状态: {status} ({progress}%)，任务ID: {task_id}"
+                )])
+        except Exception as e:
+            return ToolResult(content=[TextContent(text=f"查询失败: {e}")])
+
+
 agnes_video_tool = AgnesVideoTool()
+check_video_tool = CheckVideoTool()
