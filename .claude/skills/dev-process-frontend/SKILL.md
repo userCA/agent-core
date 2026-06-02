@@ -297,4 +297,51 @@ for await (const evt of gen) {
 □ git diff 已审查 —— 无意外改动的相邻代码
 □ 如果涉及 think.ts 或 useTypewriter.ts：测试了不完整 <think> 标签（流式边界情况）
 □ 如果涉及 StreamingMessage：确认流式期间没有调用 marked.parse / DOMPurify
+□ 新增输入元素：确认 :focus 有统一的 border-color + box-shadow 光圈
+```
+
+---
+
+## 规则 14：Block 匹配条件 —— 检查初始值不能依赖"空"判断
+
+**模式：** 加载历史消息时，关联 tool_result 到 tool block 的匹配逻辑用了 `!blk.detail` 条件。但 block 初始化时 `parseAssistantMessage` 已经把 tool_call args JSON 填入了 `detail`，条件永远不匹配 → tool_result 内容永远无法关联到对应 tool block。
+
+**真实案例（2026-06-02）：** `loadMessages` 中 `if (blk.type === 'tool' && !blk.detail)` 用来查找未填充结果的 tool block。但 `parseAssistantMessage` 创建 block 时 `detail: JSON.stringify(args || {})` 已赋非空值，`!blk.detail` 永假。
+
+**修复：** 改为按 `tool_name` 匹配（从 tool_result 消息中获取 `tool_name`）：
+```typescript
+for (let i = blocks.length - 1; i >= 0; i--) {
+    if (blocks[i].type === 'tool' && blocks[i].label === toolName) { ... }
+}
+```
+
+**检查：** 新增 block 类型时，确认其初始字段值和后续匹配/更新逻辑的条件不冲突。如果初始化时就填了某个字段，后续不能靠"该字段为空"来查找。
+
+---
+
+## 规则 15：渲染去重 —— 同一数据源只能在一处渲染
+
+**模式：** 同一数据（如 widget 列表）在多个组件中各 `map` 渲染一次，产生重复 UI 元素。widget 已在 `BlocksRenderer` 内按 block 顺序渲染，`StreamingMessage` 和 `MessageBubble` 又各自 `widgets.map` 渲染了一遍。
+
+**真实案例（2026-06-02）：** 流式期间 `useSSE.processEvent` 既调 `addWidget`（存 widgets 数组）又 push widget block（存 blocksRef）。`MessageBubble` 渲染 `BlocksRenderer`（含 widget block），又单独 `widgets.map`。widget 出现两次。
+
+**规则：** 每个数据实体只应有一条渲染路径。如果 `<BlocksRenderer>` 已渲染 blocks 中的所有类型，其他组件不应再单独遍历 `widgets`/`audios` 等数组渲染相同数据。
+
+**检查：** 新增渲染路径时，grep 同类型数据的其他 `.map` 渲染点。删掉冗余的。
+
+---
+
+## 规则 16：新增 Block Type —— 必须同步 CSS
+
+**模式：** 在 `BlocksRenderer` 中新增 block 类型（如 widget）时，忘了加对应的 CSS 类。新 block 没有 `padding-left` 对齐 timeline，和其他 block 视觉错位。
+
+**真实案例（2026-06-02）：** widget block 最初直接渲染 `<WidgetFrame>`，没有 wrapper。timeline 在左侧 28px，widget 从 0px 开始 → 和 timeline 重叠、和其他 block 不对齐。
+
+**修复：** 新增 `.block-widget` CSS 类：`padding-left: 28px` 对齐 timeline，`::before` 左侧圆点，`overflow: visible` 防裁剪。
+
+**检查清单：**
+- 新增 block type → 在 `StepsPanel.css` 中新增对应 `.block-xxx` 类
+- 确认 `padding-left: 28px`（和其他 block 一致）
+- 确认 timeline 左侧圆点（`::before`，`left: 11px`）
+- 如果有内嵌 iframe/大内容，确认 `overflow: visible`
 ```
