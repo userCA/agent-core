@@ -170,6 +170,13 @@ class ChatAssistant:
         except ImportError:
             pass
 
+        # Register Agnes Video tool — text-to-video, image-to-video, keyframes
+        try:
+            from agent_core.tools.agnes_video_tool import agnes_video_tool
+            tool_registry.register(agnes_video_tool)
+        except ImportError:
+            pass
+
         if tools:
             for tool in tools:
                 tool_registry.register(tool)

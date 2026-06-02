@@ -62,8 +62,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-sm);
   background: transparent;
@@ -357,12 +357,12 @@
 }
 
 .session-delete {
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   margin-right: 6px;
   padding: 0;
   border: none;
@@ -371,10 +371,12 @@
   color: var(--ash);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
+  opacity: 0;
 }
 
-.session-item:hover .session-delete {
-  display: flex;
+.session-item:hover .session-delete,
+.session-item:focus-within .session-delete {
+  opacity: 1;
 }
 
 .session-delete:hover {

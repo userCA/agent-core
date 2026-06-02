@@ -72,7 +72,6 @@ export default function Sidebar() {
     setLoadingId(id);
     try {
       switchSession(id);
-      resetChat();
       setWelcomeVisible(false);
       const messages = await fetchSessionMessages(id);
       useChatStore.getState().loadMessages(messages);

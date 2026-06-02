@@ -7,11 +7,13 @@ import { extractThinkSteps, getDisplayableText } from '../utils/think';
 /* ------------------------------------------------------------------ */
 
 export interface MessageBlock {
-  type: 'text' | 'think' | 'tool';
+  type: 'text' | 'think' | 'tool' | 'widget';
   text?: string;
   label?: string;
   detail?: string;
   isError?: boolean;
+  status?: 'running' | 'done';
+  widget?: WidgetDisplay;
 }
 
 export interface ChatMessage {
@@ -208,16 +210,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ]) || currentAssistant.content;
         }
       } else if (role === 'tool_result') {
-        // Match tool_result to the last tool block in currentAssistant
-        const tcId = (msg as Record<string, unknown>).tool_call_id as string || '';
         const content = extractTextContent(msg.content);
-        if (currentAssistant?.blocks && content) {
+        if (currentAssistant?.blocks) {
+          const toolName = (msg as Record<string, unknown>).tool_name as string;
+          // Find matching tool block (reverse order, by tool name match)
+          let toolBlk: MessageBlock | undefined;
           for (let i = currentAssistant.blocks.length - 1; i >= 0; i--) {
-            const blk = currentAssistant.blocks[i];
-            if (blk.type === 'tool' && !blk.detail) {
-              blk.detail = content;
-              blk.isError = Boolean((msg as Record<string, unknown>).is_error);
+            const b = currentAssistant.blocks[i];
+            if (b.type === 'tool' && b.label === toolName) {
+              toolBlk = b;
               break;
+            }
+          }
+          if (toolBlk) {
+            // If show_widget, reconstruct widget block from persisted tool_call args
+            if (toolName === 'show_widget' && toolBlk.detail) {
+              try {
+                const args = JSON.parse(toolBlk.detail);
+                if (args.html) {
+                  currentAssistant.blocks.push({
+                    type: 'widget',
+                    widget: {
+                      version: 1,
+                      html: args.html as string,
+                      title: args.title as string | undefined,
+                      height: Math.min(Number(args.height) || 400, 1200),
+                    },
+                  });
+                }
+              } catch { /* args JSON parse failed, skip widget */ }
+            }
+            // Replace args with result content
+            if (content) {
+              toolBlk.detail = content;
+              toolBlk.isError = Boolean((msg as Record<string, unknown>).is_error);
             }
           }
         }

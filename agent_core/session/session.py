@@ -241,6 +241,7 @@ class AgentSession:
                 "tool_name": evt.tool_name,
                 "content": [{"type": "text", "text": result_text}] if result_text else [],
                 "is_error": getattr(evt, "is_error", False),
+                "timestamp": time.time(),
             },
             id=f"tool-{int(time.time() * 1000)}",
         )

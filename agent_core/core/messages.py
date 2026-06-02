@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, Field, TypeAdapter
@@ -57,9 +58,10 @@ class AssistantMessage(BaseModel):
 class ToolResultMessage(BaseModel):
     role: Literal["tool_result"] = "tool_result"
     tool_call_id: str
+    tool_name: str | None = None
     content: list[TextContent | ImageContent]
     is_error: bool = False
-    timestamp: float
+    timestamp: float = Field(default_factory=time.time)
 
 
 class CustomMessage(BaseModel):

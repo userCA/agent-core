@@ -1,19 +1,30 @@
 import React, { useEffect, useRef, useCallback } from 'react';
-import { useChatStore } from '../../stores/chat-store';
+import { useChatStore, type MessageBlock } from '../../stores/chat-store';
 import { useTypewriter } from '../../hooks/useTypewriter';
 import { getDisplayableText } from '../../utils/think';
 
 import BlocksRenderer from './BlocksRenderer';
-import WidgetFrame from '../tools/WidgetFrame';
 import AudioPlayer from '../tools/AudioPlayer';
 import HitlCard from '../hitl/HitlCard';
-import Markdown from '../shared/Markdown';
 import './StreamingMessage.css';
+
+function StatusBar({ blocks }: { blocks: MessageBlock[] }) {
+  const running = blocks.find(b => b.status === 'running');
+  const label = running
+    ? running.type === 'tool' ? `正在调用 ${running.label || '工具'}...` : '思考中...'
+    : '处理中...';
+  return (
+    <div className="status-bar">
+      <span className="orbit-dots"><i /><i /><i /><i /><i /><i /></span>
+      <span className="status-text">{label}</span>
+    </div>
+  );
+}
 
 export default function StreamingMessage() {
   const {
     currentText, streamBlocks,
-    widgets, audios, hitlRequest,
+    audios, hitlRequest,
     isStreaming, setHitlRequest,
   } = useChatStore();
 
@@ -89,9 +100,8 @@ export default function StreamingMessage() {
         <span className="msg-label">助手</span>
         <div className="bubble bubble-assistant streaming-bubble">
           <div className="thinking-indicator">
-            <span className="thinking-dot" />
-            <span className="thinking-dot" />
-            <span className="thinking-dot" />
+            <span className="orbit-dots"><i /><i /><i /><i /><i /><i /></span>
+            <span className="status-text">思考中...</span>
           </div>
         </div>
       </div>
@@ -103,19 +113,25 @@ export default function StreamingMessage() {
       <span className="msg-label">助手</span>
       <div className={`bubble bubble-assistant streaming-bubble${!isStreaming ? ' fade-out' : ''}`}>
         <div className="msg-content">
-          <BlocksRenderer blocks={streamBlocks} />
-          {isStreaming && !streamBlocks.length && (
-            <div
-              ref={contentRef}
-              className="final-content markdown-body streaming"
-              aria-live="polite"
-              aria-atomic="false"
-              aria-label="AI 正在生成回复"
-            />
+          {streamBlocks.length > 0 ? (
+            <BlocksRenderer blocks={streamBlocks} />
+          ) : isStreaming ? (
+            <div className="steps-panel">
+              <div className="step-section active">
+                <div className="section-summary">
+                  <span className="section-label">
+                    <span className="orbit-dots"><i /><i /><i /><i /><i /><i /></span>
+                    思考中...
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {streamBlocks.length > 0 && isStreaming && (
+            <StatusBar blocks={streamBlocks} />
           )}
         </div>
 
-        {widgets.map((w, i) => <WidgetFrame key={`w-${i}`} widget={w} />)}
         {audios.map((a, i) => <AudioPlayer key={`a-${i}`} audio={a} />)}
 
         {hitlRequest && (

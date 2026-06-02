@@ -66,6 +66,25 @@ class SessionManager:
         except Exception:
             _log.warning("Embedding model warm-up failed (pip install sentence-transformers?)")
 
+    @staticmethod
+    def _should_rebuild(
+        existing: ChatAssistant,
+        persona_id: str | None,
+        provider_name: str | None,
+        model_id: str | None,
+    ) -> bool:
+        """Return True only when the caller explicitly requests a different config."""
+        current_pid = getattr(existing, '_persona_id', None)
+        current_provider = getattr(existing, '_provider_name', None)
+        current_model = getattr(existing, '_model_id', None)
+        if persona_id is not None and current_pid != persona_id:
+            return True
+        if provider_name is not None and current_provider != provider_name:
+            return True
+        if model_id is not None and current_model != model_id:
+            return True
+        return False
+
     async def get_or_create(
         self, session_id: str | None, persona_id: str | None = None,
         provider_name: str | None = None, model_id: str | None = None,
@@ -75,13 +94,7 @@ class SessionManager:
             _validate_session_id(session_id)
             existing = self._sessions.get(session_id)
             if existing is not None:
-                # Check if persona or model changed → rebuild
-                current_pid = getattr(existing, '_persona_id', None)
-                current_provider = getattr(existing, '_provider_name', None)
-                current_model = getattr(existing, '_model_id', None)
-                if (current_pid == persona_id and
-                    current_provider == (provider_name or os.environ.get("AGENT_PROVIDER", "openai")) and
-                    current_model == (model_id or os.environ.get("AGENT_MODEL", "gpt-4o"))):
+                if not self._should_rebuild(existing, persona_id, provider_name, model_id):
                     return session_id, existing
                 await self.dispose(session_id)
 
@@ -92,12 +105,7 @@ class SessionManager:
             # Re-check inside lock
             existing = self._sessions.get(sid)
             if existing is not None:
-                current_pid = getattr(existing, '_persona_id', None)
-                current_provider = getattr(existing, '_provider_name', None)
-                current_model = getattr(existing, '_model_id', None)
-                if (current_pid == persona_id and
-                    current_provider == (provider_name or os.environ.get("AGENT_PROVIDER", "openai")) and
-                    current_model == (model_id or os.environ.get("AGENT_MODEL", "gpt-4o"))):
+                if not self._should_rebuild(existing, persona_id, provider_name, model_id):
                     return sid, existing
                 await self.dispose(sid)
 

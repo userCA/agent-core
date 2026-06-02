@@ -9,12 +9,13 @@ import { getDisplayableText } from '../utils/think';
 import type { SSEEvent } from '../api/types';
 
 interface _Block {
-  type: 'text' | 'think' | 'tool';
-  content: string;
+  type: 'text' | 'think' | 'tool' | 'widget';
+  content?: string;
   toolName?: string;
   toolCallId?: string;
   status?: 'running' | 'done';
   isError?: boolean;
+  widget?: any;
 }
 
 export function useSSE() {
@@ -81,7 +82,10 @@ export function useSSE() {
       case 'tool_end': {
         const b = blocks.find(blk => blk.toolCallId === evt.tool_call_id && blk.type === 'tool');
         if (b) { b.content = evt.result; b.status = 'done'; b.isError = evt.is_error; }
-        if (evt.display?.widget) addWidget(evt.display.widget);
+        if (evt.display?.widget) {
+          addWidget(evt.display.widget);
+          blocks.push({ type: 'widget', widget: evt.display.widget as any, status: 'done' });
+        }
         if (evt.display?.audio) addAudio(evt.display.audio);
         break;
       }
@@ -105,6 +109,7 @@ export function useSSE() {
       label: b.type === 'tool' ? b.toolName : undefined,
       detail: b.content,
       isError: b.isError,
+      status: b.status as 'running' | 'done' | undefined,
     } as MessageBlock)));
   }, [appendText, setStreamBlocks, addWidget, addAudio, setHitlRequest, setUsage, addMessage, setSessionId]);
 
@@ -143,13 +148,16 @@ export function useSSE() {
       const msgBlocks: import('../stores/chat-store').MessageBlock[] = [];
 
       for (const b of blocks) {
+        const c = b.content || '';
         if (b.type === 'text') {
-          contentParts.push(b.content);
-          msgBlocks.push({ type: 'text', text: b.content });
+          contentParts.push(c);
+          msgBlocks.push({ type: 'text', text: c });
         } else if (b.type === 'think') {
-          msgBlocks.push({ type: 'think', detail: b.content });
+          msgBlocks.push({ type: 'think', detail: c });
         } else if (b.type === 'tool') {
-          msgBlocks.push({ type: 'tool', label: b.toolName, detail: b.content, isError: b.isError });
+          msgBlocks.push({ type: 'tool', label: b.toolName, detail: c, isError: b.isError });
+        } else if (b.type === 'widget') {
+          msgBlocks.push({ type: 'widget', widget: (b as any).widget });
         }
       }
       const content = contentParts.join('').trim() || '(empty)';

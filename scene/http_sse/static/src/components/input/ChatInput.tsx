@@ -159,28 +159,6 @@ export default function ChatInput({ onSend }: Props) {
           aria-label="消息输入框，按 Enter 发送，Shift+Enter 换行"
         />
 
-        <div className="model-bar">
-          <button className="model-pick" onClick={() => setShowModels(!showModels)} title="切换模型">
-            <span className="model-label">{models.find(m => m.provider === currentProvider && m.model === currentModel)?.label || `${currentProvider}/${currentModel}`}</span>
-            <Icon name="chevron-down" size={10} />
-          </button>
-          {showModels && (
-            <>
-              <div className="more-backdrop" onClick={() => setShowModels(false)} />
-              <div className="more-popover" style={{ bottom: 'auto', top: '100%', marginTop: 4 }}>
-                {models.map((m) => (
-                  <button key={`${m.provider}/${m.model}`}
-                    className={currentProvider === m.provider && currentModel === m.model ? 'active' : ''}
-                    onClick={() => { selectModel(m.provider, m.model); setShowModels(false); }}>
-                    <span style={{ fontWeight: 600 }}>{m.label}</span>
-                    <span style={{ fontSize: 10, color: 'var(--ash)', marginLeft: 8 }}>{m.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
         <div className="input-actions">
           <div className="actions-left">
             <button
@@ -199,6 +177,27 @@ export default function ChatInput({ onSend }: Props) {
             >
               <Icon name="plus" size={16} />
             </button>
+            <div className="model-bar">
+              <button className="model-pick" onClick={() => setShowModels(!showModels)} title="切换模型">
+                <span className="model-label">{models.find(m => m.provider === currentProvider && m.model === currentModel)?.label || `${currentProvider}/${currentModel}`}</span>
+                <Icon name="chevron-down" size={10} />
+              </button>
+              {showModels && (
+                <>
+                  <div className="more-backdrop" onClick={() => setShowModels(false)} />
+                  <div className="more-popover" style={{ bottom: '100%', top: 'auto', marginBottom: 6 }}>
+                    {models.map((m) => (
+                      <button key={`${m.provider}/${m.model}`}
+                        className={currentProvider === m.provider && currentModel === m.model ? 'active' : ''}
+                        onClick={() => { selectModel(m.provider, m.model); setShowModels(false); }}>
+                        <span style={{ fontWeight: 600 }}>{m.label}</span>
+                        <span style={{ fontSize: 10, color: 'var(--ash)', marginLeft: 8 }}>{m.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
 
             {showMore && (
               <>

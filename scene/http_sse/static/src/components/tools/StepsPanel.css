@@ -167,6 +167,25 @@
 /* Text block within steps panel — aligned with timeline */
 .block-text { padding-left: 28px; }
 
+/* Widget block within steps panel — aligned with timeline, no step chrome */
+.block-widget {
+    padding-left: 28px;
+    position: relative;
+    overflow: visible;
+}
+
+.block-widget::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 12px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--ink);
+    border: 1px solid var(--hairline-strong);
+}
+
 .step-waiting {
     padding: 4px 10px 4px 36px;
     font-size: 11px;

@@ -48,6 +48,12 @@
     max-width: 100%;
 }
 
+@media (min-width: 1024px) {
+    .bubble-assistant {
+        max-width: 720px;
+    }
+}
+
 .bubble-assistant:hover {
     border-color: var(--hairline-strong);
     background: var(--surface-card);
