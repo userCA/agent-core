@@ -222,7 +222,7 @@ async def _stream_assistant(
     tool_buffers: dict[str, dict[str, Any]] = {}
     error_message: str | None = None
 
-    stream = config.provider.stream(
+    stream = config.stream_fn(
         model=config.model,
         messages=llm_messages,
         tools=tool_defs,

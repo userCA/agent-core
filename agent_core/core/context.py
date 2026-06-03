@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal, Union
 
 from agent_core.core.messages import AgentMessage
 from agent_core.providers.auth import ProviderAuth
-from agent_core.providers.base import ModelProvider
 from agent_core.providers.types import Model
 
 if TYPE_CHECKING:
@@ -40,8 +39,8 @@ class AgentContext:
 
 @dataclass
 class AgentLoopConfig:
-    provider: ModelProvider
     model: Model
+    stream_fn: Any  # Callable returning AsyncIterator[StreamEvent]
     convert_to_llm: ConvertToLlm
     auth_resolver: AuthResolver
     transform_context: TransformContext | None = None

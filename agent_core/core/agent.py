@@ -26,7 +26,7 @@ from agent_core.core.events import (
 )
 from agent_core.core.human_input import HumanInputGate
 from agent_core.core.loop import agent_loop
-from agent_core.core.messages import AssistantMessage, ToolResultMessage, UserMessage
+from agent_core.core.messages import AssistantMessage, ToolResultMessage, Usage, UserMessage
 from agent_core.core.queue import PendingMessageQueue, QueueMode
 from agent_core.core.state import AgentState
 from agent_core.providers.auth import AuthSource
@@ -87,6 +87,7 @@ class Agent:
         self._listeners: list[Listener] = []
         self._active_run: asyncio.Task | None = None
         self._abort_event: asyncio.Event | None = None
+        self._pending_tool_calls: set[str] = set()
 
         # Hook chains — primary (constructor) + additional (registered)
         self._before_hooks: list[Any] = []
@@ -95,16 +96,14 @@ class Agent:
         self._after_hooks: list[Any] = []
         if after_tool_call is not None:
             self._after_hooks.append(after_tool_call)
+        self._before_agent_start_hooks: list[Any] = []
         self._transform_hooks: list[Any] = []
         if transform_context is not None:
             self._transform_hooks.append(transform_context)
 
-    # ---------- MCP tools ----------
-    async def setup_mcp_tools(self, mcp_manager: Any | None = None) -> int:
-        """Register MCP tools from env or a pre-loaded manager. Call once after init.
+    # ── MCP tools ───────────────────────────────────────────────────
 
-        Returns the number of MCP tools registered.
-        """
+    async def setup_mcp_tools(self, mcp_manager: Any | None = None) -> int:
         if mcp_manager is None:
             from agent_core.tools.mcp_tool import MCPManager
             mcp_manager = MCPManager.from_env()
@@ -114,7 +113,21 @@ class Agent:
             return mcp_manager.register_tools(self._tool_registry)
         return 0
 
-    # ---------- subscriptions ----------
+    # ── public API ──────────────────────────────────────────────────
+
+    @property
+    def signal(self) -> asyncio.Event | None:
+        """The abort signal for the current run, or None if idle."""
+        return self._abort_event
+
+    @property
+    def pending_tool_calls(self) -> set[str]:
+        """Tool call IDs currently executing."""
+        return self._pending_tool_calls
+
+    def has_queued_messages(self) -> bool:
+        return self._steering.has_items() or self._follow_up.has_items()
+
     def subscribe(self, listener: Listener) -> Unsubscribe:
         self._listeners.append(listener)
 
@@ -126,7 +139,6 @@ class Agent:
 
         return _unsub
 
-    # ---------- queues ----------
     def steer(self, message: Any) -> None:
         self._steering.enqueue(message)
 
@@ -134,10 +146,6 @@ class Agent:
         self._follow_up.enqueue(message)
 
     def provide_human_input(self, tool_call_id: str, values: dict[str, Any]) -> bool:
-        """Resume a tool that is waiting for human input.
-
-        Returns True if the input was accepted (a pending future existed).
-        """
         return self._human_input_gate.provide_input(tool_call_id, values)
 
     def clear_all_queues(self) -> None:
@@ -160,33 +168,22 @@ class Agent:
     def followup_mode(self, mode: QueueMode) -> None:
         self._follow_up.mode = mode
 
-    # ---------- hook registration ----------
-    def add_before_tool_call_hook(self, hook: Any) -> None:
-        """Register a hook that runs before each tool call.
+    # ── hooks ───────────────────────────────────────────────────────
 
-        Hooks run in registration order. A hook may return:
-        - ``{"block": True, "reason": "..."}`` to prevent the tool call
-        - ``{"inject_metadata": {...}}`` to inject metadata into the ToolContext
-        - ``None`` to allow the call unchanged
-        """
+    def add_before_agent_start_hook(self, hook: Any) -> None:
+        self._before_agent_start_hooks.append(hook)
+
+    def add_before_tool_call_hook(self, hook: Any) -> None:
         self._before_hooks.append(hook)
 
     def add_after_tool_call_hook(self, hook: Any) -> None:
-        """Register a hook that runs after each tool call.
-
-        Hooks run in registration order. A hook may return
-        ``{"result": {"content": [...], "details": {...}}}`` to mutate the result.
-        """
         self._after_hooks.append(hook)
 
     def add_transform_context_hook(self, hook: Any) -> None:
-        """Register a hook that transforms the LLM message list before each turn.
-
-        Hooks run in registration order, each receiving the output of the previous.
-        """
         self._transform_hooks.append(hook)
 
-    # ---------- control ----------
+    # ── control ─────────────────────────────────────────────────────
+
     def abort(self) -> None:
         if self._abort_event is not None:
             self._abort_event.set()
@@ -205,8 +202,10 @@ class Agent:
         )
         self._steering.clear()
         self._follow_up.clear()
+        self._pending_tool_calls.clear()
 
-    # ---------- run ----------
+    # ── run ─────────────────────────────────────────────────────────
+
     async def prompt(
         self,
         text_or_message: Any,
@@ -229,6 +228,8 @@ class Agent:
             raise RuntimeError(f"Cannot continue from message with role={getattr(last, 'role', 'unknown')}.")
         await self._run([], continuation=True, compact_callback=compact_callback)
 
+    # ── internal ────────────────────────────────────────────────────
+
     def _normalize_input(
         self, text_or_message: Any, images: list[ImageContent] | None
     ) -> Any:
@@ -239,8 +240,45 @@ class Agent:
             return UserMessage(content=content, timestamp=time.time())
         return text_or_message
 
-    async def _run(self, new_messages: list[Any], *, continuation: bool, compact_callback: Any | None = None) -> None:
+    def _stream_fn(self):
+        """Return the provider's stream method — loop calls it directly."""
+        return self._provider.stream
+
+    def _create_loop_config(
+        self, *, compact_callback: Any | None = None
+    ) -> AgentLoopConfig:
+        async def auth_resolver(provider_name: str):
+            return await self._auth_source.resolve(provider_name)
+
+        return AgentLoopConfig(
+            model=self.state.model,
+            stream_fn=self._stream_fn(),
+            convert_to_llm=self._convert_to_llm,
+            auth_resolver=auth_resolver,
+            transform_context=self._chain_transform_hooks(),
+            thinking_level=self.state.thinking_level,
+            tool_execution=self._tool_execution,
+            tool_registry=self._tool_registry,
+            before_tool_call=self._chain_before_hooks(),
+            after_tool_call=self._chain_after_hooks(),
+            tool_timeout=self._tool_timeout,
+            max_turns=self._max_turns,
+            max_retries=self._max_retries,
+            retry_base_delay=self._retry_base_delay,
+            retry_max_delay=self._retry_max_delay,
+            compact_callback=compact_callback or self._compact_callback,
+            mutation_queue=FileMutationQueue(),
+            tool_result_max_chars=self._tool_result_max_chars,
+            get_steering_messages=self._drain_steering,
+            get_follow_up_messages=self._drain_follow_up,
+            human_input_gate=self._human_input_gate,
+        )
+
+    async def _run(
+        self, new_messages: list[Any], *, continuation: bool, compact_callback: Any | None = None
+    ) -> None:
         self._abort_event = asyncio.Event()
+        self._pending_tool_calls.clear()
         self.state.is_streaming = True
         self.state.error_message = None
 
@@ -250,33 +288,18 @@ class Agent:
                 messages=list(self.state.messages),
                 tools=list(self.state.tools),
             )
+            config = self._create_loop_config(compact_callback=compact_callback)
 
-            async def auth_resolver(provider_name: str):
-                return await self._auth_source.resolve(provider_name)
-
-            config = AgentLoopConfig(
-                provider=self._provider,
-                model=self.state.model,
-                convert_to_llm=self._convert_to_llm,
-                auth_resolver=auth_resolver,
-                transform_context=self._chain_transform_hooks(),
-                thinking_level=self.state.thinking_level,
-                tool_execution=self._tool_execution,
-                tool_registry=self._tool_registry,
-                before_tool_call=self._chain_before_hooks(),
-                after_tool_call=self._chain_after_hooks(),
-                tool_timeout=self._tool_timeout,
-                max_turns=self._max_turns,
-                max_retries=self._max_retries,
-                retry_base_delay=self._retry_base_delay,
-                retry_max_delay=self._retry_max_delay,
-                compact_callback=compact_callback or self._compact_callback,
-                mutation_queue=FileMutationQueue(),
-                tool_result_max_chars=self._tool_result_max_chars,
-                get_steering_messages=self._drain_steering,
-                get_follow_up_messages=self._drain_follow_up,
-                human_input_gate=self._human_input_gate,
-            )
+            # Let extensions inspect/modify the run before the loop starts.
+            before_agent_start = self._chain_before_agent_start_hooks()
+            if before_agent_start is not None:
+                prompt = new_messages[0].content[0].text if new_messages else ""
+                result = await before_agent_start(prompt, context.system_prompt)
+                if result:
+                    if result.get("system_prompt"):
+                        context.system_prompt = result["system_prompt"]
+                    if result.get("message"):
+                        context.messages.append(result["message"])
 
             if continuation:
                 gen = agent_loop([], context, config, self._abort_event)
@@ -286,19 +309,66 @@ class Agent:
             try:
                 async for evt in gen:
                     await self._handle_event(evt, context)
-            except Exception as exc:  # pragma: no cover — last-resort
+            except Exception as exc:
                 _log.exception("Agent run failed")
-                self.state.error_message = str(exc)
+                await self._handle_run_failure(exc)
 
         task = asyncio.create_task(_do_run())
         self._active_run = task
         try:
             await task
         finally:
-            self.state.is_streaming = False
-            self.state.streaming_message = None
-            self._active_run = None
-            self._abort_event = None
+            self._finish_run()
+
+    async def _handle_run_failure(self, exc: BaseException) -> None:
+        """Create a structured error message and notify listeners of agent_end."""
+        error_msg = str(exc)
+        self.state.error_message = error_msg
+
+        assistant = AssistantMessage(
+            content=[TextContent(text="")],
+            usage=Usage(),
+            stop_reason="error",
+            provider=self.state.model.provider,
+            model=self.state.model.id,
+            error_message=error_msg,
+            timestamp=time.time(),
+        )
+        self.state.messages.append(assistant)
+        for listener in list(self._listeners):
+            result = listener(AgentEnd(messages=[assistant]))
+            if inspect.isawaitable(result):
+                await result
+
+    def _finish_run(self) -> None:
+        self.state.is_streaming = False
+        self.state.streaming_message = None
+        self._pending_tool_calls.clear()
+        self._active_run = None
+        self._abort_event = None
+
+    # ── hook chaining ───────────────────────────────────────────────
+
+    def _chain_before_agent_start_hooks(self) -> Any | None:
+        if not self._before_agent_start_hooks:
+            return None
+        hooks = list(self._before_agent_start_hooks)
+
+        async def _chained(prompt: str, system_prompt: str) -> dict[str, Any] | None:
+            merged: dict[str, Any] = {}
+            for hook in hooks:
+                result = hook(prompt, system_prompt)
+                if inspect.isawaitable(result):
+                    result = await result
+                if result:
+                    if result.get("system_prompt"):
+                        system_prompt = result["system_prompt"]
+                        merged["system_prompt"] = system_prompt
+                    if result.get("message"):
+                        merged["message"] = result["message"]
+            return merged if merged else None
+
+        return _chained
 
     def _chain_before_hooks(self) -> Any | None:
         if not self._before_hooks:
@@ -307,6 +377,7 @@ class Agent:
 
         async def _chained(call_ctx: dict[str, Any]) -> dict[str, Any] | None:
             merged: dict[str, Any] = {}
+            merged_args: dict[str, Any] = {}
             for hook in hooks:
                 result = hook(call_ctx)
                 if inspect.isawaitable(result):
@@ -315,7 +386,14 @@ class Agent:
                     return result
                 if result and result.get("inject_metadata"):
                     merged.update(result["inject_metadata"])
-            return {"inject_metadata": merged} if merged else None
+                if result and result.get("mutated_args"):
+                    merged_args.update(result["mutated_args"])
+            out: dict[str, Any] = {}
+            if merged:
+                out["inject_metadata"] = merged
+            if merged_args:
+                out["mutated_args"] = merged_args
+            return out or None
 
         return _chained
 
@@ -360,11 +438,15 @@ class Agent:
 
         return _chained
 
+    # ── queue drains ────────────────────────────────────────────────
+
     async def _drain_steering(self) -> list[Any]:
         return self._steering.drain()
 
     async def _drain_follow_up(self) -> list[Any]:
         return self._follow_up.drain()
+
+    # ── event handling ──────────────────────────────────────────────
 
     async def _handle_event(self, evt: AgentEvent, context: AgentContext) -> None:
         if isinstance(evt, MessageStart):
@@ -383,6 +465,13 @@ class Agent:
                 self.state.messages.append(tool_result)
         elif isinstance(evt, AgentEnd):
             self.state.streaming_message = None
+
+        # Track executing tool calls
+        from agent_core.core.events import ToolExecutionStart, ToolExecutionEnd
+        if isinstance(evt, ToolExecutionStart):
+            self._pending_tool_calls.add(evt.tool_call_id)
+        elif isinstance(evt, ToolExecutionEnd):
+            self._pending_tool_calls.discard(evt.tool_call_id)
 
         for listener in list(self._listeners):
             result = listener(evt)

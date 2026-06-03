@@ -44,32 +44,43 @@ __all__ = [
 ]
 
 
-def create_all_tools(cwd: str = "") -> dict[str, Any]:
+def create_all_tools(
+    cwd: str = "",
+    file_ops: Any | None = None,
+    bash_ops: Any | None = None,
+) -> dict[str, Any]:
     return {
-        "read": create_read_tool(cwd),
-        "bash": create_bash_tool(cwd),
-        "write": create_write_tool(cwd),
-        "edit": create_edit_tool(cwd),
-        "grep": create_grep_tool(cwd),
-        "find": create_find_tool(cwd),
-        "ls": create_ls_tool(cwd),
+        "read": create_read_tool(cwd, file_ops=file_ops),
+        "bash": create_bash_tool(cwd, bash_ops=bash_ops),
+        "write": create_write_tool(cwd, file_ops=file_ops),
+        "edit": create_edit_tool(cwd, file_ops=file_ops),
+        "grep": create_grep_tool(cwd, file_ops=file_ops),
+        "find": create_find_tool(cwd, file_ops=file_ops),
+        "ls": create_ls_tool(cwd, file_ops=file_ops),
         "confirm": create_confirm_tool(),
     }
 
 
-def create_coding_tools(cwd: str = "") -> dict[str, Any]:
+def create_coding_tools(
+    cwd: str = "",
+    file_ops: Any | None = None,
+    bash_ops: Any | None = None,
+) -> dict[str, Any]:
     return {
-        "read": create_read_tool(cwd),
-        "bash": create_bash_tool(cwd),
-        "write": create_write_tool(cwd),
+        "read": create_read_tool(cwd, file_ops=file_ops),
+        "bash": create_bash_tool(cwd, bash_ops=bash_ops),
+        "write": create_write_tool(cwd, file_ops=file_ops),
     }
 
 
-def create_read_only_tools(cwd: str = "") -> dict[str, Any]:
+def create_read_only_tools(
+    cwd: str = "",
+    file_ops: Any | None = None,
+) -> dict[str, Any]:
     return {
-        "read": create_read_tool(cwd),
-        "grep": create_grep_tool(cwd),
-        "find": create_find_tool(cwd),
-        "ls": create_ls_tool(cwd),
+        "read": create_read_tool(cwd, file_ops=file_ops),
+        "grep": create_grep_tool(cwd, file_ops=file_ops),
+        "find": create_find_tool(cwd, file_ops=file_ops),
+        "ls": create_ls_tool(cwd, file_ops=file_ops),
     }
 

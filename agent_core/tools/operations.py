@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Protocol
+import asyncio
+from dataclasses import dataclass, field
+from typing import Callable, Protocol
 
 
 @dataclass
@@ -31,6 +32,8 @@ class BashResult:
     stderr: str
     returncode: int
     truncated: bool = False
+    full_output_path: str | None = None
+    truncation_info: dict | None = None
 
 
 class BashOperations(Protocol):
@@ -43,4 +46,33 @@ class BashOperations(Protocol):
         cwd: str | None = None,
         timeout: float | None = None,
         env: dict[str, str] | None = None,
+        on_data: Callable[[bytes], None] | None = None,
+        signal: asyncio.Event | None = None,
     ) -> BashResult: ...
+
+
+@dataclass
+class SandboxQuota:
+    """Resource limits for sandboxed execution."""
+    cpu_cores: float = 1.0
+    memory_mb: int = 512
+    timeout_seconds: int = 120
+    disk_mb: int = 100
+    network_allowed: bool = True
+    allow_write_paths: list[str] = field(default_factory=list)
+    deny_paths: list[str] = field(default_factory=list)
+
+
+class SandboxBackend(Protocol):
+    """Sandbox backend providing isolated file and bash execution.
+
+    Implementations (Docker, gVisor, etc.) combine this with
+    FileOperations and BashOperations.
+    """
+
+    quota: SandboxQuota
+
+    async def start(self) -> None: ...
+    async def stop(self) -> None: ...
+    async def health_check(self) -> bool: ...
+    async def restart(self) -> None: ...

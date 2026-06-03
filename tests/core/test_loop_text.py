@@ -47,8 +47,8 @@ def test_agent_loop_text_only():
         messages=[user_msg],
     )
     config = AgentLoopConfig(
-        provider=provider,
         model=fake_model(),
+        stream_fn=provider.stream,
         convert_to_llm=llm_convert,
         auth_resolver=auth_resolver,
     )

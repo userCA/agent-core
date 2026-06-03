@@ -34,7 +34,8 @@ async def test_bash_tool_with_custom_bash_ops():
     from agent_core.tools.operations import BashResult
 
     class FakeBashOps:
-        async def execute(self, command, *, cwd=None, timeout=None, env=None):
+        async def execute(self, command, *, cwd=None, timeout=None, env=None,
+                          on_data=None, signal=None):
             return BashResult(stdout=f"FAKE:{command}", stderr="", returncode=0)
 
     tool = BashTool(bash_ops=FakeBashOps())

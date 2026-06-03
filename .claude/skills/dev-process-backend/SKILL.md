@@ -258,6 +258,28 @@ if provider_name is not None and current_provider != provider_name:
 
 ---
 
+## 规则 17：Pydantic 模型新增字段 —— 所有构造处 + 测试断言同步更新
+
+**模式：** 在 Pydantic 模型上新增了字段，但忘记了更新所有 `Model(...)` 构造调用处。构造处因为字段有默认值不会报错 → 该字段在生产环境中始终为空。
+
+**真实案例（2026-06-03）：** `ToolResultMessage` 新增了 `tool_name: str | None = None`（#47），但 `tool_runner.py` 两处 `ToolResultMessage(...)` 构造没传 `tool_name`。SSE 实时流通过 `ToolExecutionEnd.tool_name` 正常，但 `/session` API 返回 `"tool_name": null` → 前端 history 加载时无法匹配工具块 → 视频不渲染（#70）。
+
+**类似的案例（2026-06-02）：** 同一模型 `ToolResultMessage` 在 `session.py` 中持久化时缺少 `timestamp` 字段 → 反序列化校验失败 → 消息被静默丢弃（#47）。
+
+**规则：**
+1. 新增模型字段后，**grep 所有构造该模型的代码位置**，逐一确认是否需要填入新字段
+2. 如果字段有默认值但实际场景中应该被填充 → 不改默认值，而是在所有构造处显式传入
+3. 测试不仅要测"能构造"，还要**断言新字段的值**——只测 `msg.role == "tool_result"` 不够，必须 `assert msg.tool_name == expected`
+
+**检查清单：**
+- `rg "ModelName\(" --include "*.py" -n` 列出所有构造处
+- 每个构造处：新字段是否需要显式传入？（有默认值 ≠ 不需要传）
+- 每个构造处：对应的测试是否断言了新字段？
+- 序列化测试：`model_dump(mode="json")` 后新字段是否出现在 dict 中？
+```
+
+---
+
 ## 规则 16：集成第三方 API —— 先本地验证响应字段
 
 **模式：** 根据 API 文档写代码，但实际响应字段名和文档不一致。轮询等待 `video_url` 字段但 API 返回的是 `remixed_from_video_id` → 永远匹配不到。

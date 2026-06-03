@@ -40,11 +40,28 @@ def test_assistant_message_with_tool_call():
 def test_tool_result_message():
     msg = ToolResultMessage(
         tool_call_id="c1",
+        tool_name="check_video_status",
         content=[TextContent(text="ok")],
         is_error=False,
         timestamp=time.time(),
     )
     assert msg.role == "tool_result"
+    assert msg.tool_name == "check_video_status"
+
+
+def test_tool_result_message_serializes_tool_name():
+    """tool_name must survive serialization — frontend needs it for history reload."""
+    msg = ToolResultMessage(
+        tool_call_id="c1",
+        tool_name="check_video_status",
+        content=[TextContent(text="https://x.mp4")],
+        is_error=False,
+        timestamp=time.time(),
+    )
+    data = msg.model_dump(mode="json")
+    assert data["tool_name"] == "check_video_status"
+    assert data["role"] == "tool_result"
+    assert data["tool_call_id"] == "c1"
 
 
 def test_custom_message():

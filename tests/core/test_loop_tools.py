@@ -64,8 +64,8 @@ def test_agent_loop_executes_tool_call():
         messages=[user_msg],
     )
     config = AgentLoopConfig(
-        provider=provider,
         model=fake_model(),
+        stream_fn=provider.stream,
         convert_to_llm=llm_convert,
         auth_resolver=auth_resolver,
         tool_registry=registry,
@@ -87,3 +87,5 @@ def test_agent_loop_executes_tool_call():
     tool_results = [m for m in context.messages if getattr(m, "role", None) == "tool_result"]
     assert len(tool_results) == 1
     assert tool_results[0].content[0].text == "3"
+    assert tool_results[0].tool_call_id == "c1"
+    assert tool_results[0].tool_name == "add"

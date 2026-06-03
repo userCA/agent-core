@@ -68,6 +68,7 @@ async def execute_tools(
             )
             tool_result_msg = ToolResultMessage(
                 tool_call_id=tool_call.id,
+                tool_name=tool_call.name,
                 content=result.content,
                 is_error=is_error,
                 timestamp=time.time(),
@@ -148,6 +149,7 @@ async def execute_tools(
             )
             tool_result_msg = ToolResultMessage(
                 tool_call_id=tc.id,
+                tool_name=tc.name,
                 content=result.content,
                 is_error=is_error,
                 timestamp=time.time(),
@@ -195,8 +197,21 @@ async def _run_single_tool(
                 return tool_call, result, True
             if hook_result and hook_result.get("inject_metadata"):
                 _extra_metadata.update(hook_result["inject_metadata"])
+            if hook_result and hook_result.get("mutated_args"):
+                tool_call.arguments.update(hook_result["mutated_args"])
         except Exception as exc:
             logger.debug("before_tool_call hook failed: %s", exc)
+
+    # Validate args if tool defines an args_model
+    args_model = getattr(tool.definition, "args_model", None)
+    if args_model is not None:
+        try:
+            tool_call.arguments = args_model(**tool_call.arguments).model_dump()
+        except Exception as exc:
+            result = ToolResult(
+                content=[TextContent(text=f"Invalid arguments for '{tool_call.name}': {exc}")]
+            )
+            return tool_call, result, True
 
     ctx = ToolContext(
         signal=abort_event,

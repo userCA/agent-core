@@ -25,6 +25,7 @@ class ToolDefinition(BaseModel):
     prompt_guidelines: list[str] = []
     renderer: Any | None = None
     timeout_seconds: float | None = None
+    args_model: Any | None = None  # Pydantic model for parameter validation
 
 
 @dataclass

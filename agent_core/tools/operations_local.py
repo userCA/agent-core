@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import os
+import platform
 import re
-from typing import Any
+import signal as os_signal
+from typing import Any, Callable
 
 from agent_core.tools.operations import BashOperations, BashResult, FileInfo, FileOperations
 
@@ -102,6 +104,20 @@ class LocalFileOperations(FileOperations):
         return results
 
 
+def _kill_process_tree(pid: int) -> None:
+    """Kill a process and all its children."""
+    system = platform.system()
+    try:
+        if system == "Linux":
+            os.kill(-pid, os_signal.SIGKILL)
+        else:
+            # macOS / BSD: pkill children first, then kill parent
+            os.system(f"pkill -P {pid} 2>/dev/null")
+            os.kill(pid, os_signal.SIGKILL)
+    except (ProcessLookupError, OSError):
+        pass
+
+
 class LocalBashOperations(BashOperations):
     """Default local bash execution implementation."""
 
@@ -116,8 +132,14 @@ class LocalBashOperations(BashOperations):
         cwd: str | None = None,
         timeout: float | None = 60.0,
         env: dict[str, str] | None = None,
+        on_data: Callable[[bytes], None] | None = None,
+        signal: asyncio.Event | None = None,
     ) -> BashResult:
         work_dir = cwd or self._cwd
+        stdout_chunks: list[bytes] = []
+        stderr_chunks: list[bytes] = []
+        proc: asyncio.subprocess.Process | None = None
+
         try:
             proc = await asyncio.create_subprocess_shell(
                 command,
@@ -125,26 +147,87 @@ class LocalBashOperations(BashOperations):
                 stderr=asyncio.subprocess.PIPE,
                 cwd=work_dir,
                 env={**os.environ, **(env or {})},
+                start_new_session=True,
             )
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
-            )
-            stdout = stdout_bytes.decode("utf-8", errors="replace")
-            stderr = stderr_bytes.decode("utf-8", errors="replace")
+
+            async def _read_stream(stream: asyncio.StreamReader | None, chunks: list[bytes]) -> None:
+                if stream is None:
+                    return
+                while True:
+                    chunk = await stream.read(4096)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    if on_data:
+                        on_data(chunk)
+
+            read_stdout = asyncio.create_task(_read_stream(proc.stdout, stdout_chunks))
+            read_stderr = asyncio.create_task(_read_stream(proc.stderr, stderr_chunks))
+            read_task = asyncio.gather(read_stdout, read_stderr)
+
+            if signal is not None:
+                abort_task = asyncio.create_task(signal.wait())
+                done, pending = await asyncio.wait(
+                    [read_task, abort_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                    timeout=timeout,
+                )
+                if not done:
+                    # Timeout — neither completed within deadline
+                    abort_task.cancel()
+                    raise asyncio.TimeoutError()
+                abort_task.cancel()
+                if abort_task in done and proc.returncode is None:
+                    _kill_process_tree(proc.pid)
+                    read_task.cancel()
+                    try:
+                        await read_task
+                    except asyncio.CancelledError:
+                        pass
+                    # Wait briefly for the process to terminate after kill
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=5)
+                    except asyncio.TimeoutError:
+                        pass
+                    partial_stdout = b"".join(stdout_chunks).decode("utf-8", errors="replace")
+                    partial_stderr = b"".join(stderr_chunks).decode("utf-8", errors="replace")
+                    text = partial_stdout
+                    if partial_stderr:
+                        text += f"\n{partial_stderr}"
+                    if not text.strip():
+                        text = "Command aborted"
+                    return BashResult(
+                        stdout=text,
+                        stderr="",
+                        returncode=-1,
+                        truncated=False,
+                    )
+
+                await read_task
+            else:
+                await asyncio.wait_for(read_task, timeout=timeout)
+
+            await proc.wait()
+            stdout = b"".join(stdout_chunks).decode("utf-8", errors="replace")
+            stderr = b"".join(stderr_chunks).decode("utf-8", errors="replace")
             return BashResult(
                 stdout=stdout,
                 stderr=stderr,
                 returncode=proc.returncode or 0,
             )
+
         except asyncio.TimeoutError:
-            try:
-                proc.kill()
-                await proc.wait()
-            except Exception:
-                pass
+            if proc is not None and proc.returncode is None:
+                _kill_process_tree(proc.pid)
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=5)
+                except asyncio.TimeoutError:
+                    pass
+            partial_stdout = b"".join(stdout_chunks).decode("utf-8", errors="replace")
+            partial_stderr = b"".join(stderr_chunks).decode("utf-8", errors="replace")
             return BashResult(
-                stdout="",
-                stderr=f"Command timed out after {timeout} seconds",
+                stdout=partial_stdout,
+                stderr=partial_stderr + f"\nCommand timed out after {timeout} seconds",
                 returncode=-1,
                 truncated=True,
             )
