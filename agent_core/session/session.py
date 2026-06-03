@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 import os
 import time
@@ -212,7 +213,7 @@ class AgentSession:
 
         for listener in list(self._listeners):
             result = listener(evt)
-            if result is not None and hasattr(result, "__await__"):
+            if result is not None and inspect.isawaitable(result):
                 await result
 
     async def _persist_message(self, message: Any) -> None:

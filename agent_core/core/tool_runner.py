@@ -200,7 +200,7 @@ async def _run_single_tool(
             if hook_result and hook_result.get("mutated_args"):
                 tool_call.arguments.update(hook_result["mutated_args"])
         except Exception as exc:
-            logger.debug("before_tool_call hook failed: %s", exc)
+            logger.warning("before_tool_call hook failed: %s", exc)
 
     # Validate args if tool defines an args_model
     args_model = getattr(tool.definition, "args_model", None)
@@ -208,6 +208,7 @@ async def _run_single_tool(
         try:
             tool_call.arguments = args_model(**tool_call.arguments).model_dump()
         except Exception as exc:
+            logger.warning("Args validation failed for tool '%s': %s", tool_call.name, exc)
             result = ToolResult(
                 content=[TextContent(text=f"Invalid arguments for '{tool_call.name}': {exc}")]
             )
@@ -251,6 +252,7 @@ async def _run_single_tool(
     except RequiresHumanInput:
         raise
     except Exception as exc:
+        logger.warning("Tool '%s' execution failed: %s", tool_call.name, exc)
         result = ToolResult(content=[TextContent(text=str(exc))])
         is_error = True
 
@@ -271,7 +273,7 @@ async def _run_single_tool(
                     display=hook_result["result"].get("display", result.display),
                 )
         except Exception as exc:
-            logger.debug("after_tool_call hook failed: %s", exc)
+            logger.warning("after_tool_call hook failed: %s", exc)
 
     return tool_call, result, is_error
 

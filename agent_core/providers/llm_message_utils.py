@@ -23,3 +23,12 @@ def latest_user_text(messages: list[dict[str, Any]]) -> str | None:
         parts = [p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"]
         return "\n".join(p for p in parts if p) or None
     return None
+
+
+def inject_system_message_at_latest_user(
+    messages: list[dict[str, Any]], text: str
+) -> list[dict[str, Any]]:
+    """Insert a system message right before the latest user message."""
+    insert_at = latest_user_index(messages)
+    system_msg = {"role": "system", "content": text}
+    return [*messages[:insert_at], system_msg, *messages[insert_at:]]

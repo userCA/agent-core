@@ -294,6 +294,7 @@ class MCPConnection:
             await self.list_tools()
             return True
         except Exception:
+            logger.debug("MCP ping failed", exc_info=True)
             return False
 
     async def close(self) -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from typing import Any
 
@@ -11,6 +12,8 @@ import httpx
 
 from agent_core.core.content import TextContent
 from agent_core.tools.base import Tool, ToolContext, ToolDefinition, ToolResult
+
+logger = logging.getLogger(__name__)
 
 API_BASE = "https://apihub.agnes-ai.com/v1/videos"
 API_KEY = os.environ.get("AGNES_API_KEY", "")
@@ -238,6 +241,7 @@ class AgnesVideoTool(Tool):
                 content=[TextContent(text=f"API 错误 ({e.response.status_code}): {e.response.text[:500]}")]
             )
         except Exception as e:
+            logger.warning("Video generation failed for task %s: %s", task_id, e)
             return ToolResult(content=[TextContent(text=f"生成失败: {e}")])
 
 
@@ -315,6 +319,7 @@ class CheckVideoTool(Tool):
                     text=f"视频仍在生成中。状态: {status} ({progress}%)，任务ID: {task_id}"
                 )])
         except Exception as e:
+            logger.warning("Video status query failed for task %s: %s", task_id, e)
             return ToolResult(content=[TextContent(text=f"查询失败: {e}")])
 
 

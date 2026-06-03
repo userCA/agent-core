@@ -9,8 +9,10 @@ Each document = a subdirectory under the knowledge base root:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -59,17 +61,22 @@ def _chunk_text(text: str) -> list[str]:
 
 # ---- model ----
 
+logger = logging.getLogger(__name__)
+
 _MODEL = None
+_MODEL_LOCK = threading.Lock()
 
 
 def _get_model():
     global _MODEL
     if _MODEL is None:
-        import os as _os
-        if not _os.environ.get("HF_ENDPOINT"):
-            _os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
-        from sentence_transformers import SentenceTransformer
-        _MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+        with _MODEL_LOCK:
+            if _MODEL is None:
+                import os as _os
+                if not _os.environ.get("HF_ENDPOINT"):
+                    _os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+                from sentence_transformers import SentenceTransformer
+                _MODEL = SentenceTransformer("all-MiniLM-L6-v2")
     return _MODEL
 
 
@@ -276,6 +283,7 @@ class LocalKnowledgeBase:
                     doc_vec = np.load(str(npy_path))
                     text = txt_path.read_text(encoding="utf-8")
                 except Exception:
+                    logger.debug("Failed to load chunk %s for doc %s", npy_path.stem, doc_dir.name)
                     continue
                 score = float(np.dot(q_vec, doc_vec))
                 if score < 0.2:

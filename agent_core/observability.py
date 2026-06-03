@@ -61,21 +61,18 @@ def observe(
         yield
         return
 
-    # Wrap the existing before/after hooks to inject tracing
-    orig_before = list(agent._before_hooks)
-    orig_after = list(agent._after_hooks)
+    # Register tracing hooks via public API, store references for cleanup
+    tracing_before = _make_tracing_before_hook(tracer, session_id, provider_name, model_id)
+    tracing_after = _make_tracing_after_hook(tracer)
 
-    agent._before_hooks.insert(
-        0,
-        _make_tracing_before_hook(tracer, session_id, provider_name, model_id),
-    )
-    agent._after_hooks.append(_make_tracing_after_hook(tracer))
+    agent.add_before_tool_call_hook(tracing_before)
+    agent.add_after_tool_call_hook(tracing_after)
 
     try:
         yield
     finally:
-        agent._before_hooks = orig_before
-        agent._after_hooks = orig_after
+        agent.remove_before_tool_call_hook(tracing_before)
+        agent.remove_after_tool_call_hook(tracing_after)
 
 
 def _make_tracing_before_hook(

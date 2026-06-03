@@ -176,8 +176,14 @@ class Agent:
     def add_before_tool_call_hook(self, hook: Any) -> None:
         self._before_hooks.append(hook)
 
+    def remove_before_tool_call_hook(self, hook: Any) -> None:
+        self._before_hooks.remove(hook)
+
     def add_after_tool_call_hook(self, hook: Any) -> None:
         self._after_hooks.append(hook)
+
+    def remove_after_tool_call_hook(self, hook: Any) -> None:
+        self._after_hooks.remove(hook)
 
     def add_transform_context_hook(self, hook: Any) -> None:
         self._transform_hooks.append(hook)

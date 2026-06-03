@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from agent_core._llm_message_utils import latest_user_index, latest_user_text
+from agent_core.providers.llm_message_utils import inject_system_message_at_latest_user, latest_user_text
 from agent_core.core.content import TextContent
 from agent_core.core.events import MessageEnd, TurnEnd
 from agent_core.memory.base import MemoryStore
@@ -52,6 +52,4 @@ class MemoryExtension:
         body_lines = ["Recalled memory for this session:"]
         for i, r in enumerate(records, 1):
             body_lines.append(f"[{i}] {r.text}")
-        system_msg = {"role": "system", "content": "\n".join(body_lines)}
-        insert_at = latest_user_index(llm_messages)
-        return [*llm_messages[:insert_at], system_msg, *llm_messages[insert_at:]]
+        return inject_system_message_at_latest_user(llm_messages, "\n".join(body_lines))
