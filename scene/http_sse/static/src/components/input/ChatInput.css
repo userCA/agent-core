@@ -160,7 +160,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    box-shadow: 0 4px 12px var(--shadow);
+    box-shadow: 0 2px 8px var(--shadow);
     z-index: var(--z-dropdown);
     animation: popoverIn 0.15s ease;
     min-width: 120px;
@@ -183,7 +183,7 @@
     background: transparent;
     color: var(--body);
     font-size: 12px;
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     cursor: pointer;
     text-align: left;
     white-space: nowrap;
@@ -277,7 +277,7 @@
     background: transparent;
     color: var(--ink);
     font-size: 12px;
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     outline: none;
     min-width: 0;
 }
@@ -290,7 +290,7 @@
     padding: 8px 10px;
     font-size: 12px;
     color: var(--ash);
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     text-align: center;
 }
 
@@ -304,7 +304,7 @@
     background: transparent;
     color: var(--mute);
     font-size: 11px;
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease;
     height: 32px;

@@ -77,7 +77,7 @@ class SessionManager:
         current_pid = getattr(existing, '_persona_id', None)
         current_provider = getattr(existing, '_provider_name', None)
         current_model = getattr(existing, '_model_id', None)
-        if persona_id is not None and current_pid != persona_id:
+        if current_pid != persona_id:
             return True
         if provider_name is not None and current_provider != provider_name:
             return True

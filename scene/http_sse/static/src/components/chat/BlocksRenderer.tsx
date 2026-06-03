@@ -65,6 +65,7 @@ export default function BlocksRenderer({ blocks }: Props) {
                   style={{
                     width: '100%',
                     maxHeight: 480,
+                    aspectRatio: '16 / 9',
                     borderRadius: 'var(--radius-sm)',
                     background: '#000',
                   }}

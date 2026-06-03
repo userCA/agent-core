@@ -19,6 +19,7 @@ export default function WelcomeScreen({ onSelect }: Props) {
 
   return (
     <div className="welcome">
+      <div className="welcome-ambient" aria-hidden="true" />
       <pre className="welcome-logo" aria-hidden="true">{`
               ██            ██
              ████          ████

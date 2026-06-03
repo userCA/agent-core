@@ -13,7 +13,7 @@
   background: var(--canvas);
   border: 1px solid var(--hairline);
   border-radius: var(--radius-md);
-  box-shadow: 0 12px 40px var(--shadow);
+  box-shadow: 0 4px 16px var(--shadow);
   padding: 20px 24px;
   max-width: 400px;
   width: calc(100% - 32px);
@@ -25,7 +25,7 @@
   font-size: 15px;
   font-weight: 600;
   color: var(--ink);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -46,7 +46,7 @@
   font-size: 13px;
   line-height: 1.6;
   color: var(--body);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 .confirm-actions {
@@ -59,7 +59,7 @@
   padding: 7px 16px;
   border-radius: var(--radius-sm);
   font-size: 13px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   cursor: pointer;
   border: 1px solid transparent;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;

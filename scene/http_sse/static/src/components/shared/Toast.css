@@ -18,10 +18,10 @@
   border-radius: var(--radius-sm);
   border: 1px solid var(--hairline);
   background: var(--canvas);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--ink);
-  box-shadow: 0 4px 16px var(--shadow);
+  box-shadow: 0 2px 8px var(--shadow);
   pointer-events: auto;
   animation: toastIn 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
   line-height: 1.5;

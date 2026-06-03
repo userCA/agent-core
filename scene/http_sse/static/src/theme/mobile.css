@@ -126,6 +126,35 @@
         min-height: 44px; /* iOS HIG minimum touch target */
     }
 
+    /* Sidebar interactive elements */
+    .sidebar-toggle-btn,
+    .session-delete,
+    .sidebar-toggle-btn-mini {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    /* Input area icon buttons */
+    .input-clear-btn,
+    .action-btn,
+    .model-pick,
+    .more-popover button {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    /* Message action buttons */
+    .msg-action-btn {
+        min-height: 44px;
+        padding: 8px 12px;
+    }
+
+    /* Page back button */
+    .page-back {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
     .thumb-remove {
         min-height: unset;
         width: 24px;

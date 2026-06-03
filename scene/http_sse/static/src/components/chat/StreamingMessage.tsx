@@ -113,6 +113,7 @@ export default function StreamingMessage() {
       <span className="msg-label">助手</span>
       <div className={`bubble bubble-assistant streaming-bubble${!isStreaming ? ' fade-out' : ''}`}>
         <div className="msg-content">
+          <div ref={contentRef} className={`final-content streaming${streamBlocks.length > 0 ? ' hidden' : ''}`} />
           {streamBlocks.length > 0 ? (
             <BlocksRenderer blocks={streamBlocks} />
           ) : isStreaming ? (

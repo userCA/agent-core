@@ -85,3 +85,41 @@
 - 新增字段后，**grep 所有构造处**：`rg "ModelName\(" --include "*.py" -n`
 - 字段有默认值 **≠** 不需要显式传入。默认值是兜底，调用方应传入正确值
 - 测试必须 **断言新字段的值**，不能只测 `role == "tool_result"`
+
+---
+
+## 规则 9：持久化路径必须用绝对路径，禁止依赖启动时的 cwd
+
+**发生时间**：2026-06-03
+
+**问题描述**：重启服务器后，历史会话全部消失。
+
+**根因**：
+- `SessionManager` 的 `session_store_dir` 默认是相对路径 `"./sessions"`
+- `server.py` 只传了 `cwd=os.getcwd()`，没显式指定 `session_store_dir`
+- 当服务器从 `scene/http_sse/static` 启动时，`"./sessions"` 指向 `static/sessions/`（不存在）
+- 之前的历史会话在项目根目录 `sessions/`（200+ 文件），完全找不到
+- 同样的问题此前已出现过，当时通过"确保从项目根目录启动"暂时解决，但没有根除
+
+**教训**：
+- **任何持久化目录（数据库、文件存储、日志）在初始化时必须解析为绝对路径**，禁止依赖 `os.getcwd()`
+- **启动脚本中必须显式传入存储路径**：`session_store_dir=os.path.join(PROJECT_ROOT, "sessions")`
+- 不要因为"当前启动方式是对的"就省略绝对路径转换，不同启动方式（`python -m`、IDE runner、systemd、Docker）cwd 各不相同
+
+---
+
+## 规则 10：迭代自定义容器前验证 `__iter__` 返回什么
+
+**发生时间**：2026-06-03
+
+**问题描述**：`for name, tool in tool_registry:` 导致 `ValueError: too many values to unpack`，服务端 SSE 连接崩溃（`ERR_INCOMPLETE_CHUNKED_ENCODING`），前端只看到 "network error"。
+
+**根因**：
+- `ToolRegistry.__iter__` 返回 `iter(self._tools)` — dict 的 key 迭代，每次给一个字符串
+- `for name, tool in ...` 把字符串（如 `"read"`）解包成单个字符 `'r','e','a','d'`
+- 4 个字符解包到 2 个变量 → `ValueError`
+
+**教训**：
+- **写 `for a, b in obj` 前先确认 `obj` 的 `__iter__` 返回什么**。dict 迭代 → key；iter(key, value) 需要 `.items()` 或类似方法
+- 同样适用于自定义 `__iter__` 的类 — `grep "__iter__"` 确认返回结构
+- **不可达的代码路径可能只是你还没触发**。本例中 `enabled_tools` 非 None 才触发，coder persona 恰好有白名单，之前测试可能用的 general（无白名单）绕过了

@@ -49,8 +49,9 @@ export default function App() {
   return (
     <BridgeProvider>
       <div className="app-layout">
+        <a className="skip-link" href="#main-content">跳到主要内容</a>
         <Sidebar />
-        <div className="app-main" onClick={() => {
+        <div id="main-content" className="app-main" onClick={() => {
           // Close sidebar on mobile when clicking content area
           const collapsed = useUIStore.getState().sidebarCollapsed;
           if (!collapsed && window.innerWidth <= 768) {

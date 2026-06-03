@@ -41,22 +41,30 @@ export async function* streamChat(
   if (sessionId) url.searchParams.set('session_id', sessionId);
   if (personaId) url.searchParams.set('persona_id', personaId);
 
+  const fetchUrl = url.toString();
+  const fetchBody = JSON.stringify({ message, provider: providerId, model: modelId });
+  console.log('[streamChat] POST %s body=%s', fetchUrl, fetchBody.slice(0, 200));
+
   const response = await withRetry(async () => {
-    const res = await fetch(url.toString(), {
+    const res = await fetch(fetchUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...authHeaders,
       },
-      body: JSON.stringify({ message, provider: providerId, model: modelId }),
+      body: fetchBody,
       signal,
     });
+    console.log('[streamChat] response status=%s ok=%s', res.status, res.ok);
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
     }
     return res;
-  }, 2, 1000);
+  }, 2, 1000).catch((err) => {
+    console.error('[streamChat] fetch failed:', err);
+    throw err;
+  });
 
   // lazy import to avoid circular dependency at module level
   const { parseSSEStream } = await import('./sse-parser');

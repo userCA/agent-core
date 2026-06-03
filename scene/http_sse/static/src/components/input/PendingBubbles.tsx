@@ -39,7 +39,7 @@ export default function PendingBubbles() {
           border-radius: var(--radius-sm);
           padding: 4px 8px;
           font-size: 11px;
-          font-family: var(--font-mono);
+          font-family: var(--font-sans);
           color: var(--mute);
           animation: popIn 0.2s cubic-bezier(0.22, 1, 0.36, 1);
         }

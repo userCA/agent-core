@@ -9,6 +9,22 @@
     animation: welcomeIn 0.3s ease;
     max-width: 520px;
     margin: 0 auto;
+    position: relative;
+}
+
+.welcome-ambient {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+        radial-gradient(ellipse 80% 50% at 50% 40%, rgba(200, 180, 160, 0.03) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 40% at 60% 60%, rgba(180, 170, 150, 0.02) 0%, transparent 60%);
+}
+
+.welcome > * {
+    position: relative;
+    z-index: 1;
 }
 
 @keyframes welcomeIn {
@@ -35,16 +51,17 @@
 }
 
 .welcome-title {
-    font-family: inherit;
-    font-size: 28px;
-    font-weight: 700;
+    font-family: var(--font-serif);
+    font-size: 32px;
+    font-weight: 600;
     color: var(--ink);
     margin: 0;
-    letter-spacing: 2px;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
 }
 
 .welcome-subtitle {
-    font-family: inherit;
+    font-family: var(--font-sans);
     font-size: 13px;
     color: var(--stone);
     margin: 0;
@@ -66,12 +83,12 @@
     gap: 5px;
     padding: 6px 14px;
     border: 1px solid var(--hairline);
-    border-radius: 999px;
+    border-radius: var(--radius-md);
     background: var(--canvas);
     color: var(--body);
     font-size: 12px;
     cursor: pointer;
-    font-family: inherit;
+    font-family: var(--font-sans);
     transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
     touch-action: manipulation;
 }
@@ -112,7 +129,7 @@
     color: var(--ink);
     font-size: 12px;
     cursor: pointer;
-    font-family: inherit;
+    font-family: var(--font-sans);
     text-align: left;
     transition: border-color 0.15s ease, background 0.15s ease;
     touch-action: manipulation;

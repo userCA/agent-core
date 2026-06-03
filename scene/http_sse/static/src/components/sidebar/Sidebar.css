@@ -8,7 +8,7 @@
   flex-shrink: 0;
   height: 100vh;
   overflow: hidden;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   transition: width 0.25s ease, min-width 0.25s ease;
 }
 
@@ -56,7 +56,7 @@
   background: var(--canvas);
   color: var(--ink);
   font-size: 13px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-weight: 500;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -115,7 +115,7 @@
   background: transparent;
   color: var(--body);
   font-size: 13px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   cursor: pointer;
   text-align: left;
   transition: background 0.15s ease;
@@ -177,7 +177,7 @@
   background: transparent;
   color: var(--body);
   font-size: 12px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   cursor: pointer;
   text-align: left;
   transition: background 0.15s ease, color 0.15s ease;
@@ -229,7 +229,7 @@
   background: transparent;
   color: var(--ink);
   font-size: 12px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   outline: none;
   min-width: 0;
 }
@@ -307,7 +307,7 @@
   background: transparent;
   color: var(--body);
   font-size: 12px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   width: 100%;
   min-height: 36px;
   transition: background 0.15s ease;
@@ -415,7 +415,7 @@
     left: 0;
     top: 0;
     z-index: var(--z-modal-backdrop);
-    box-shadow: 2px 0 8px var(--shadow);
+    box-shadow: 0 2px 8px var(--shadow);
   }
 
   .sidebar-collapsed {

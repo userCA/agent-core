@@ -71,10 +71,14 @@ export default function Sidebar() {
     if (id === sessionId) return;
     setLoadingId(id);
     try {
+      // Clear streaming state before loading history to prevent
+      // stale currentText/streamBlocks from interfering with display.
+      const cs = useChatStore.getState();
+      cs.reset();
       switchSession(id);
       setWelcomeVisible(false);
       const messages = await fetchSessionMessages(id);
-      useChatStore.getState().loadMessages(messages);
+      cs.loadMessages(messages);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '加载会话失败';
       useToastStore.getState().addToast(msg, 'error');

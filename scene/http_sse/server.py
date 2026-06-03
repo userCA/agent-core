@@ -47,7 +47,8 @@ class HumanInputRequest(BaseModel):
     values: dict[str, Any] = Field(default_factory=dict)
 
 
-manager = SessionManager(cwd=os.getcwd())
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+manager = SessionManager(cwd=_PROJECT_ROOT, session_store_dir=os.path.join(_PROJECT_ROOT, "sessions"))
 
 
 @asynccontextmanager

@@ -36,6 +36,10 @@
 }
 
 /* Tighten empty streaming line to cursor height only */
+.final-content.streaming.hidden {
+    display: none;
+}
+
 .final-content.streaming:empty {
     line-height: 16px;
 }
@@ -85,7 +89,7 @@
     align-items: center;
     gap: 10px;
     padding: 8px 28px 4px;
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: 12px;
     color: var(--mute);
     animation: statusIn 0.3s ease;

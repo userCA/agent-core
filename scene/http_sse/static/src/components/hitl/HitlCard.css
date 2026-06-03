@@ -4,7 +4,7 @@
     padding: 16px;
     margin: 12px 0;
     background: var(--surface-soft);
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
 }
 
 .hitl-card.submitted {
@@ -42,7 +42,7 @@
     padding: 8px 12px;
     border: 1px solid var(--hairline);
     border-radius: var(--radius-sm);
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: 13px;
     background: var(--canvas);
     color: var(--ink);
@@ -86,7 +86,7 @@
     border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 12px;
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     color: var(--body);
     background: var(--canvas);
     touch-action: manipulation;
@@ -130,7 +130,7 @@
     border-radius: calc(var(--radius-sm) - 2px);
     font-size: 10px;
     cursor: pointer;
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     padding: 1px 3px;
     color: var(--danger);
 }

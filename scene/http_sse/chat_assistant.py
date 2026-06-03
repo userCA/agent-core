@@ -204,7 +204,7 @@ class ChatAssistant:
                             allowed.add(adapter.definition.name)
             if allowed is not None:
                 filtered = ToolRegistry()
-                for name, tool in tool_registry:
+                for name, tool in tool_registry._tools.items():
                     if name in allowed:
                         filtered.register(tool)
                 tool_registry = filtered
