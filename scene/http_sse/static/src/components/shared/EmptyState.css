@@ -8,8 +8,7 @@
 }
 
 .empty-state-icon {
-  color: var(--ash);
-  opacity: 0.5;
+  color: var(--stone);
   margin-bottom: 4px;
 }
 

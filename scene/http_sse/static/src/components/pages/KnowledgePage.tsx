@@ -5,6 +5,7 @@ import { useConfirmStore } from '../../stores/confirm-store';
 import { fetchKnowledgeDocs, fetchKnowledgeDoc, uploadKnowledgeDoc, uploadKnowledgeFile, deleteKnowledgeDoc, type KnowledgeDoc, type KnowledgeDocDetail } from '../../api/client';
 import Icon from '../shared/Icon';
 import Loading from '../shared/Loading';
+import { SkeletonList } from '../shared/Skeleton';
 import EmptyState from '../shared/EmptyState';
 import './Pages.css';
 
@@ -20,15 +21,19 @@ export default function KnowledgePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const [uploadError, setUploadError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [details, setDetails] = useState<Record<string, KnowledgeDocDetail | null>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [loadError, setLoadError] = useState('');
+
   const load = () => {
     setLoading(true);
+    setLoadError('');
     fetchKnowledgeDocs()
       .then((data) => { setDocs(data); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((err) => { setLoadError(err instanceof Error ? err.message : '加载失败'); setLoading(false); });
   };
 
   useEffect(() => { load(); }, []);
@@ -45,8 +50,28 @@ export default function KnowledgePage() {
     setTimeout(() => setUploadError(''), 5000);
   };
 
+  const validateField = (field: string, value: string) => {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (field === 'name') {
+        if (!value.trim()) next.name = '文档名称不能为空';
+        else delete next.name;
+      } else if (field === 'content') {
+        if (!value.trim()) next.content = '文档内容不能为空';
+        else delete next.content;
+      }
+      return next;
+    });
+  };
+
   const handleUpload = async () => {
-    if (!name.trim() || !content.trim()) return;
+    const errs: Record<string, string> = {};
+    if (!name.trim()) errs.name = '文档名称不能为空';
+    if (!content.trim()) errs.content = '文档内容不能为空';
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      return;
+    }
     setUploading(true);
     setUploadError('');
     setUploadStatus('正在分块并生成向量...');
@@ -139,7 +164,7 @@ export default function KnowledgePage() {
     <div className="page">
       <div className="page-header">
         <button className="page-back" onClick={() => setActivePage('chat')} aria-label="返回聊天">
-          <Icon name="chevron-up" size={18} style={{ transform: 'rotate(-90deg)' }} />
+          <Icon name="chevron-left" size={18} />
         </button>
         <h1 className="page-title">知识库</h1>
         <div className="page-header-right">
@@ -161,9 +186,18 @@ export default function KnowledgePage() {
           </div>
         )}
 
-        {loading && <Loading />}
+        {loading && <SkeletonList count={4} />}
 
-        {!loading && docs.length === 0 && !showForm && (
+        {loadError && (
+          <div className="page-empty">
+            <p className="page-error">{loadError}</p>
+            <button className="btn" onClick={load} style={{ marginTop: 12 }}>
+              <Icon name="spinner" size={12} /> 重试
+            </button>
+          </div>
+        )}
+
+        {!loading && !loadError && docs.length === 0 && !showForm && (
           <EmptyState
             icon="file"
             title="暂无知识库文档"
@@ -177,17 +211,23 @@ export default function KnowledgePage() {
               <span className="card-title">新建文档</span>
             </div>
             <div className="form-grid">
-              <label className="form-field">
+              <div className="form-field">
                 <span>文档名称</span>
                 <input type="text" value={name} placeholder="例如 product-manual"
-                  onChange={(e) => setName(e.target.value)} />
-              </label>
-              <label className="form-field">
+                  className={fieldErrors.name ? 'field-invalid' : ''}
+                  onChange={(e) => setName(e.target.value)}
+                  onBlur={(e) => validateField('name', e.target.value)} />
+                {fieldErrors.name && <span className="field-error">{fieldErrors.name}</span>}
+              </div>
+              <div className="form-field">
                 <span>内容</span>
                 <textarea value={content} rows={6}
+                  className={fieldErrors.content ? 'field-invalid' : ''}
                   placeholder="粘贴或编写文档内容..."
-                  onChange={(e) => setContent(e.target.value)} />
-              </label>
+                  onChange={(e) => setContent(e.target.value)}
+                  onBlur={(e) => validateField('content', e.target.value)} />
+                {fieldErrors.content && <span className="field-error">{fieldErrors.content}</span>}
+              </div>
             </div>
             <div className="card-form-actions">
               <button className="btn btn-primary" onClick={handleUpload} disabled={uploading || !name.trim() || !content.trim()}>

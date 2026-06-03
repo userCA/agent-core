@@ -6,6 +6,7 @@ import { useToastStore } from './toast-store';
 interface ChannelState {
   channels: ChannelInfo[];
   loading: boolean;
+  loadError: string;
   load: () => Promise<void>;
   save: (ch: ChannelInfo) => Promise<void>;
   remove: (id: string) => Promise<void>;
@@ -14,15 +15,17 @@ interface ChannelState {
 export const useChannelStore = create<ChannelState>((set) => ({
   channels: [],
   loading: false,
+  loadError: '',
 
   load: async () => {
-    set({ loading: true });
+    set({ loading: true, loadError: '' });
     try {
       const channels = await fetchChannels();
       set({ channels });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '加载渠道失败';
       useToastStore.getState().addToast(msg, 'error');
+      set({ loadError: msg });
     } finally {
       set({ loading: false });
     }

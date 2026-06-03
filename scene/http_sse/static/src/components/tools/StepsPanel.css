@@ -74,8 +74,8 @@
 }
 
 .step-section.done-ok::before {
-    background: var(--ink);
-    border-color: var(--ink);
+    background: var(--success);
+    border-color: var(--success);
 }
 
 .step-section.done-error::before {

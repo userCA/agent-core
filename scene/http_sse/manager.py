@@ -51,11 +51,11 @@ class SessionManager:
 
     async def start(self) -> None:
         """Pre-load MCP tools and warm up embedding model at startup."""
+        import logging
+        _log = logging.getLogger(__name__)
         self._mcp_manager = MCPManager.from_env()
         await self._mcp_manager.start()
         if len(self._mcp_manager.adapters) > 0:
-            import logging
-            _log = logging.getLogger(__name__)
             _log.info("MCP tools pre-loaded: %d tools", len(self._mcp_manager.adapters))
         # Pre-download/warm embedding model in background (avoids first-request lag)
         try:

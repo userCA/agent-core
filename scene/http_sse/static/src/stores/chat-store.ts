@@ -65,6 +65,7 @@ interface ChatState {
   setUsage: (u: ChatState['usage']) => void;
   enqueuePending: (text: string) => void;
   dequeuePending: () => string | undefined;
+  removePending: (index: number) => void;
   addWidget: (w: WidgetDisplay) => void;
   addAudio: (a: AudioDisplay) => void;
   setHitlRequest: (h: HitlRequest | null) => void;
@@ -112,6 +113,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ pendingQueue: rest });
     return head;
   },
+
+  removePending: (index) =>
+    set((s) => ({
+      pendingQueue: s.pendingQueue.filter((_, i) => i !== index),
+    })),
 
   addWidget: (w) => set((s) => ({ widgets: [...s.widgets, w] })),
   addAudio: (a) => set((s) => ({ audios: [...s.audios, a] })),

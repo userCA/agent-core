@@ -374,3 +374,55 @@ for (let i = blocks.length - 1; i >= 0; i--) {
 
 **规则：** 聊天消息中的 `<video>`/`<audio>` 默认 click-to-play，使用 `controls` + `preload="metadata"`，不加 `autoplay`。
 ```
+
+---
+
+## 规则 19：全局 CSS 属性（transition/animation）必须先测主题切换
+
+**模式：** 给 `:root` 或 `[data-theme]` 添加 `transition` 时，所有使用 CSS 变量的元素在主题切换时都会动画。如果变量数量多、涉及颜色差异大，会产生大面积闪烁感。
+
+**真实案例（2026-06-03）：** 添加 `:root, [data-theme="dark"] { transition: background-color 0.2s, color 0.2s, border-color 0.2s }` 意图实现平滑主题切换。实际效果：暗色 → 亮色时，数十个元素同时从深灰过渡到白色，视觉上形成"全屏闪烁"。用户反馈"过度的突然闪烁"，最终移除该规则。
+
+**规则：**
+1. 不要给 `:root` 加全局 transition
+2. 如确需主题动画，只给 `body` 或特定容器加，且限制属性（如仅 `background-color`）
+3. 修改后必须手动切换主题验证效果
+
+---
+
+## 规则 20：批量模式替换必须全代码库 grep 再执行
+
+**模式：** 发现某处使用错误模式（如 `chevron-up + rotate(-90deg)` 模拟返回箭头），只改了一处，但代码库中有多处相同模式，导致审计轮次增加。
+
+**真实案例（2026-06-03）：** 第二轮审计修复了 SkillsPage 的返回按钮（替换为 `chevron-left`），但 ConnectorsPage、KnowledgePage、ExpertsPage、ChannelsPage 仍有相同问题，到第三轮审计才发现并修复。本可一轮完成的工作分了两次。
+
+**规则：**
+1. 发现需要批量替换的模式 → 先 `grep -r "pattern" src/` 列出所有出现位置
+2. 一次性修改所有匹配文件
+3. 修改后再次 grep 确认无残留
+
+---
+
+## 规则 21：新增组件引用后必须立即运行 tsc
+
+**模式：** 在 JSX 中使用 `<Icon>`、`<SkeletonList>` 等新组件时，忘记添加 `import` 语句。肉眼审查容易漏过，因为 JSX 中组件名和 HTML 标签区分不明显。
+
+**真实案例（2026-06-03）：** ConfirmDialog.tsx 新增 `<Icon name={...} />` 但未添加 `import Icon from '../shared/Icon'`，`npm run build` 时 TypeScript 报错 `TS2304: Cannot find name 'Icon'`。
+
+**规则：**
+1. 修改 React 组件后，立即运行 `tsc && vite build`
+2. 不要依赖"保存时 IDE 自动修复"——有时 IDE 未激活或文件未保存
+3. 如果构建失败，优先检查未导入的组件引用
+
+---
+
+## 规则 22：使用 Icon 组件前确认图标已定义
+
+**模式：** `<Icon name="xxx" />` 中的 `name` 是字符串类型，TypeScript 不会在编译时检查该字符串是否存在于 `ICONS` 映射中。运行时若不存在，渲染为空。
+
+**真实案例（2026-06-03）：** Sidebar.tsx 使用 `<Icon name="chevron-right" size={12} />`，但 Icon.tsx 的 `ICONS` 映射中没有 `chevron-right`。页面渲染时箭头位置空白，直到第二轮修复时才发现并补加图标定义。
+
+**规则：**
+1. 使用新图标前，先打开 Icon.tsx 确认 `ICONS` 中有对应定义
+2. 如缺失，先补充图标定义再使用
+3. 如不确定图标名，在 Icon.tsx 中搜索相似名称

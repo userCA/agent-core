@@ -9,6 +9,8 @@ type IconName =
   | 'minus'
   | 'chevron-down'
   | 'chevron-up'
+  | 'chevron-left'
+  | 'chevron-right'
   | 'spinner'
   | 'running'
   | 'ready'
@@ -86,6 +88,12 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
   'chevron-up': (
     <polyline points="18 15 12 9 6 15" />
+  ),
+  'chevron-left': (
+    <polyline points="15 18 9 12 15 6" />
+  ),
+  'chevron-right': (
+    <polyline points="9 18 15 12 9 6" />
   ),
   spinner: (
     <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />

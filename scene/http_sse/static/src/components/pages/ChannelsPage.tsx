@@ -5,6 +5,7 @@ import { useConfirmStore } from '../../stores/confirm-store';
 import type { ChannelInfo } from '../../api/client';
 import Icon from '../shared/Icon';
 import Loading from '../shared/Loading';
+import { SkeletonList } from '../shared/Skeleton';
 import EmptyState from '../shared/EmptyState';
 import './Pages.css';
 
@@ -14,7 +15,7 @@ const emptyChannel = (): ChannelInfo => ({
 });
 
 export default function ChannelsPage() {
-  const { channels, loading, load, save, remove } = useChannelStore();
+  const { channels, loading, loadError, load, save, remove } = useChannelStore();
   const setActivePage = useUIStore((s) => s.setActivePage);
   const requestConfirm = useConfirmStore((s) => s.requestConfirm);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -88,7 +89,7 @@ export default function ChannelsPage() {
     <div className="page">
       <div className="page-header">
         <button className="page-back" onClick={() => setActivePage('chat')} aria-label="返回聊天">
-          <Icon name="chevron-up" size={18} style={{ transform: 'rotate(-90deg)' }} />
+          <Icon name="chevron-left" size={18} />
         </button>
         <h1 className="page-title">渠道管理</h1>
         <div className="page-header-right">
@@ -99,9 +100,18 @@ export default function ChannelsPage() {
       </div>
 
       <div className="page-body">
-        {loading && <Loading />}
+        {loading && <SkeletonList count={3} />}
 
-        {!loading && channels.length === 0 && !showForm && (
+        {loadError && (
+          <div className="page-empty">
+            <p className="page-error">{loadError}</p>
+            <button className="btn" onClick={load} style={{ marginTop: 12 }}>
+              <Icon name="spinner" size={12} /> 重试
+            </button>
+          </div>
+        )}
+
+        {!loading && !loadError && channels.length === 0 && !showForm && (
           <EmptyState icon="send" title="暂无渠道" description="点击「添加」配置消息渠道，支持飞书、微信等" />
         )}
 

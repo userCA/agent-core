@@ -33,6 +33,21 @@ export default function SkillsPage() {
   const [createDesc, setCreateDesc] = useState('');
   const [createContent, setCreateContent] = useState('');
   const [creating, setCreating] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const validateField = (field: string, value: string) => {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (field === 'name') {
+        if (!value.trim()) next.name = '名称不能为空';
+        else delete next.name;
+      } else if (field === 'content') {
+        if (!value.trim()) next.content = '内容不能为空';
+        else delete next.content;
+      }
+      return next;
+    });
+  };
 
   React.useEffect(() => {
     loadCapabilities();
@@ -103,7 +118,13 @@ export default function SkillsPage() {
 
   const handleCreate = async () => {
     const name = createName.trim();
-    if (!name || !createContent.trim()) return;
+    const errs: Record<string, string> = {};
+    if (!name) errs.name = '名称不能为空';
+    if (!createContent.trim()) errs.content = '内容不能为空';
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      return;
+    }
     setCreating(true);
     try {
       // Generate proper YAML frontmatter
@@ -131,7 +152,7 @@ export default function SkillsPage() {
     <div className="page">
       <div className="page-header">
         <button className="page-back" onClick={() => setActivePage('chat')} aria-label="返回聊天">
-          <Icon name="chevron-up" size={18} className="page-back-icon" />
+          <Icon name="chevron-left" size={18} />
         </button>
         <h1 className="page-title">技能管理</h1>
         <div className="page-header-right">
@@ -287,8 +308,8 @@ export default function SkillsPage() {
 
       {/* Create skill modal */}
       {showCreate && (
-        <div className="auth-backdrop" onClick={() => { if (!creating) { setShowCreate(false); } }}>
-          <div className="auth-modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-backdrop" onClick={() => { if (!creating) { setShowCreate(false); } }}>
+          <div className="modal-content" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
             <h3>创建技能</h3>
             <div className="auth-field">
               <span>名称 <span className="required" style={{ color: 'var(--danger)' }}>*</span></span>
@@ -296,10 +317,13 @@ export default function SkillsPage() {
                 type="text"
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
+                onBlur={(e) => validateField('name', e.target.value)}
                 placeholder="英文名称，如 my-skill"
                 disabled={creating}
                 autoFocus
+                className={fieldErrors.name ? 'field-invalid' : ''}
               />
+              {fieldErrors.name && <span className="field-error">{fieldErrors.name}</span>}
             </div>
             <div className="auth-field">
               <span>描述</span>
@@ -316,11 +340,14 @@ export default function SkillsPage() {
               <textarea
                 value={createContent}
                 onChange={(e) => setCreateContent(e.target.value)}
+                onBlur={(e) => validateField('content', e.target.value)}
                 placeholder="粘贴 Markdown 技能描述..."
                 disabled={creating}
                 rows={12}
                 style={{ resize: 'vertical', minHeight: 200 }}
+                className={fieldErrors.content ? 'field-invalid' : ''}
               />
+              {fieldErrors.content && <span className="field-error">{fieldErrors.content}</span>}
             </div>
             <div className="auth-actions">
               <button

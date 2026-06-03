@@ -18,11 +18,49 @@
     border-radius: var(--radius-sm);
     background: var(--surface-soft);
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
 }
 
 .input-box:focus-within {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.input-box.shake {
+    animation: shake 0.4s ease;
+    border-color: var(--danger);
+}
+
+/* Clear button */
+.input-clear-btn {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ash);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.input-box:hover .input-clear-btn,
+.input-clear-btn:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.input-clear-btn:hover {
+    background: var(--surface-card);
+    color: var(--ink);
 }
 
 .chat-textarea {
@@ -42,7 +80,7 @@
 }
 
 .chat-textarea::placeholder {
-    color: var(--ash);
+    color: var(--stone);
 }
 
 /* Bottom actions bar */
@@ -107,7 +145,7 @@
 .more-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 5;
+    z-index: var(--z-base);
 }
 
 .more-popover {
@@ -123,9 +161,11 @@
     flex-direction: column;
     gap: 2px;
     box-shadow: 0 4px 12px var(--shadow);
-    z-index: 10;
+    z-index: var(--z-dropdown);
     animation: popoverIn 0.15s ease;
     min-width: 120px;
+    max-height: 240px;
+    overflow-y: auto;
 }
 
 @keyframes popoverIn {
@@ -216,6 +256,42 @@
     position: relative;
     display: flex;
     align-items: center;
+}
+
+.model-popover {
+    min-width: 200px;
+}
+
+.model-filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--hairline);
+    margin-bottom: 2px;
+}
+
+.model-filter input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--ink);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    outline: none;
+    min-width: 0;
+}
+
+.model-filter input::placeholder {
+    color: var(--ash);
+}
+
+.model-empty {
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--ash);
+    font-family: var(--font-mono);
+    text-align: center;
 }
 
 .model-pick {

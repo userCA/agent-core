@@ -4,6 +4,7 @@ import { useUIStore } from '../../stores/ui-store';
 import { useConfirmStore } from '../../stores/confirm-store';
 import Icon from '../shared/Icon';
 import Loading from '../shared/Loading';
+import { SkeletonList } from '../shared/Skeleton';
 import EmptyState from '../shared/EmptyState';
 import './Pages.css';
 
@@ -150,7 +151,7 @@ export default function ConnectorsPage() {
     <div className="page">
       <div className="page-header">
         <button className="page-back" onClick={() => setActivePage('chat')} aria-label="返回聊天">
-          <Icon name="chevron-up" size={18} style={{ transform: 'rotate(-90deg)' }} />
+          <Icon name="chevron-left" size={18} />
         </button>
         <h1 className="page-title">连接器管理</h1>
         <div className="page-header-right">
@@ -188,8 +189,15 @@ export default function ConnectorsPage() {
             ))}
           </div>
         )}
-        {loading && <Loading />}
-        {error && <p className="page-empty page-error">{error}</p>}
+        {loading && <SkeletonList count={4} />}
+        {error && (
+          <div className="page-empty">
+            <p className="page-error">{error}</p>
+            <button className="btn" onClick={load} style={{ marginTop: 12 }}>
+              <Icon name="spinner" size={12} /> 重试
+            </button>
+          </div>
+        )}
 
         {!loading && !error && connectors.length === 0 && !showForm && (
           <EmptyState

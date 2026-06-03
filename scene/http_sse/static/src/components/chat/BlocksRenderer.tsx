@@ -61,6 +61,7 @@ export default function BlocksRenderer({ blocks }: Props) {
                 <video
                   controls
                   preload="metadata"
+                  aria-label="生成的视频"
                   style={{
                     width: '100%',
                     maxHeight: 480,

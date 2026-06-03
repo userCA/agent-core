@@ -65,11 +65,11 @@ export default function App() {
               <ChatInput onSend={sendMessage} />
             </>
           )}
-          {activePage === 'skills' && <SkillsPage />}
-          {activePage === 'connectors' && <ConnectorsPage />}
-          {activePage === 'experts' && <ExpertsPage />}
-          {activePage === 'knowledge' && <KnowledgePage />}
-          {activePage === 'channels' && <ChannelsPage />}
+          {activePage === 'skills' && <SkillsPage key="skills" />}
+          {activePage === 'connectors' && <ConnectorsPage key="connectors" />}
+          {activePage === 'experts' && <ExpertsPage key="experts" />}
+          {activePage === 'knowledge' && <KnowledgePage key="knowledge" />}
+          {activePage === 'channels' && <ChannelsPage key="channels" />}
         </div>
       </div>
       {authModalOpen && <AuthModal />}

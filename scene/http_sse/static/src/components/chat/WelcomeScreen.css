@@ -25,7 +25,7 @@
     text-align: center;
     letter-spacing: 0;
     margin: 0;
-    animation: logoFloat 4s ease-in-out infinite;
+    animation: logoFloat 4s ease-in-out 1;
     will-change: transform;
 }
 
@@ -35,16 +35,16 @@
 }
 
 .welcome-title {
-    font-family: var(--font-mono);
+    font-family: inherit;
     font-size: 28px;
     font-weight: 700;
     color: var(--ink);
     margin: 0;
-    letter-spacing: 4px;
+    letter-spacing: 2px;
 }
 
 .welcome-subtitle {
-    font-family: var(--font-mono);
+    font-family: inherit;
     font-size: 13px;
     color: var(--stone);
     margin: 0;
@@ -71,7 +71,7 @@
     color: var(--body);
     font-size: 12px;
     cursor: pointer;
-    font-family: var(--font-mono);
+    font-family: inherit;
     transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
     touch-action: manipulation;
 }
@@ -112,7 +112,7 @@
     color: var(--ink);
     font-size: 12px;
     cursor: pointer;
-    font-family: var(--font-mono);
+    font-family: inherit;
     text-align: left;
     transition: border-color 0.15s ease, background 0.15s ease;
     touch-action: manipulation;

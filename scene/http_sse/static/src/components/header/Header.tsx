@@ -14,12 +14,13 @@ export default function Header({ onAbort }: Props) {
 
   return (
     <header className="app-header">
-      <div className="logo">
+      <div className="logo" aria-hidden="true">
         <pre className="logo-art">{`  /\\_/\\   咪兔
  ( o.o )  你的AI伙伴
  ( > < )
 `}</pre>
       </div>
+      <span className="sr-only">咪兔 - 你的AI伙伴</span>
       <div className="header-actions">
         <button
           className="btn"

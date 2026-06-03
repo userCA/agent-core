@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import { useChatStore } from '../../stores/chat-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useSkillStore } from '../../stores/skill-store';
@@ -28,6 +28,16 @@ export default function ChatInput({ onSend }: Props) {
   const [showSkills, setShowSkills] = useState(false);
   const [recording, setRecording] = useState(false);
   const [showModels, setShowModels] = useState(false);
+  const [modelFilter, setModelFilter] = useState('');
+  const [shakeInput, setShakeInput] = useState(false);
+
+  const filteredModels = useMemo(() => {
+    if (!modelFilter.trim()) return models;
+    const q = modelFilter.toLowerCase();
+    return models.filter((m) =>
+      m.label.toLowerCase().includes(q) || m.desc.toLowerCase().includes(q)
+    );
+  }, [models, modelFilter]);
 
   useEffect(() => {
     loadCapabilities();
@@ -36,7 +46,11 @@ export default function ChatInput({ onSend }: Props) {
 
   const handleSend = useCallback(() => {
     const text = inputValue.trim();
-    if (!text) return;
+    if (!text) {
+      setShakeInput(true);
+      setTimeout(() => setShakeInput(false), 500);
+      return;
+    }
     onSend(text);
   }, [inputValue, onSend]);
 
@@ -147,7 +161,7 @@ export default function ChatInput({ onSend }: Props) {
         </div>
       )}
 
-      <div className="input-box">
+      <div className={`input-box${shakeInput ? ' shake' : ''}`}>
         <textarea
           ref={inputRef}
           className="chat-textarea"
@@ -158,6 +172,16 @@ export default function ChatInput({ onSend }: Props) {
           rows={1}
           aria-label="消息输入框，按 Enter 发送，Shift+Enter 换行"
         />
+        {inputValue && (
+          <button
+            className="input-clear-btn"
+            onClick={() => setInputValue('')}
+            title="清空"
+            aria-label="清空输入"
+          >
+            <Icon name="cancel" size={12} />
+          </button>
+        )}
 
         <div className="input-actions">
           <div className="actions-left">
@@ -185,15 +209,31 @@ export default function ChatInput({ onSend }: Props) {
               {showModels && (
                 <>
                   <div className="more-backdrop" onClick={() => setShowModels(false)} />
-                  <div className="more-popover" style={{ bottom: '100%', top: 'auto', marginBottom: 6 }}>
-                    {models.map((m) => (
+                  <div className="more-popover model-popover" style={{ bottom: '100%', top: 'auto', marginBottom: 6 }}>
+                    {models.length > 6 && (
+                      <div className="model-filter">
+                        <Icon name="search" size={12} />
+                        <input
+                          type="text"
+                          placeholder="搜索模型..."
+                          value={modelFilter}
+                          onChange={(e) => setModelFilter(e.target.value)}
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    )}
+                    {filteredModels.map((m) => (
                       <button key={`${m.provider}/${m.model}`}
                         className={currentProvider === m.provider && currentModel === m.model ? 'active' : ''}
-                        onClick={() => { selectModel(m.provider, m.model); setShowModels(false); }}>
+                        onClick={() => { selectModel(m.provider, m.model); setShowModels(false); setModelFilter(''); }}>
                         <span style={{ fontWeight: 600 }}>{m.label}</span>
                         <span style={{ fontSize: 10, color: 'var(--ash)', marginLeft: 8 }}>{m.desc}</span>
                       </button>
                     ))}
+                    {filteredModels.length === 0 && (
+                      <div className="model-empty">无匹配模型</div>
+                    )}
                   </div>
                 </>
               )}

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useConfirmStore } from '../../stores/confirm-store';
+import Icon from '../shared/Icon';
 import './ConfirmDialog.css';
 
 export default function ConfirmDialog() {
@@ -9,6 +10,7 @@ export default function ConfirmDialog() {
   const confirmText = useConfirmStore((s) => s.confirmText);
   const cancelText = useConfirmStore((s) => s.cancelText);
   const danger = useConfirmStore((s) => s.danger);
+  const type = useConfirmStore((s) => s.type);
   const close = useConfirmStore((s) => s.close);
   const confirm = useConfirmStore((s) => s.confirm);
 
@@ -46,7 +48,12 @@ export default function ConfirmDialog() {
         aria-labelledby="confirm-title"
         aria-describedby="confirm-message"
       >
-        <h3 id="confirm-title" className="confirm-title">{title}</h3>
+        <h3 id="confirm-title" className="confirm-title">
+          <span className={`confirm-icon ${type}`}>
+            <Icon name={type === 'danger' ? 'alert' : 'check'} size={18} />
+          </span>
+          {title}
+        </h3>
         <p id="confirm-message" className="confirm-message">{message}</p>
         <div className="confirm-actions">
           <button className="confirm-btn cancel" onClick={close}>

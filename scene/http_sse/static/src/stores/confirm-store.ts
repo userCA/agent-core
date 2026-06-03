@@ -6,6 +6,7 @@ interface ConfirmOptions {
   confirmText?: string;
   cancelText?: string;
   danger?: boolean;
+  type?: 'danger' | 'info';
   onConfirm: () => void;
   onCancel?: () => void;
 }
@@ -17,6 +18,7 @@ interface ConfirmState {
   confirmText: string;
   cancelText: string;
   danger: boolean;
+  type: 'danger' | 'info';
   onConfirm: (() => void) | null;
   onCancel: (() => void) | null;
 
@@ -32,6 +34,7 @@ export const useConfirmStore = create<ConfirmState>((set, get) => ({
   confirmText: '确认',
   cancelText: '取消',
   danger: false,
+  type: 'info',
   onConfirm: null,
   onCancel: null,
 
@@ -43,6 +46,7 @@ export const useConfirmStore = create<ConfirmState>((set, get) => ({
       confirmText: options.confirmText || '确认',
       cancelText: options.cancelText || '取消',
       danger: options.danger ?? false,
+      type: options.type ?? (options.danger ? 'danger' : 'info'),
       onConfirm: () => {
         options.onConfirm();
         get().close();
