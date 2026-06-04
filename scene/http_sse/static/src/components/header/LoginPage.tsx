@@ -10,6 +10,12 @@ function generateId(prefix: string): string {
   return `${prefix}_${ts}_${entropy}`;
 }
 
+const CAT_ART = [
+  '  /\\_/\\',
+  '  ( -.- ) 咪兔',
+  '  ( z  z ) 你的AI伙伴',
+].join('\n');
+
 export default function LoginPage() {
   const { authHeaders, saveAuth, knownUids, registerUid } = useSessionStore();
   const uidInputRef = useRef<HTMLInputElement>(null);
@@ -66,11 +72,7 @@ export default function LoginPage() {
       <div className="login-ambient" aria-hidden="true" />
       <div className="login-card" role="main" aria-label="登录">
         <div className="login-logo" aria-hidden="true">
-          <pre className="login-logo-art">
-{`   /\\\\_/\\\\
-   ( -.- ) 咪兔
-  ( z  z ) 你的AI伙伴`}
-          </pre>
+          <pre className="login-logo-art">{CAT_ART}</pre>
           <span className="login-zzz" aria-hidden="true">
             <span className="login-zzz-z" style={{ animationDelay: '0s' }}>z</span>
             <span className="login-zzz-z" style={{ animationDelay: '0.4s' }}>z</span>
