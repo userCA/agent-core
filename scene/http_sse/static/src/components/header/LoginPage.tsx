@@ -67,9 +67,9 @@ export default function LoginPage() {
       <div className="login-card" role="main" aria-label="登录">
         <div className="login-logo" aria-hidden="true">
           <pre className="login-logo-art">
-{`  /\\\\_/\\\\
-  ( -.- )   咪兔
-  ( z  z )  你的AI伙伴`}
+{`    /\\\\_/\\\\
+    ( -.- ) 咪兔
+    ( z  z )  你的AI伙伴`}
           </pre>
           <span className="login-zzz" aria-hidden="true">
             <span className="login-zzz-z" style={{ animationDelay: '0s' }}>z</span>
