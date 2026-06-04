@@ -176,17 +176,6 @@ async def list_sessions(request: Request) -> dict[str, Any]:
         "offset": offset,
         "limit": limit,
     }
-    return {
-        "sessions": [
-            {
-                "session_id": s.session_id,
-                "created_at": s.created_at,
-                "entry_count": s.entry_count,
-                "title": s.title,
-            }
-            for s in sessions
-        ]
-    }
 
 
 @app.get("/session")
