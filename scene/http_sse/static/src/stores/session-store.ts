@@ -5,6 +5,17 @@ import { useToastStore } from './toast-store';
 export type { PersonaInfo };
 import { AUTH_KEYS, AUTH_STORAGE_KEY } from '../config';
 
+const KNOWN_UIDS_KEY = 'agent_known_uids';
+
+function loadKnownUids(): string[] {
+  try {
+    const raw = localStorage.getItem(KNOWN_UIDS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
 export interface SessionSummary {
   session_id: string;
   created_at: string;
@@ -16,6 +27,7 @@ interface SessionState {
   sessionId: string | null;
   authHeaders: Record<string, string>;
   hasAuth: boolean;
+  knownUids: string[];
   sessions: SessionSummary[];
   sessionsLoading: boolean;
   personas: PersonaInfo[];
@@ -26,7 +38,9 @@ interface SessionState {
   clearSession: () => void;
   loadAuth: () => void;
   saveAuth: (headers: Record<string, string>) => void;
+  clearAuth: () => void;
   buildAuthHeaders: () => Record<string, string>;
+  registerUid: (uid: string) => void;
   loadSessions: () => Promise<void>;
   loadPersonas: () => Promise<void>;
   setPersonaId: (id: string | null) => void;
@@ -56,6 +70,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   sessionId: null,
   authHeaders: {},
   hasAuth: false,
+  knownUids: loadKnownUids(),
   sessions: [],
   sessionsLoading: false,
   personas: [],
@@ -89,6 +104,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(filtered));
     set({ authHeaders: filtered, hasAuth: Object.keys(filtered).length > 0 });
+  },
+
+  clearAuth: () => {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    set({ authHeaders: {}, hasAuth: false, sessionId: null });
+  },
+
+  registerUid: (uid) => {
+    const current = get().knownUids;
+    if (current.includes(uid)) return;
+    const next = [uid, ...current].slice(0, 20);
+    localStorage.setItem(KNOWN_UIDS_KEY, JSON.stringify(next));
+    set({ knownUids: next });
   },
 
   buildAuthHeaders: () => {

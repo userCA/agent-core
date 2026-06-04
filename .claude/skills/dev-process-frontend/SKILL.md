@@ -416,6 +416,21 @@ for (let i = blocks.length - 1; i >= 0; i--) {
 
 ---
 
+## 规则 23：所有 hooks 必须在条件 return 之前调用
+
+**模式：** 在组件中加入认证守卫等早期 return（`if (!hasAuth) return <LoginPage />`）时，如果把 `useEffect`/`useState`/zustand selector 等 hook 放在 return 之后，会导致 hooks 调用顺序在两次渲染间变化。React 抛出 "Rendered more hooks than during the previous render" 并卸载整个组件树 → 白屏。
+
+**真实案例（2026-06-04）：** `App.tsx` 在认证逻辑中添加了 `if (!hasAuth) return <LoginPage />`，但 popstate `useEffect` 放在了这个 return 之后。未登录时该 useEffect 不被调用，登录后 `hasAuth` 变为 `true` 时该 useEffect 被调用 → hooks 数量不一致 → 白屏。
+
+**规则：** 组件中的所有 hooks（`useState`、`useEffect`、`useCallback`、`useMemo`、`useRef`、zustand `useXxxStore` 等）必须在所有条件 return 之前调用。如果在早期 return 之后还有 hooks 逻辑，必须移到 return 之前，或者在 return 渲染的组件内部处理。
+
+**检查：** 新增条件 return 后，确认：
+1. 所有 hooks 都在 return 之前
+2. React DevTools 控制台无 hooks 顺序警告
+3. 登录/登出切换时页面不白屏
+
+---
+
 ## 规则 22：使用 Icon 组件前确认图标已定义
 
 **模式：** `<Icon name="xxx" />` 中的 `name` 是字符串类型，TypeScript 不会在编译时检查该字符串是否存在于 `ICONS` 映射中。运行时若不存在，渲染为空。

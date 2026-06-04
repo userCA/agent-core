@@ -6,6 +6,7 @@ import { useUIStore } from './stores/ui-store';
 import Sidebar from './components/sidebar/Sidebar';
 import Header from './components/header/Header';
 import AuthModal from './components/header/AuthModal';
+import LoginPage from './components/header/LoginPage';
 import ChatContainer from './components/chat/ChatContainer';
 import ChatInput from './components/input/ChatInput';
 import PendingBubbles from './components/input/PendingBubbles';
@@ -23,6 +24,7 @@ const VALID_PAGES = ['chat', 'skills', 'connectors', 'experts', 'knowledge', 'ch
 
 export default function App() {
   const { sendMessage, abort } = useSSE();
+  const hasAuth = useSessionStore((s) => s.hasAuth);
   const loadAuth = useSessionStore((s) => s.loadAuth);
   const loadModels = useModelStore((s) => s.loadModels);
   const authModalOpen = useUIStore((s) => s.authModalOpen);
@@ -45,6 +47,10 @@ export default function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [setActivePage]);
+
+  if (!hasAuth) {
+    return <LoginPage />;
+  }
 
   return (
     <BridgeProvider>

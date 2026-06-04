@@ -190,6 +190,15 @@ export default function Sidebar() {
             <span className="sidebar-menu-label">认证设置</span>
             <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
           </button>
+
+          <button
+            className="sidebar-menu-item sidebar-menu-item--danger"
+            onClick={() => useSessionStore.getState().clearAuth()}
+          >
+            <span className="sidebar-menu-icon"><Icon name="cancel" size={14} /></span>
+            <span className="sidebar-menu-label">退出登录</span>
+            <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
+          </button>
         </div>
 
         <div className="sidebar-divider" />
