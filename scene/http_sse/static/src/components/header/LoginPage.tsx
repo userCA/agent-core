@@ -59,11 +59,6 @@ export default function LoginPage() {
 
   const handleBlur = () => setTouched(true);
 
-  const setUidValue = (v: string) => {
-    setUid(v);
-    if (touched) setTouched(true);
-  };
-
   const hasHistory = knownUids.length > 0;
 
   return (
@@ -72,7 +67,7 @@ export default function LoginPage() {
       <div className="login-card" role="main" aria-label="登录">
         <div className="login-logo" aria-hidden="true">
           <pre className="login-logo-art">
-{`  /\\_/\\
+{`  /\\\\_/\\\\
   ( -.- )   咪兔
   ( z  z )  你的AI伙伴`}
           </pre>
@@ -93,7 +88,7 @@ export default function LoginPage() {
             id="login-uid"
             type="text"
             value={uid}
-            onChange={(e) => setUidValue(e.target.value)}
+            onChange={(e) => { setUid(e.target.value); if (touched) setTouched(true); }}
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
             placeholder="输入你的用户名，如 alice"
@@ -176,7 +171,7 @@ export default function LoginPage() {
                   key={u}
                   type="button"
                   className="login-history-item"
-                  onClick={() => { setUidValue(u); setTouched(false); }}
+                  onClick={() => { setUid(u); setTouched(false); }}
                   aria-label={`使用 ${u} 登录`}
                 >
                   {u}
