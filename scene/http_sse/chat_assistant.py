@@ -63,6 +63,32 @@ async def _auth_before_tool_call(info: dict[str, Any]) -> dict[str, Any] | None:
         }
     }
 
+def _build_memory_extension(
+    backend: str, config: dict[str, Any], session_id: str
+) -> list[Any]:
+    if not backend:
+        return []
+    from agent_core.memory.extension import MemoryExtension
+
+    if backend == "inmemory":
+        from agent_core.memory.adapters import InMemoryMemoryStore
+        store = InMemoryMemoryStore()
+    elif backend == "mem0":
+        from agent_core.memory.adapters import Mem0MemoryStore
+        store = Mem0MemoryStore()
+    elif backend == "openviking":
+        from agent_core.memory.adapters import OpenVikingMemoryStore
+        store = OpenVikingMemoryStore(
+            url=config.get("url", "http://localhost:1933"),
+            api_key=config.get("api_key", ""),
+            api_keys=config.get("api_keys"),
+            resolve_api_key=config.get("resolve_api_key"),
+        )
+    else:
+        return []
+    return [MemoryExtension(store=store, session_id=session_id)]
+
+
 EventHandler = Callable[[AgentEvent], Awaitable[None] | None]
 
 
@@ -78,6 +104,7 @@ class ChatAssistant:
         skills: list[Skill] | None = None,
         tool_registry: ToolRegistry | None = None,
         cwd: str = "",
+        extensions: list[Any] | None = None,
     ) -> None:
         self._agent = agent
         self._tool_registry = tool_registry or ToolRegistry()
@@ -88,6 +115,7 @@ class ChatAssistant:
         self._session: AgentSession | None = None
         self._session_unsub: Callable[[], None] | None = None
         self._handlers: list[EventHandler] = []
+        self._extensions = extensions or []
 
     @classmethod
     async def create(
@@ -105,6 +133,8 @@ class ChatAssistant:
         persona: Persona | None = None,
         mcp_manager: Any | None = None,
         cwd: str = "",
+        memory_backend: str = "",
+        memory_config: dict[str, Any] | None = None,
     ) -> "ChatAssistant":
         """Factory method to create a ChatAssistant with minimal configuration."""
         from agent_core.providers.openai_provider import OpenAIProvider
@@ -301,6 +331,7 @@ class ChatAssistant:
             max_turns=10,
         )
 
+        extensions = _build_memory_extension(memory_backend, memory_config or {}, session_id or "")
         assistant = cls(
             agent=agent,
             session_store=session_store,
@@ -308,6 +339,7 @@ class ChatAssistant:
             skills=skills,
             tool_registry=tool_registry,
             cwd=cwd,
+            extensions=extensions,
         )
         await assistant.start()
         return assistant
@@ -318,6 +350,7 @@ class ChatAssistant:
             agent=self._agent,
             store=self._session_store,
             session_id=self._session_id,
+            extensions=self._extensions or None,
         )
         await self._session.start()
         # Wire ChatAssistant handlers into the session event stream
