@@ -55,6 +55,27 @@ manager = SessionManager(cwd=_PROJECT_ROOT, session_store_dir=os.path.join(_PROJ
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await manager.start()
+
+    # Configure companion naming provider (reuses same auth as chat)
+    try:
+        from agent_core.companion.naming import configure_naming
+        from agent_core.providers.auth import AuthSource
+        from agent_core.providers.openai_provider import OpenAIProvider
+        from agent_core.providers.types import Model
+
+        auth = await AuthSource.env("MINIMAX_API_KEY").resolve("minimax")
+        provider = OpenAIProvider(
+            base_url="https://api.minimax.chat/v1",
+            provider_name="minimax",
+            models=[
+                Model(provider="minimax", id="minimax-m2.7",
+                      context_window=128_000, max_output_tokens=4096),
+            ],
+        )
+        configure_naming(provider, auth, model_id="minimax-m2.7")
+    except Exception:
+        pass  # naming falls back to name pool
+
     # Auto-start Feishu bots when channels are configured (default on)
     if os.environ.get("FEISHU_BOT_ENABLED", "true").lower() != "false":
         try:
@@ -677,6 +698,26 @@ async def get_companion(uid: str) -> dict[str, Any]:
     """Return deterministic companion bones for a uid."""
     from agent_core.companion import roll_companion
     bones = roll_companion(uid)
+    return _bones_to_dict(bones)
+
+
+@app.post("/api/companion/{uid}/hatch")
+async def hatch_companion(uid: str) -> dict[str, Any]:
+    """Hatch a companion — generate name + personality."""
+    from agent_core.companion import roll_companion
+    from agent_core.companion.naming import hatch_name
+
+    bones = roll_companion(uid)
+    soul = await hatch_name(bones)
+    return {
+        **_bones_to_dict(bones),
+        "name": soul.name,
+        "personality": soul.personality,
+        "hatched_at": soul.hatched_at,
+    }
+
+
+def _bones_to_dict(bones) -> dict[str, Any]:
     return {
         "uid": bones.uid,
         "breed": bones.breed,

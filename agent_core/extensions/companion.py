@@ -104,7 +104,7 @@ class CompanionExtension:
 
         cm = CompanionMemory(memory_store)
         self._observer = SilentObserver(cm)
-        self._guide = GuideNPC(cm, self._observer)
+        self._guide = GuideNPC(cm, self._observer, breed=bones.breed)
 
     # -- protocol hooks -------------------------------------------------------
 
@@ -129,7 +129,7 @@ class CompanionExtension:
                 self._emit_state("concerned")
                 self._send(CompanionBubbleEvent(
                     self._uid,
-                    CompanionBubble("刚才好像出错了...", ttl_ms=8000, priority="care"),
+                    CompanionBubble(_error_comfort(bones.breed), ttl_ms=8000, priority="care"),
                 ))
             else:
                 self._fsm.process("tool_ok")
@@ -211,3 +211,20 @@ class CompanionExtension:
         if bubble:
             self._last_bubble_at = now
             self._send(CompanionBubbleEvent(self._uid, bubble))
+
+
+# ---- breed-specific error comfort ------------------------------------------
+
+_ERROR_COMFORT: dict[str, str] = {
+    "orange_tabby": "出错了喵...别急，先趴会儿再试？",
+    "tuxedo": "啊啊啊报错了!!! 没事没事再试一次!!!",
+    "calico": "...哼。这不是我的问题。不过...再试一次？",
+    "siamese": "这个报错我记得！上周也出现过，当时改了三行就好了喵！",
+    "black_cat": "...错误是代码在和你说话。听它说了什么。",
+    "ragdoll": "没关系的呢...慢慢来，我陪你~",
+    "scottish_fold": "那个...出错了呢...但是别放弃喵...",
+}
+
+
+def _error_comfort(breed: str) -> str:
+    return _ERROR_COMFORT.get(breed, "刚才好像出错了...")

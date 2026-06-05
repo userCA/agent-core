@@ -8,11 +8,12 @@ import time
 from agent_core.companion.memory import CompanionMemory
 from agent_core.companion.observer import SilentObserver
 from agent_core.companion.templates import (
-    TOOL_SUGGESTIONS,
     BondLevel,
+    breed_talkativeness,
     compute_bond,
     pick_greeting,
     pick_idle_tip,
+    pick_tool_note,
 )
 
 from agent_core.companion.types import CompanionBubble
@@ -23,15 +24,17 @@ def _days_ago(timestamp: float) -> int:
 
 
 class GuideNPC:
-    """Rule engine for companion bubbles — no LLM involved."""
+    """Rule engine for companion bubbles — breed-aware, no LLM involved."""
 
-    def __init__(self, memory: CompanionMemory, observer: SilentObserver):
+    def __init__(self, memory: CompanionMemory, observer: SilentObserver, breed: str = "orange_tabby"):
         self._memory = memory
         self._observer = observer
+        self._breed = breed
         self._greeted = False
 
     async def decide_bubble(self, uid: str) -> CompanionBubble | None:
         bond = compute_bond(self._observer)
+        talk = breed_talkativeness(self._breed)
 
         # -- onboarding (low prompt count) --
         if self._observer.prompt_count <= 2:
@@ -49,16 +52,14 @@ class GuideNPC:
             if observations:
                 last_ts = observations[-1].timestamp
                 days_away = _days_ago(last_ts)
-            text = pick_greeting(bond, days_away)
+            text = pick_greeting(bond, days_away, self._breed)
             return CompanionBubble(text, ttl_ms=12_000, priority="greeting")
 
-        # -- repeated tool use --
+        # -- repeated tool use (breed-specific observation) --
         if self._observer.repeated_tool("bash", 3):
-            return CompanionBubble(
-                "你今天用了好多次终端呢，需要我帮你把这些命令写成脚本吗？",
-                ttl_ms=10_000,
-                priority="suggestion",
-            )
+            note = pick_tool_note(self._breed, "bash")
+            if note:
+                return CompanionBubble(note, ttl_ms=10_000, priority="suggestion")
 
         # -- long session reminder --
         if self._observer.session_duration() > 3600:
@@ -68,10 +69,11 @@ class GuideNPC:
                 priority="care",
             )
 
-        # -- random tip (low probability) --
-        if random.random() < 0.03:
+        # -- random tip (probability scaled by talkativeness) --
+        base_chance = 0.03 * (0.5 + talk)  # 话唠猫气泡更频繁
+        if random.random() < base_chance:
             return CompanionBubble(
-                pick_idle_tip(),
+                pick_idle_tip(self._breed, self._observer.prompt_count),
                 ttl_ms=8_000,
                 priority="low",
             )

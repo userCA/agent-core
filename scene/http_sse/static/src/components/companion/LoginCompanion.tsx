@@ -97,7 +97,10 @@ export default function LoginCompanion({ uid, isNewUser, isReturning, hasInput, 
         >
           <span className="companion-rarity-stars">{stars}</span>
           <span className="companion-rarity-label">
-            {breedLabel ? `${breedLabel} ` : ''}{isNewUser ? '你的专属咪兔' : '一直在等你'}
+            {bones.name
+              ? `${bones.name} · ${breedLabel}`
+              : `${breedLabel ? `${breedLabel} ` : ''}${isNewUser ? '你的专属咪兔' : '一直在等你'}`
+            }
           </span>
         </span>
       )}

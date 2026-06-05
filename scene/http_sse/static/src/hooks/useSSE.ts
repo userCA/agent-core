@@ -132,10 +132,11 @@ export function useSSE() {
         break;
       }
 
-      case 'companion_bubble':
-        // Bubbles rendered by a bubble component in a future PR.
-        // For now, the emotion change above drives the sprite mood.
+      case 'companion_bubble': {
+        const { setBubble } = useCompanionStore.getState();
+        setBubble({ text: evt.text, ttl_ms: evt.ttl_ms });
         break;
+      }
     }
     // Sync live blocks to store for StreamingMessage
     setStreamBlocks(blocksRef.current.map(b => ({

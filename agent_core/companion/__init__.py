@@ -19,6 +19,7 @@ from agent_core.companion.species import (
     RARITY_WEIGHTS,
     STAT_NAMES,
 )
+from agent_core.companion.naming import CompanionSoul, hatch_name
 from agent_core.companion.state_machine import EmotionFSM
 
 __all__ = [
