@@ -11,9 +11,9 @@ function generateId(prefix: string): string {
 }
 
 const CAT_ART = [
-  '   /\\_/\\',
-  ' ( -.-)咪兔',
-  ' ( z z)你的AI伙伴',
+  '  /\\_/\\',
+  '  ( -.-)咪兔',
+  '  ( z z)你的AI伙伴',
 ].join('\n');
 
 export default function LoginPage() {
