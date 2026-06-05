@@ -30,6 +30,7 @@ export default function HeaderCompanion() {
         mood={mood}
         breed={bones?.breed as BreedId | undefined}
         eyeOverride={emotion?.eye_override ?? null}
+        shiny={bones?.shiny ?? false}
         className="header-companion-art"
       />
       {bubble && (

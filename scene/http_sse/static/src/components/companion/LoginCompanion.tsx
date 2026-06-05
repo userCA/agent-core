@@ -80,6 +80,8 @@ export default function LoginCompanion({ uid, isNewUser, isReturning, hasInput, 
       <CompanionSprite
         mood={mood}
         breed={bones?.breed as BreedId | undefined}
+        stage={revealed ? 'adult' : 'kitten'}
+        shiny={bones?.shiny ?? false}
         className="companion-sprite-art"
       />
       {sleeping && (

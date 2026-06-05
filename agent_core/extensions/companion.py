@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from agent_core.companion.bones import roll_companion
+from agent_core.companion.daily_rhythm import get_period, zzz_threshold_minutes
 from agent_core.companion.state_machine import Emotion, EmotionFSM
 from agent_core.companion.types import CompanionBubble
 from agent_core.core.events import (
@@ -92,6 +93,7 @@ class CompanionExtension:
 
         # deterministic bones for breed-specific emotion params
         bones = roll_companion(uid)
+        self._bones = bones
         self._fsm = EmotionFSM(breed=bones.breed)
 
         # Phase 4: observer + guide
@@ -199,12 +201,14 @@ class CompanionExtension:
     async def _check_bubble_and_idle(self) -> None:
         now = time.time()
         gap = now - self._observer.last_active_at
-        if gap > 300:
+        zzz_s = zzz_threshold_minutes(self._bones.quirk) * 60
+        if gap > zzz_s:
             await self._observer.on_idle_return(self._uid, gap)
             self._fsm.mark_idle(gap)
             self._emit_state("sleeping")
         self._observer.last_active_at = now
 
+        period = get_period()
         if now - self._last_bubble_at < 30:
             return
         bubble = await self._guide.decide_bubble(self._uid)

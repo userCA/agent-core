@@ -2,7 +2,7 @@
 
 ## 命名时机
 
-咪兔首次 hatch 时（用户首次登录/首次使用 /buddy 命令），由 LLM 生成 `name` 和
+咪兔首次 hatch 时（用户首次登录/首次打开 companion 面板），由 LLM 生成 `name` 和
 `personality` 摘要。
 
 这是**唯一的 LLM 调用**——其余所有米兔行为均为规则+模板驱动。
@@ -10,7 +10,7 @@
 ## LLM Prompt
 
 ```python
-MITU_NAMING_PROMPT = """你是一只住在终端里的 {breed_cn} 猫精灵的"灵魂生成器"。
+MITU_NAMING_PROMPT = """你是一只住在网页 / App 里的终端风格 {breed_cn} 猫精灵的"灵魂生成器"。
 
 这只猫的基因特征是:
 - 品种: {breed_cn}

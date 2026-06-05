@@ -148,7 +148,7 @@ def compute_decay(days_away, bond_score):
 | 内容 | 说明 |
 |------|------|
 | 老友模式 | 气泡模板更随意自然，去掉正式模板限制 |
-| 回忆功能 | `/buddy memories` → 展示 milestone 时间线 |
+| 回忆功能 | `buddy.memories` 面板 → 展示 milestone 时间线 |
 | 星光项圈 | SOULMATE 专属配饰，金色粒子 |
 | 每周惊喜 | 每周一自动推送 "上周互动亮点" 气泡 |
 | 自定义触发 | 可教咪兔 1-2 个触发词→指定反应 (如 "加油"→撒花) |
