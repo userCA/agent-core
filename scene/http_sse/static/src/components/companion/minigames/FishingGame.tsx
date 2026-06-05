@@ -1,9 +1,19 @@
+/**
+ * FishingGame — thin game client.
+ *
+ * Boundary rules:
+ * - Fish data: fetched from backend /api/minigame/config (single source of truth).
+ * - Game logic: seeded PRNG runs locally; backend replays for verification.
+ * - PRNG: mirrors Python bones._mulberry32 — duplication is intentional
+ *   (seed-based replay requires identical PRNG on both sides).
+ */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './FishingGame.css';
 
 interface FishDef {
   name: string; emoji: string; rarity: string;
   rarity_rank: number; food_value: number; sprite: string;
+  appear_weight: number;
 }
 
 interface Props {
@@ -12,14 +22,6 @@ interface Props {
 }
 
 const TICK_MS = 100;
-
-// Minimal local copy of fish data for sprite rendering
-const FISH_SPRITES: Record<string, string> = {
-  '小虾米': '~ <><', '鲫鱼': '<><', '小螃蟹': '~ v.v ~',
-  '鲤鱼': '><>', '鱿鱼': '~<O>~', '金鱼': '~<><~',
-  '三文鱼': '><<<>', '灯笼鱼': '~<O>~', '电鳗': '~zzZ~',
-  '锦鲤': '><<<>>', '金龙鱼': '~<O>~', '美人鱼': '><O><',
-};
 
 export default function FishingGame({ uid, onDone }: Props) {
   const [phase, setPhase] = useState('waiting');
@@ -40,7 +42,7 @@ export default function FishingGame({ uid, onDone }: Props) {
     actions: [] as { t: number; type: string }[],
   });
 
-  // Init game
+  // Init game — fish_table comes from backend (single source of truth)
   useEffect(() => {
     (async () => {
       const res = await fetch(`/api/minigame/config?uid=${encodeURIComponent(uid)}&game=fishing`);
@@ -50,7 +52,9 @@ export default function FishingGame({ uid, onDone }: Props) {
       s.seed = seed;
       s.signature = signature;
       s.rng = rng;
-      s.pond = generatePond(rng, params.rarity_bonus || 0);
+      // Build pond from backend fish_table (no local copy)
+      const fishTable: FishDef[] = params.fish_table || [];
+      s.pond = buildPond(fishTable, rng, params.rarity_bonus || 0);
       s.bobberPos = Math.floor(rng() * 80 + 10);
       s.biteTimer = rng() * 6 + 2;
       setBobberPos(s.bobberPos);
@@ -182,7 +186,7 @@ export default function FishingGame({ uid, onDone }: Props) {
         </div>
         {fishOnHook && phase === 'biting' && (
           <div className="fishing-fish-shadow">
-            {FISH_SPRITES[fishOnHook.name] || '~>~'}
+            {fishOnHook.sprite}
           </div>
         )}
         <div className="fishing-waves">
@@ -238,7 +242,9 @@ export default function FishingGame({ uid, onDone }: Props) {
   );
 }
 
-// -- local PRNG (matches Python bones._mulberry32) --
+// -- PRNG — intentionally mirrors Python bones._mulberry32 -----------------
+// Duplication is by design: seed-based replay verification requires the
+// frontend and backend to produce identical random sequences from the same seed.
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -250,27 +256,13 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-// -- local fish generation (mirrors fish_table.py) --
+// -- fish util — uses API-provided fish_table (single source of truth) ----
 
-const LOCAL_FISH: FishDef[] = [
-  { name: '小虾米', emoji: '🦐', rarity: 'common', rarity_rank: 0, food_value: 5, sprite: '~ <><' },
-  { name: '鲫鱼', emoji: '🐟', rarity: 'common', rarity_rank: 0, food_value: 8, sprite: '<><' },
-  { name: '小螃蟹', emoji: '🦀', rarity: 'common', rarity_rank: 0, food_value: 6, sprite: '~ v.v ~' },
-  { name: '鲤鱼', emoji: '🐠', rarity: 'uncommon', rarity_rank: 1, food_value: 15, sprite: '><>' },
-  { name: '鱿鱼', emoji: '🦑', rarity: 'uncommon', rarity_rank: 1, food_value: 18, sprite: '~<O>~' },
-  { name: '金鱼', emoji: '🔶', rarity: 'uncommon', rarity_rank: 1, food_value: 12, sprite: '~<><~' },
-  { name: '三文鱼', emoji: '🐡', rarity: 'rare', rarity_rank: 2, food_value: 30, sprite: '><<<>' },
-  { name: '灯笼鱼', emoji: '🎃', rarity: 'rare', rarity_rank: 2, food_value: 35, sprite: '~<O>~' },
-  { name: '电鳗', emoji: '⚡', rarity: 'epic', rarity_rank: 3, food_value: 60, sprite: '~zzZ~' },
-  { name: '锦鲤', emoji: '🎏', rarity: 'epic', rarity_rank: 3, food_value: 50, sprite: '><<<>>' },
-  { name: '金龙鱼', emoji: '🐉', rarity: 'legendary', rarity_rank: 4, food_value: 100, sprite: '~<O>~' },
-  { name: '美人鱼', emoji: '🧜', rarity: 'legendary', rarity_rank: 4, food_value: 120, sprite: '><O><' },
-];
-
-function generatePond(rng: () => number, bonus: number): FishDef[] {
+function buildPond(fishTable: FishDef[], rng: () => number, bonus: number): FishDef[] {
   const pond: FishDef[] = [];
-  for (const f of LOCAL_FISH) {
-    const weight = f.rarity_rank > 0 ? 1 + bonus : 10;
+  for (const f of fishTable) {
+    const base = f.appear_weight || (f.rarity_rank > 0 ? 1 : 10);
+    const weight = f.rarity_rank > 0 ? base + bonus : base;
     for (let i = 0; i < weight; i++) pond.push(f);
   }
   return pond;

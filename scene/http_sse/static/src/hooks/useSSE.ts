@@ -5,6 +5,7 @@ import { useSessionStore } from '../stores/session-store';
 import { useUIStore } from '../stores/ui-store';
 import { useToastStore } from '../stores/toast-store';
 import { useModelStore } from '../stores/model-store';
+import { useCompanionStore } from '../stores/companion-store';
 import { getDisplayableText } from '../utils/think';
 import type { SSEEvent } from '../api/types';
 
@@ -119,6 +120,21 @@ export function useSSE() {
 
       case 'error':
         addMessage({ id: `err-${Date.now()}`, role: 'error', content: evt.message, timestamp: Date.now() });
+        break;
+
+      case 'companion': {
+        const { setEmotion } = useCompanionStore.getState();
+        setEmotion({
+          emotion: evt.emotion,
+          eye_override: evt.eye_override,
+          frontend_mood: evt.frontend_mood as any,
+        });
+        break;
+      }
+
+      case 'companion_bubble':
+        // Bubbles rendered by a bubble component in a future PR.
+        // For now, the emotion change above drives the sprite mood.
         break;
     }
     // Sync live blocks to store for StreamingMessage

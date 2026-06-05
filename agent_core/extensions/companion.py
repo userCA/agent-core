@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from agent_core.companion.bones import roll_companion
+from agent_core.companion.state_machine import Emotion, EmotionFSM
+from agent_core.companion.types import CompanionBubble
 from agent_core.core.events import (
     AgentEnd,
     AgentEvent,
@@ -15,10 +19,11 @@ from agent_core.core.events import (
     TurnEnd,
     TurnStart,
 )
-from agent_core.companion.types import CompanionBubble
 from agent_core.memory.base import MemoryStore
 
 logger = logging.getLogger(__name__)
+
+DECAY_CHECK_INTERVAL = 10  # seconds between decay checks
 
 
 # ---- wire-format types ------------------------------------------------------
@@ -26,9 +31,12 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CompanionEvent:
-    type: str  # "ear_perk" | "busy" | "happy" | "sleeping" | "concerned"
+    type: str  # "ear_perk" | "busy" | "happy" | "sleeping" | "concerned" | "emotion"
     uid: str
     timestamp: float = field(default_factory=time.time)
+    emotion: str = ""           # current emotion state
+    eye_override: str | None = None  # sprite eye override
+    frontend_mood: str = "awake"
 
 
 @dataclass
@@ -52,6 +60,9 @@ def companion_event_to_sse(evt: CompanionEvent | CompanionBubbleEvent) -> dict[s
         "event": "companion",
         "type": evt.type,
         "uid": evt.uid,
+        "emotion": evt.emotion,
+        "eye_override": evt.eye_override,
+        "frontend_mood": evt.frontend_mood,
     }
 
 
@@ -61,10 +72,8 @@ def companion_event_to_sse(evt: CompanionEvent | CompanionBubbleEvent) -> dict[s
 class CompanionExtension:
     """Observes agent events and emits companion mood / bubble events.
 
-    Always enables observer + guide for memory-driven bubbles: greeting,
-    idle detection, tool-use suggestions, and session-duration reminders.
-    Defaults to InMemoryMemoryStore; inject a persistent MemoryStore
-    for cross-restart companion memory.
+    Drives a per-companion EmotionFSM for 6-state emotional depth.
+    Always enables observer + guide for memory-driven bubbles.
     """
 
     name = "companion"
@@ -77,11 +86,15 @@ class CompanionExtension:
     ):
         self._uid = uid
         self._send = send_event
-        self._mood = "idle"
         self._last_bubble_at: float = 0
-        self._last_active_at: float = 0
+        self._last_event_at: float = time.time()
+        self._decay_task: asyncio.Task[Any] | None = None
 
-        # Phase 4: observer + guide — default to InMemoryMemoryStore
+        # deterministic bones for breed-specific emotion params
+        bones = roll_companion(uid)
+        self._fsm = EmotionFSM(breed=bones.breed)
+
+        # Phase 4: observer + guide
         if memory_store is None:
             from agent_core.memory.adapters.inmemory import InMemoryMemoryStore
             memory_store = InMemoryMemoryStore()
@@ -96,35 +109,71 @@ class CompanionExtension:
     # -- protocol hooks -------------------------------------------------------
 
     async def on_event(self, ctx: Any, evt: AgentEvent) -> None:
+        now = time.time()
+        idle_s = now - self._last_event_at if self._last_event_at else 0
+
         if isinstance(evt, TurnStart):
-            self._mood = "listening"
-            self._send(CompanionEvent("ear_perk", self._uid))
+            self._fsm.process("pet")  # user engagement = positive
+            self._fsm.check_decay(idle_s)
+            self._emit_state("ear_perk")
             prompt = ctx.metadata.get("prompt", "")
             await self._observer.on_prompt(self._uid, prompt)
 
         elif isinstance(evt, ToolExecutionStart):
-            self._mood = "working"
-            self._send(CompanionEvent("busy", self._uid))
+            self._emit_state("busy")
             await self._observer.on_tool_start(self._uid, evt.tool_name)
 
-        elif isinstance(evt, ToolExecutionEnd) and evt.is_error:
-            self._mood = "concerned"
-            self._send(CompanionBubbleEvent(
-                self._uid,
-                CompanionBubble("刚才好像出错了...", ttl_ms=8000, priority="care"),
-            ))
+        elif isinstance(evt, ToolExecutionEnd):
+            if evt.is_error:
+                self._fsm.process("tool_fail")
+                self._emit_state("concerned")
+                self._send(CompanionBubbleEvent(
+                    self._uid,
+                    CompanionBubble("刚才好像出错了...", ttl_ms=8000, priority="care"),
+                ))
+            else:
+                self._fsm.process("tool_ok")
 
         elif isinstance(evt, (TurnEnd, AgentEnd)):
-            self._mood = "happy"
-            self._send(CompanionEvent("happy", self._uid))
+            self._fsm.check_decay(idle_s)
+            if idle_s >= 300:
+                self._fsm.mark_idle(idle_s)
+            self._emit_state("happy" if self._fsm.emotion in (Emotion.HAPPY, Emotion.EXCITED) else None)
             await self._observer.on_turn_end(self._uid)
             await self._check_bubble_and_idle()
+            if isinstance(evt, AgentEnd):
+                self._stop_decay_loop()
+
+        self._last_event_at = time.time()
 
     async def on_before_agent_start(
         self, ctx: Any, prompt: str, system_prompt: str
     ) -> dict[str, Any] | None:
         await self._observer.on_session_start(self._uid)
+        self._start_decay_loop()
         return None
+
+    def _start_decay_loop(self) -> None:
+        """Start background task that periodically decays emotion → NEUTRAL."""
+        if self._decay_task is not None:
+            return
+
+        async def _loop() -> None:
+            prev_emotion = ""
+            while True:
+                await asyncio.sleep(DECAY_CHECK_INTERVAL)
+                idle_s = time.time() - self._last_event_at
+                changed = bool(self._fsm.check_decay(idle_s))
+                if changed or self._fsm.emotion != prev_emotion:
+                    prev_emotion = self._fsm.emotion
+                    self._emit_state(None)
+
+        self._decay_task = asyncio.ensure_future(_loop())
+
+    def _stop_decay_loop(self) -> None:
+        if self._decay_task is not None:
+            self._decay_task.cancel()
+            self._decay_task = None
 
     async def on_before_tool_call(self, ctx: Any, tool_call: Any) -> dict[str, Any] | None:
         return None
@@ -136,18 +185,29 @@ class CompanionExtension:
 
     # -- internal -------------------------------------------------------------
 
+    def _emit_state(self, event_type: str | None) -> None:
+        """Send current FSM state as CompanionEvent."""
+        state = self._fsm.to_dict()
+        self._send(CompanionEvent(
+            type=event_type or state["frontend_mood"],
+            uid=self._uid,
+            emotion=state["emotion"],
+            eye_override=state["eye_override"],
+            frontend_mood=state["frontend_mood"],
+        ))
+
     async def _check_bubble_and_idle(self) -> None:
         now = time.time()
-        gap = now - self._last_active_at
+        gap = now - self._observer.last_active_at
         if gap > 300:
             await self._observer.on_idle_return(self._uid, gap)
-            self._mood = "sleeping"
-            self._send(CompanionEvent("sleeping", self._uid))
-        self._last_active_at = now
+            self._fsm.mark_idle(gap)
+            self._emit_state("sleeping")
+        self._observer.last_active_at = now
 
         if now - self._last_bubble_at < 30:
             return
         bubble = await self._guide.decide_bubble(self._uid)
         if bubble:
-                self._last_bubble_at = now
-                self._send(CompanionBubbleEvent(self._uid, bubble))
+            self._last_bubble_at = now
+            self._send(CompanionBubbleEvent(self._uid, bubble))

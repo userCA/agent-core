@@ -1,21 +1,25 @@
 import React from 'react';
-import { useChatStore } from '../../stores/chat-store';
 import { useCompanionStore } from '../../stores/companion-store';
 import CompanionSprite from './CompanionSprite';
-import type { CompanionMood } from './CompanionSprite';
+import type { BreedId } from './breed-sprites';
 
+/**
+ * HeaderCompanion — thin renderer for the chat header.
+ *
+ * Mood / emotion come from backend via useCompanionStore.emotion.
+ * No local mood logic — the backend FSM drives the state.
+ */
 export default function HeaderCompanion() {
-  const isStreaming = useChatStore((s) => s.isStreaming);
-  const storeMood = useCompanionStore((s) => s.mood);
-  const setMood = useCompanionStore((s) => s.setMood);
-
-  const targetMood: CompanionMood = isStreaming ? 'working' : 'awake';
-
-  React.useEffect(() => {
-    setMood(targetMood);
-  }, [targetMood, setMood]);
+  const mood = useCompanionStore((s) => s.mood);
+  const bones = useCompanionStore((s) => s.bones);
+  const emotion = useCompanionStore((s) => s.emotion);
 
   return (
-    <CompanionSprite mood={storeMood} className="header-companion-art" />
+    <CompanionSprite
+      mood={mood}
+      breed={bones?.breed as BreedId | undefined}
+      eyeOverride={emotion?.eye_override ?? null}
+      className="header-companion-art"
+    />
   );
 }

@@ -716,15 +716,30 @@ async def get_minigame_config(request: Request) -> dict[str, Any]:
     ).hexdigest()[:16]
 
     from agent_core.companion import roll_companion
+    from agent_core.companion.minigames.fishing.fish_table import FISH_TABLE
+
     bones = roll_companion(uid)
     rarity_bonus = {"common": 0, "uncommon": 5, "rare": 10, "epic": 15, "legendary": 25}
     bonus = rarity_bonus.get(bones.rarity, 0)
+
+    fish_table = [
+        {
+            "name": f.name, "emoji": f.emoji, "rarity": f.rarity,
+            "rarity_rank": f.rarity_rank, "food_value": f.food_value,
+            "sprite": f.sprite, "appear_weight": f.appear_weight,
+        }
+        for f in FISH_TABLE
+    ]
 
     return {
         "game": game,
         "seed": seed,
         "signature": signature,
-        "params": {"rarity_bonus": bonus, "max_duration_s": 90},
+        "params": {
+            "rarity_bonus": bonus,
+            "max_duration_s": 90,
+            "fish_table": fish_table,
+        },
     }
 
 

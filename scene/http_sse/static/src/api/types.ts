@@ -119,6 +119,23 @@ export interface DoneEvent {
   event: 'done';
 }
 
+// Companion events from backend EmotionFSM
+export interface CompanionEvent {
+  event: 'companion';
+  type: string;
+  uid: string;
+  emotion: string;
+  eye_override: string | null;
+  frontend_mood: string;
+}
+export interface CompanionBubbleEvent {
+  event: 'companion_bubble';
+  uid: string;
+  text: string;
+  ttl_ms: number;
+  priority: string;
+}
+
 export type SSEEvent =
   | SessionIdEvent
   | ThinkingDeltaEvent
@@ -129,4 +146,6 @@ export type SSEEvent =
   | HumanInputRequiredEvent
   | MessageEndEvent
   | ErrorEvent
-  | DoneEvent;
+  | DoneEvent
+  | CompanionEvent
+  | CompanionBubbleEvent;
