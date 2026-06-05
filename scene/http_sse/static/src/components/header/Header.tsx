@@ -15,7 +15,7 @@ export default function Header({ onAbort }: Props) {
   return (
     <header className="app-header">
       <div className="logo" aria-hidden="true">
-        <pre className="logo-art">{`  /\\\\_/\\\\   咪兔
+        <pre className="logo-art">{`  /\\_/\\   咪兔
  ( o.o )  你的AI伙伴
  ( > < )
 `}</pre>
