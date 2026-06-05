@@ -77,8 +77,8 @@
 
 .login-zzz {
     position: absolute;
-    top: -10px;
-    left: 55px;
+    top: -30px;
+    left: 50px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
