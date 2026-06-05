@@ -655,6 +655,27 @@ async def index() -> HTMLResponse:
     )
 
 
+# ---- Companion API -----------------------------------------------------------
+
+
+@app.get("/api/companion/{uid}")
+async def get_companion(uid: str) -> dict[str, Any]:
+    """Return deterministic companion bones for a uid."""
+    from agent_core.companion import roll_companion
+    bones = roll_companion(uid)
+    return {
+        "uid": bones.uid,
+        "species": bones.species,
+        "rarity": bones.rarity,
+        "eye": bones.eye,
+        "ear": bones.ear,
+        "accent": bones.accent,
+        "shiny": bones.shiny,
+        "color": bones.color,
+        "stats": bones.stats,
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))

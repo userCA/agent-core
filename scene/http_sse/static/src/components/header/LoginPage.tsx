@@ -67,6 +67,7 @@ export default function LoginPage() {
       <div className="login-ambient" aria-hidden="true" />
       <div className="login-card" role="main" aria-label="登录">
         <LoginCompanion
+          uid={uid}
           isNewUser={isNewUser}
           isReturning={isReturning}
           hasInput={isValid}

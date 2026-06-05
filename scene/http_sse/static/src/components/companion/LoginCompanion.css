@@ -56,3 +56,34 @@
         opacity: 0.5;
     }
 }
+
+/* ---- Rarity reveal ---- */
+
+.companion-rarity {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin-top: 2px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    animation: companionRarityIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.companion-rarity-stars {
+    font-size: 14px;
+    letter-spacing: 2px;
+}
+
+.companion-rarity-label {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 0.8;
+}
+
+@keyframes companionRarityIn {
+    from { opacity: 0; transform: translateY(6px) scale(0.9); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
