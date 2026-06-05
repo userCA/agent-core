@@ -338,12 +338,9 @@ class ChatAssistant:
         # Companion extension — optional, wired when a companion queue is provided
         if companion_queue is not None and companion_uid:
             from agent_core.extensions.companion import CompanionExtension
-            from agent_core.memory.adapters import InMemoryMemoryStore
-            companion_mem = InMemoryMemoryStore()
             extensions.append(CompanionExtension(
                 uid=companion_uid,
                 send_event=companion_queue.put_nowait,
-                memory_store=companion_mem,
             ))
 
         assistant = cls(
