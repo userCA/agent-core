@@ -679,11 +679,13 @@ async def get_companion(uid: str) -> dict[str, Any]:
     bones = roll_companion(uid)
     return {
         "uid": bones.uid,
-        "species": bones.species,
+        "breed": bones.breed,
         "rarity": bones.rarity,
         "eye": bones.eye,
         "ear": bones.ear,
         "accent": bones.accent,
+        "hat": bones.hat,
+        "quirk": bones.quirk,
         "shiny": bones.shiny,
         "color": bones.color,
         "stats": bones.stats,
