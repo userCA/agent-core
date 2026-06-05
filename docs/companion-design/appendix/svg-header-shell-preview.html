@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>咪兔 Header SVG 外壳版预览</title>
+<style>
+  :root {
+    --bg: #0f1113;
+    --panel: #16191d;
+    --panel-2: #121417;
+    --line: #2a2f34;
+    --line-soft: #20252a;
+    --ink: #dce1e6;
+    --muted: #8a929b;
+    --bubble: #1b2025;
+    --accent: #f2c26f;
+    --accent-dim: #8f6a2b;
+    --glow: #f6e5b0;
+    --danger: #d69a9a;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  h1 {
+    margin: 0 0 8px;
+    font-size: 18px;
+  }
+
+  .desc {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+    max-width: 900px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 18px;
+  }
+
+  .card {
+    padding: 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+
+  .label {
+    margin-bottom: 10px;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 62px;
+    padding: 10px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .header svg.shell {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .left {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+
+  .cat {
+    width: 58px;
+    min-width: 58px;
+    text-align: left;
+    color: var(--ink);
+    line-height: 1;
+    font-size: 11px;
+    letter-spacing: 0;
+    white-space: pre;
+    text-shadow: 0 0 8px rgba(255,255,255,.03);
+  }
+
+  .tag {
+    color: var(--ink);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .bubble-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 180px;
+    padding: 4px 10px 4px 10px;
+  }
+
+  .bubble-wrap svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .bubble {
+    position: relative;
+    z-index: 1;
+    color: var(--ink);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .indicator-wrap {
+    position: relative;
+    z-index: 1;
+    width: 16px;
+    min-width: 16px;
+    height: 16px;
+  }
+
+  .indicator-char {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  .hint {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .popover {
+    margin-top: 10px;
+    position: relative;
+    padding: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .popover svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .popover pre {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    color: var(--ink);
+    font-size: 12px;
+    line-height: 1.35;
+    white-space: pre-wrap;
+  }
+
+  .controls {
+    position: relative;
+    z-index: 1;
+    margin-top: 10px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: #1a1f24;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--ink);
+    font-size: 11px;
+  }
+
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .sub {
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .mini {
+    min-height: 42px;
+    padding: 7px 10px;
+  }
+
+  .mini .cat {
+    width: 42px;
+    min-width: 42px;
+    font-size: 9px;
+  }
+
+  .mini .bubble-wrap {
+    display: none;
+  }
+
+  .mini .tag {
+    font-size: 10px;
+  }
+
+  @media (max-width: 760px) {
+    .compare {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+
+<h1>咪兔 Header SVG 外壳版预览</h1>
+<p class="desc">
+  这一版严格按“SVG 负责边界、状态点、气泡和微弱终端风氛围”来做。
+  猫主体不再交给 SVG 像素绘制，而是回到更容易被识别的 ASCII 轮廓。
+  你可以直接看它是否比上一版更像 Header 里的活猫，而不是一个像素小卡片。
+</p>
+
+<div class="grid">
+  <section class="card">
+    <div class="label">A. 极简常驻态</div>
+    <div class="header">
+      <svg class="shell" viewBox="0 0 360 62" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="14" y1="50.5" x2="346" y2="50.5" stroke="var(--line-soft)" stroke-width="1"/>
+        <line x1="18" y1="16.5" x2="64" y2="16.5" stroke="var(--line-soft)" stroke-width="1"/>
+      </svg>
+      <div class="left">
+        <pre class="cat"> /\_/\\
+( o.o )
+ > ^ &lt;</pre>
+        <div class="meta">
+          <div class="row"><span class="tag">calm</span></div>
+        </div>
+      </div>
+      <div class="indicator-wrap">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.5" fill="none" stroke="var(--line)" stroke-width="1"/>
+        </svg>
+        <span class="indicator-char">.</span>
+      </div>
+    </div>
+    <div class="hint">SVG 只给一条底线和一个状态点边界，猫本体完全由 ASCII 承担。</div>
+  </section>
+
+  <section class="card">
+    <div class="label">B. 成功反馈态</div>
+    <div class="header">
+      <svg class="shell" viewBox="0 0 360 62" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="14" y1="50.5" x2="346" y2="50.5" stroke="var(--line-soft)" stroke-width="1"/>
+        <circle cx="298" cy="15" r="1.2" fill="var(--accent)"/>
+      </svg>
+      <div class="left">
+        <pre class="cat"> /\_/\\
+( ^.^ )
+ > ^ &lt;</pre>
+        <div class="meta">
+          <div class="row">
+            <span class="tag">happy</span>
+            <span class="bubble-wrap">
+              <svg viewBox="0 0 170 28" preserveAspectRatio="none" aria-hidden="true">
+                <rect x="0.5" y="0.5" width="169" height="27" rx="14" fill="var(--bubble)" stroke="var(--line)" stroke-width="1"/>
+              </svg>
+              <span class="bubble">这次修好了喵</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="indicator-wrap">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.5" fill="none" stroke="var(--accent-dim)" stroke-width="1"/>
+        </svg>
+        <span class="indicator-char">o</span>
+      </div>
+    </div>
+    <div class="hint">SVG 只出现短气泡容器和一个微弱星点，不再承担猫脸造型。</div>
+  </section>
+
+  <section class="card">
+    <div class="label">C. 失败安慰态</div>
+    <div class="header">
+      <svg class="shell" viewBox="0 0 360 62" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="14" y1="50.5" x2="346" y2="50.5" stroke="var(--line-soft)" stroke-width="1"/>
+        <line x1="276" y1="18.5" x2="334" y2="18.5" stroke="#302729" stroke-width="1"/>
+      </svg>
+      <div class="left">
+        <pre class="cat"> /\_/\\
+( -.- )
+ > ^ &lt;</pre>
+        <div class="meta">
+          <div class="row">
+            <span class="tag" style="color:var(--danger)">worried</span>
+            <span class="bubble-wrap">
+              <svg viewBox="0 0 180 28" preserveAspectRatio="none" aria-hidden="true">
+                <rect x="0.5" y="0.5" width="179" height="27" rx="14" fill="var(--bubble)" stroke="#3a2d2d" stroke-width="1"/>
+              </svg>
+              <span class="bubble">这次没关系，再试试</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="indicator-wrap">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.5" fill="none" stroke="#4a3535" stroke-width="1"/>
+        </svg>
+        <span class="indicator-char" style="color:var(--danger)">.</span>
+      </div>
+    </div>
+    <div class="hint">失败态不靠更多装饰，而是用表情、文案和更弱的边界色来传达情绪。</div>
+  </section>
+
+  <section class="card">
+    <div class="label">D. 深夜态</div>
+    <div class="header" style="background:#101214;">
+      <svg class="shell" viewBox="0 0 360 62" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="14" y1="50.5" x2="346" y2="50.5" stroke="#202329" stroke-width="1"/>
+        <circle cx="304" cy="16" r="1.2" fill="var(--glow)"/>
+        <circle cx="314" cy="13" r=".9" fill="#89764b"/>
+      </svg>
+      <div class="left">
+        <pre class="cat"> /\_/\\
+( -.- ) z
+ > ^ &lt;</pre>
+        <div class="meta">
+          <div class="row">
+            <span class="tag">sleepy</span>
+            <span class="bubble-wrap">
+              <svg viewBox="0 0 150 28" preserveAspectRatio="none" aria-hidden="true">
+                <rect x="0.5" y="0.5" width="149" height="27" rx="14" fill="#181b1e" stroke="#2a2d31" stroke-width="1"/>
+              </svg>
+              <span class="bubble" style="color:var(--muted)">都这个点了...</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="indicator-wrap">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.5" fill="none" stroke="#3b3528" stroke-width="1"/>
+        </svg>
+        <span class="indicator-char" style="color:var(--glow)">*</span>
+      </div>
+    </div>
+    <div class="hint">深夜态只允许一两个微弱光点，不做夜景插画，也不做完整房间。</div>
+  </section>
+
+  <section class="card">
+    <div class="label">E. 轻展开浮层</div>
+    <div class="header">
+      <svg class="shell" viewBox="0 0 360 62" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="14" y1="50.5" x2="346" y2="50.5" stroke="var(--line-soft)" stroke-width="1"/>
+      </svg>
+      <div class="left">
+        <pre class="cat"> /\_/\\
+( o.o )
+ > ^ &lt;</pre>
+        <div class="meta">
+          <div class="row"><span class="tag">happy</span></div>
+        </div>
+      </div>
+      <div class="indicator-wrap">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.5" fill="none" stroke="var(--accent-dim)" stroke-width="1"/>
+        </svg>
+        <span class="indicator-char">*</span>
+      </div>
+    </div>
+    <div class="popover">
+      <svg viewBox="0 0 360 116" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="0.5" y="0.5" width="359" height="115" rx="10" fill="none" stroke="var(--line)" stroke-width="1"/>
+        <line x1="12" y1="24.5" x2="348" y2="24.5" stroke="var(--line-soft)" stroke-width="1"/>
+      </svg>
+      <pre>mood : happy
+need : 想被摸摸
+goal : 工具 3 次 / 摸摸 2 次</pre>
+      <div class="controls">
+        <span class="btn">pet</span>
+        <span class="btn">feed</span>
+        <span class="btn">buddy</span>
+      </div>
+    </div>
+    <div class="hint">浮层才允许 SVG 边框更完整，但依旧不做游戏 HUD，只保持轻摘要。</div>
+  </section>
+
+  <section class="card">
+    <div class="label">F. 窄屏模式</div>
+    <div class="header mini">
+      <svg class="shell" viewBox="0 0 320 42" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="12" y1="33.5" x2="308" y2="33.5" stroke="var(--line-soft)" stroke-width="1"/>
+      </svg>
+      <div class="left">
+        <pre class="cat"> /^.^\\
+ &lt; ^ &gt;</pre>
+        <div class="meta">
+          <div class="row"><span class="tag">sleepy</span></div>
+        </div>
+      </div>
+      <div class="indicator-wrap">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.5" fill="none" stroke="#3b3528" stroke-width="1"/>
+        </svg>
+        <span class="indicator-char" style="color:var(--glow)">*</span>
+      </div>
+    </div>
+    <div class="hint">窄屏下只剩 ASCII 猫、标签和状态点，SVG 只保留底线和指示圈。</div>
+  </section>
+
+  <section class="card" style="grid-column: 1 / -1;">
+    <div class="label">G. 两种方向对比</div>
+    <div class="compare">
+      <div>
+        <div class="sub">猫也交给 SVG 绘制</div>
+        <div class="header">
+          <svg class="shell" viewBox="0 0 360 62" preserveAspectRatio="none" aria-hidden="true">
+            <line x1="14" y1="50.5" x2="346" y2="50.5" stroke="var(--line-soft)" stroke-width="1"/>
+          </svg>
+          <div class="left">
+            <div style="width:58px;min-width:58px;height:34px;display:flex;align-items:center;">
+              <svg viewBox="0 0 58 34" width="58" height="34" aria-hidden="true">
+                <rect x="16" y="2" width="8" height="4" fill="#ce9345"/>
+                <rect x="34" y="2" width="8" height="4" fill="#ce9345"/>
+                <rect x="12" y="6" width="34" height="6" fill="#efc571"/>
+                <rect x="8" y="12" width="42" height="6" fill="#efc571"/>
+                <rect x="16" y="18" width="6" height="4" fill="#232629"/>
+                <rect x="36" y="18" width="6" height="4" fill="#232629"/>
+                <rect x="25" y="22" width="8" height="2" fill="#232629"/>
+                <rect x="14" y="26" width="30" height="4" fill="#ce9345"/>
+              </svg>
+            </div>
+            <div class="meta">
+              <div class="row"><span class="tag">happy</span><span class="bubble-wrap">
+                <svg viewBox="0 0 150 28" preserveAspectRatio="none" aria-hidden="true">
+                  <rect x="0.5" y="0.5" width="149" height="27" rx="14" fill="var(--bubble)" stroke="var(--line)" stroke-width="1"/>
+                </svg>
+                <span class="bubble">修好了喵</span>
+              </span></div>
+            </div>
+          </div>
+          <div class="indicator-wrap">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="6.5" fill="none" stroke="var(--accent-dim)" stroke-width="1"/>
+            </svg>
+            <span class="indicator-char">o</span>
+          </div>
+        </div>
+        <div class="hint">优点是统一；缺点是很容易又回到“更像图块，不像猫”的方向。</div>
+      </div>
+      <div>
+        <div class="sub">猫回到 ASCII，SVG 做外壳</div>
+        <div class="header">
+          <svg class="shell" viewBox="0 0 360 62" preserveAspectRatio="none" aria-hidden="true">
+            <line x1="14" y1="50.5" x2="346" y2="50.5" stroke="var(--line-soft)" stroke-width="1"/>
+            <circle cx="305" cy="15" r="1.2" fill="var(--accent)"/>
+          </svg>
+          <div class="left">
+            <pre class="cat"> /\_/\\
+( ^.^ )
+ > ^ &lt;</pre>
+            <div class="meta">
+              <div class="row"><span class="tag">happy</span><span class="bubble-wrap">
+                <svg viewBox="0 0 150 28" preserveAspectRatio="none" aria-hidden="true">
+                  <rect x="0.5" y="0.5" width="149" height="27" rx="14" fill="var(--bubble)" stroke="var(--line)" stroke-width="1"/>
+                </svg>
+                <span class="bubble">修好了喵</span>
+              </span></div>
+            </div>
+          </div>
+          <div class="indicator-wrap">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="6.5" fill="none" stroke="var(--accent-dim)" stroke-width="1"/>
+            </svg>
+            <span class="indicator-char">o</span>
+          </div>
+        </div>
+        <div class="hint">更像活猫，也更符合“Header 轻场景”的定位。</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+</body>
+</html>

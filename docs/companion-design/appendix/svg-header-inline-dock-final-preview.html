@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>咪兔 Header Inline Dock 终版预览</title>
+<style>
+  :root {
+    --canvas: #fdfcfc;
+    --ink: #201d1d;
+    --surface-soft: #f8f7f7;
+    --surface-card: #f1eeee;
+    --hairline: rgba(15, 0, 0, 0.10);
+    --hairline-strong: rgba(15, 0, 0, 0.18);
+    --mute: #646262;
+    --accent: #007aff;
+    --accent-soft: rgba(0, 122, 255, 0.10);
+    --success: #30d158;
+    --warning: #ff9f0a;
+    --danger: #ff453a;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "PingFang SC", "Microsoft YaHei", monospace;
+    --shadow: rgba(0, 0, 0, 0.05);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #f4f2f2;
+    color: var(--ink);
+    font-family: var(--font-sans);
+  }
+
+  h1 {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .desc {
+    margin: 0 0 20px;
+    max-width: 980px;
+    color: var(--mute);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .stack {
+    display: grid;
+    gap: 18px;
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--hairline);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 16px 40px var(--shadow);
+  }
+
+  .label {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--hairline);
+    background: #fcfbfb;
+    color: var(--mute);
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    font-family: var(--font-mono);
+  }
+
+  .app-shell {
+    min-height: 204px;
+    background: var(--canvas);
+  }
+
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 52px;
+    padding: 10px 24px;
+    background: var(--canvas);
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .left-zone {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--hairline);
+    background: var(--canvas);
+    color: var(--ink);
+    font-size: 13px;
+    font-family: var(--font-sans);
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--mute);
+    padding: 4px 12px;
+    background: var(--surface-soft);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    position: relative;
+  }
+
+  .status-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: .22;
+    animation: pulseRing 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .surface {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: 152px;
+  }
+
+  .sidebar {
+    border-right: 1px solid var(--hairline);
+    background: #fbf9f9;
+    padding: 14px 12px;
+  }
+
+  .side-line {
+    height: 30px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface-soft);
+    margin-bottom: 10px;
+  }
+
+  .content {
+    padding: 18px 20px;
+  }
+
+  .fake-title {
+    width: 36%;
+    height: 14px;
+    background: var(--surface-card);
+    border-radius: 999px;
+    margin-bottom: 16px;
+  }
+
+  .fake-line {
+    width: 100%;
+    height: 10px;
+    background: var(--surface-soft);
+    border-radius: 999px;
+    margin-bottom: 10px;
+  }
+
+  .fake-line.short { width: 64%; }
+
+  .companion {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 8px;
+    min-width: 0;
+    flex-shrink: 0;
+  }
+
+  .companion-shell {
+    position: relative;
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 6px;
+    min-width: 0;
+    padding: 1px 0;
+  }
+
+  .companion-shell svg.shell {
+    position: absolute;
+    inset: -2px -4px -1px -6px;
+    width: calc(100% + 10px);
+    height: calc(100% + 4px);
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .cat-stage {
+    position: relative;
+    width: 52px;
+    min-width: 52px;
+    height: 29px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    animation: breathe 3.8s ease-in-out infinite;
+  }
+
+  .cat-frame {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0;
+    width: 52px;
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: pre;
+  }
+
+  .cat-frame.closed {
+    opacity: 0;
+    animation: blinkClosed 5.4s linear infinite;
+  }
+
+  .cat-frame.open {
+    opacity: 1;
+    animation: blinkOpen 5.4s linear infinite;
+  }
+
+  .bubble {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    max-width: 160px;
+    padding: 3px 8px;
+    animation: bubbleIn .25s ease-out;
+  }
+
+  .bubble svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .bubble-text {
+    position: relative;
+    z-index: 1;
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .inline-dock {
+    position: relative;
+    min-width: 0;
+    flex: 1;
+    max-width: 460px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    background: var(--surface-soft);
+    overflow: hidden;
+  }
+
+  .inline-dock svg.frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .dock-chip,
+  .dock-state,
+  .dock-log,
+  .dock-result,
+  .dock-mini {
+    position: relative;
+    z-index: 1;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--mute);
+    white-space: nowrap;
+  }
+
+  .dock-chip {
+    color: var(--ink);
+    flex-shrink: 0;
+  }
+
+  .dock-state {
+    flex-shrink: 0;
+  }
+
+  .dock-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  .dock-log {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+
+  .dock-result {
+    color: var(--success);
+    flex-shrink: 0;
+  }
+
+  .chip-shell,
+  .key-shell {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--mute);
+  }
+
+  .chip-shell svg,
+  .key-shell svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .chip-shell span,
+  .key-shell span {
+    position: relative;
+    z-index: 1;
+  }
+
+  .pond {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    color: var(--mute);
+  }
+
+  .bobber {
+    display: inline-block;
+    margin: 0 3px;
+    color: var(--accent);
+    animation: bobberBounce 1.4s ease-in-out infinite;
+  }
+
+  .fish-shadow {
+    margin: 0 3px;
+    opacity: .45;
+  }
+
+  .bar {
+    display: inline-block;
+    min-width: 72px;
+    color: var(--accent);
+    letter-spacing: 0;
+  }
+
+  .hint {
+    padding: 10px 16px 14px;
+    border-top: 1px solid var(--hairline);
+    background: #fcfbfb;
+    color: var(--mute);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .list {
+    display: grid;
+    gap: 4px;
+    margin-top: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--mute);
+  }
+
+  @keyframes pulseRing {
+    0% { transform: scale(1); opacity: .25; }
+    65% { transform: scale(2.1); opacity: 0; }
+    100% { transform: scale(2.1); opacity: 0; }
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-1px); }
+  }
+
+  @keyframes blinkClosed {
+    0%, 44%, 48%, 100% { opacity: 0; }
+    45%, 47% { opacity: 1; }
+  }
+
+  @keyframes blinkOpen {
+    0%, 44%, 48%, 100% { opacity: 1; }
+    45%, 47% { opacity: 0; }
+  }
+
+  @keyframes bubbleIn {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes bobberBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
+  @media (max-width: 980px) {
+    .surface { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+
+  @media (max-width: 760px) {
+    .app-header {
+      padding: 10px 14px;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .left-zone {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+    }
+
+    .header-actions {
+      justify-content: flex-end;
+    }
+
+    .inline-dock {
+      max-width: none;
+    }
+
+    .dock-log {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<h1>咪兔 Header Inline Dock 终版预览</h1>
+<p class="desc">
+  这版作为最终确定方向：小游戏 Dock 完全内嵌在 Header 栏里，不下探到聊天内容区域。
+  咪兔保持轻量 ASCII 主体，SVG 只负责边界、气泡和 Dock 外壳；小游戏则以一行终端式状态流存在，既简洁，也方便未来扩展。
+</p>
+
+<div class="stack">
+  <section class="card">
+    <div class="label">A. 最终推荐 / Active Inline Dock</div>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="left-zone">
+          <span class="companion">
+            <span class="companion-shell">
+              <svg class="shell" viewBox="0 0 260 34" preserveAspectRatio="none">
+                <line x1="4" y1="30.5" x2="176" y2="30.5" stroke="rgba(15,0,0,.08)" stroke-width="1"/>
+                <line x1="8" y1="8.5" x2="46" y2="8.5" stroke="rgba(15,0,0,.06)" stroke-width="1"/>
+              </svg>
+              <span class="cat-stage">
+                <pre class="cat-frame open"> /\_/\\
+( o.o )
+ > ^ &lt;</pre>
+                <pre class="cat-frame closed"> /\_/\\
+( -.- )
+ > ^ &lt;</pre>
+              </span>
+              <span class="bubble">
+                <svg viewBox="0 0 146 24" preserveAspectRatio="none">
+                  <path d="M14.5 0.5h117a14 14 0 0 1 14 14v0a9.5 9.5 0 0 1-9.5 9.5H14.5A14 14 0 0 1 0.5 10v0A9.5 9.5 0 0 1 10 0.5h4.5z" fill="#f8f7f7" stroke="rgba(15,0,0,.10)"/>
+                  <path d="M8 10 L1 13 L8 16 Z" fill="#f8f7f7" stroke="rgba(15,0,0,.10)"/>
+                </svg>
+                <span class="bubble-text">来一小局?</span>
+              </span>
+            </span>
+          </span>
+
+          <span class="inline-dock">
+            <svg class="frame" viewBox="0 0 460 34" preserveAspectRatio="none">
+              <rect x="0.5" y="0.5" width="459" height="33" rx="10" fill="none" stroke="rgba(15,0,0,.08)"/>
+              <line x1="76" y1="7" x2="76" y2="27" stroke="rgba(15,0,0,.06)" stroke-width="1"/>
+              <line x1="144" y1="7" x2="144" y2="27" stroke="rgba(15,0,0,.06)" stroke-width="1"/>
+            </svg>
+            <span class="dock-chip">&gt; fish.run</span>
+            <span class="dock-state">reeling</span>
+            <span class="dock-mini">
+              <span class="pond">~~~~ <span class="bobber">◎</span> <span class="fish-shadow">&lt;&gt;</span> ~~~~</span>
+            </span>
+            <span class="dock-mini"><span class="bar">[#####....]</span></span>
+            <span class="dock-log">space=reel · esc=end · hooked: 小鲫鱼</span>
+            <span class="dock-result">+2 snack</span>
+          </span>
+        </div>
+
+        <div class="header-actions">
+          <button class="btn">主题</button>
+          <span class="status-badge"><span class="status-dot"></span>运行中</span>
+          <button class="btn">取消</button>
+        </div>
+      </header>
+
+      <div class="surface">
+        <aside class="sidebar">
+          <div class="side-line"></div>
+          <div class="side-line"></div>
+          <div class="side-line"></div>
+        </aside>
+        <main class="content">
+          <div class="fake-title"></div>
+          <div class="fake-line"></div>
+          <div class="fake-line"></div>
+          <div class="fake-line short"></div>
+        </main>
+      </div>
+    </div>
+    <div class="hint">
+      这是最终推荐形态：小游戏仍然可玩，但只作为 Header 内的一条终端状态流存在，不展开为二层面板，也不压到聊天区域。
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="label">B. Idle / 可玩但不打扰</div>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="left-zone">
+          <span class="companion">
+            <span class="companion-shell">
+              <svg class="shell" viewBox="0 0 240 34" preserveAspectRatio="none">
+                <line x1="4" y1="30.5" x2="164" y2="30.5" stroke="rgba(15,0,0,.08)" stroke-width="1"/>
+              </svg>
+              <span class="cat-stage">
+                <pre class="cat-frame open"> /\_/\\
+( o.o )
+ > ^ &lt;</pre>
+                <pre class="cat-frame closed"> /\_/\\
+( -.- )
+ > ^ &lt;</pre>
+              </span>
+              <span class="bubble">
+                <svg viewBox="0 0 154 24" preserveAspectRatio="none">
+                  <path d="M14.5 0.5h125a14 14 0 0 1 14 14v0a9.5 9.5 0 0 1-9.5 9.5H14.5A14 14 0 0 1 0.5 10v0A9.5 9.5 0 0 1 10 0.5h4.5z" fill="#f8f7f7" stroke="rgba(15,0,0,.10)"/>
+                  <path d="M8 10 L1 13 L8 16 Z" fill="#f8f7f7" stroke="rgba(15,0,0,.10)"/>
+                </svg>
+                <span class="bubble-text">想摸鱼就点我</span>
+              </span>
+            </span>
+          </span>
+
+          <span class="inline-dock">
+            <svg class="frame" viewBox="0 0 460 34" preserveAspectRatio="none">
+              <rect x="0.5" y="0.5" width="459" height="33" rx="10" fill="none" stroke="rgba(15,0,0,.08)"/>
+            </svg>
+            <span class="dock-chip">game:idle</span>
+            <span class="dock-state">ready</span>
+            <span class="key-shell">
+              <svg viewBox="0 0 84 22" preserveAspectRatio="none">
+                <rect x="0.5" y="0.5" width="83" height="21" rx="4" fill="#fff" stroke="rgba(15,0,0,.10)"/>
+              </svg>
+              <span>[click] open</span>
+            </span>
+            <span class="key-shell">
+              <svg viewBox="0 0 88 22" preserveAspectRatio="none">
+                <rect x="0.5" y="0.5" width="87" height="21" rx="4" fill="#fff" stroke="rgba(15,0,0,.10)"/>
+              </svg>
+              <span>[space] quick</span>
+            </span>
+            <span class="dock-log">fish / catch / tap 可复用同一条 dock</span>
+          </span>
+        </div>
+
+        <div class="header-actions">
+          <button class="btn">主题</button>
+          <span class="status-badge"><span class="status-dot"></span>就绪</span>
+        </div>
+      </header>
+
+      <div class="surface">
+        <aside class="sidebar">
+          <div class="side-line"></div>
+          <div class="side-line"></div>
+          <div class="side-line"></div>
+        </aside>
+        <main class="content">
+          <div class="fake-title"></div>
+          <div class="fake-line"></div>
+          <div class="fake-line short"></div>
+          <div class="fake-line"></div>
+        </main>
+      </div>
+    </div>
+    <div class="hint">
+      空闲态只保留最少提示，不常驻完整玩法信息。小游戏存在感要比聊天低一级，确保整体有简约美。
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="label">C. Recovery / 结果回收</div>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="left-zone">
+          <span class="companion">
+            <span class="companion-shell">
+              <svg class="shell" viewBox="0 0 230 34" preserveAspectRatio="none">
+                <line x1="4" y1="30.5" x2="156" y2="30.5" stroke="rgba(15,0,0,.08)" stroke-width="1"/>
+              </svg>
+              <span class="cat-stage">
+                <pre class="cat-frame open"> /\_/\\
+( ^.^ )
+ > ^ &lt;</pre>
+                <pre class="cat-frame closed"> /\_/\\
+( -.- )
+ > ^ &lt;</pre>
+              </span>
+              <span class="bubble">
+                <svg viewBox="0 0 142 24" preserveAspectRatio="none">
+                  <path d="M14.5 0.5h113a14 14 0 0 1 14 14v0a9.5 9.5 0 0 1-9.5 9.5H14.5A14 14 0 0 1 0.5 10v0A9.5 9.5 0 0 1 10 0.5h4.5z" fill="#f8f7f7" stroke="rgba(15,0,0,.10)"/>
+                  <path d="M8 10 L1 13 L8 16 Z" fill="#f8f7f7" stroke="rgba(15,0,0,.10)"/>
+                </svg>
+                <span class="bubble-text">钓到啦</span>
+              </span>
+            </span>
+          </span>
+
+          <span class="inline-dock">
+            <svg class="frame" viewBox="0 0 460 34" preserveAspectRatio="none">
+              <rect x="0.5" y="0.5" width="459" height="33" rx="10" fill="none" stroke="rgba(15,0,0,.08)"/>
+            </svg>
+            <span class="dock-chip">game:done</span>
+            <span class="dock-state">logged</span>
+            <span class="dock-log">pond_01 saved · snack +8 · memory queued</span>
+          </span>
+        </div>
+
+        <div class="header-actions">
+          <button class="btn">主题</button>
+          <span class="status-badge"><span class="status-dot"></span>就绪</span>
+        </div>
+      </header>
+
+      <div class="surface">
+        <aside class="sidebar">
+          <div class="side-line"></div>
+          <div class="side-line"></div>
+          <div class="side-line"></div>
+        </aside>
+        <main class="content">
+          <div class="fake-title"></div>
+          <div class="fake-line"></div>
+          <div class="fake-line"></div>
+          <div class="fake-line short"></div>
+        </main>
+      </div>
+    </div>
+    <div class="hint">
+      游戏结束后不保留完整交互，只回收到一条结果日志。这样既保留可玩反馈，也不会让 Header 一直像游戏界面。
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="label">Why This Final</div>
+    <div class="hint" style="border-top:0; background:#fff;">
+      这版作为最终确定方向，主要收敛在 4 点：
+      <div class="list">
+        <div>`1.` Minigame Dock 完全留在 Header 行内，不侵入聊天内容区</div>
+        <div>`2.` Dock 只保留一条终端式状态流，不做大面板，不堆内容</div>
+        <div>`3.` 玩法可扩展到 `fish / catch / tap`，但 UI 容器始终是一条统一的 inline dock</div>
+        <div>`4.` 视觉上仍然是“ASCII 猫 + SVG 壳层”，保持简约和终端感</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+</body>
+</html>

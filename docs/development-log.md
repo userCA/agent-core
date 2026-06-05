@@ -49,3 +49,5 @@
 | HTML/JSONL 导出 | P3 | JSONL store 已有，但无专门 export API |
 | `AgentContext` 与 `AgentState` 消息类型不一致 | 设计债 | 运行时都应是 `AgentMessage`，可考虑泛型约束 |
 | `time.time()` 精度 | 设计债 | 消息时间戳用 float，`datetime.now(timezone.utc).isoformat()` 更利于持久化 |
+
+| 2026-06-06 | 68. Header 三栏重构 + MiniGameHost 多游戏 dock  69. UX 审查 + focus-visible 修复 | [2026-06-06.md](development-log/2026-06-06.md) |

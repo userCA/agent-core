@@ -20,6 +20,7 @@ interface Props {
   eyeOverride?: string | null;
   stage?: CompanionStage;
   shiny?: boolean;
+  variant?: 'full' | 'header';
   className?: string;
   style?: React.CSSProperties;
 }
@@ -43,7 +44,7 @@ const SOULMATE_MARKS: Partial<Record<BreedId, (line: string) => string>> = {
   scottish_fold:  (l) => l.replace('__/\\__', '~/\\~'),
 };
 
-export default function CompanionSprite({ mood, breed, eyeOverride, stage, shiny, className, style }: Props) {
+export default function CompanionSprite({ mood, breed, eyeOverride, stage, shiny, variant = 'full', className, style }: Props) {
   const breedSprites = (breed && BREED_SPRITES[breed]) ? BREED_SPRITES[breed] : BREED_SPRITES[DEFAULT_BREED];
   const frames = breedSprites[mood];
   const [seqIdx, setSeqIdx] = useState(0);
@@ -94,9 +95,11 @@ export default function CompanionSprite({ mood, breed, eyeOverride, stage, shiny
 
   const kittenScale = stage === 'kitten' ? { transform: 'scale(0.8)', transformOrigin: 'left bottom' } : {};
 
+  const renderedLines = variant === 'header' ? display.slice(0, 3) : display;
+
   return (
     <pre className={className} aria-hidden="true" style={{ ...kittenScale, ...style }}>
-      {display.join('\n')}
+      {renderedLines.join('\n')}
     </pre>
   );
 }

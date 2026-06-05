@@ -1,4 +1,3 @@
-import React from 'react';
 import { useChatStore } from '../../stores/chat-store';
 import { useThemeStore } from '../../stores/theme-store';
 import Icon, { ICON_SIZES } from '../shared/Icon';
@@ -16,7 +15,7 @@ export default function Header({ onAbort }: Props) {
 
   return (
     <header className="app-header">
-      <div className="logo" aria-hidden="true">
+      <div className="header-left">
         <HeaderCompanion />
         <MiniGameHost />
       </div>

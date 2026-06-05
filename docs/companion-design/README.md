@@ -28,9 +28,16 @@
 | 20 | [产品宿主与交互模型](./20-product-host-and-interaction-model.md) | 网页/App宿主、终端风格定义、动作模型、入口映射、跨端一致性与维护规则 | ✅ |
 | 21 | [范围收敛与 MVP 聚焦](./21-mvp-scope-and-focus.md) | 做什么/不做什么、MVP边界、保留/缩减/延后清单、以联动和可玩性为先 | ✅ |
 | 22 | [Header Companion 场景设计稿](./22-header-companion-scene.md) | 顶栏场景的布局、交互、状态、动画、信息密度、降级方案与实现边界 | ✅ |
+| 23 | [Header SVG 收敛方案](./23-header-svg-converged-plan.md) | SVG 在 Header 中的职责边界、收敛方向、保留/删除规则与推荐组合方案 | ✅ |
 | — | [附录: 精灵帧库](./appendix/sprite-frame-library.md) | 全部品种 × 全部帧的 ASCII 定义 | ✅ |
 | — | [附录: SSE 协议](./appendix/sse-schema.md) | companion 事件类型、顶层信封、字段约束、版本兼容与前端消费规则 | ✅ |
 | — | [附录: 持久化规格](./appendix/persistence-schema.md) | Bones/Soul 分层、snapshot/history 分离、schema_version、append-only 与幂等写入 | ✅ |
+| — | [附录: Header SVG 收敛预览](./appendix/svg-header-converged-preview.html) | Header 场景下的 SVG 收敛版预览，对比常驻态、反馈态、浮层态和窄屏态 | ✅ |
+| — | [附录: Header SVG 外壳预览](./appendix/svg-header-shell-preview.html) | ASCII 猫主体 + SVG 外壳的 Header 预览，对比常驻态、反馈态、深夜态、浮层态与窄屏态 | ✅ |
+| — | [附录: Header 产品贴合预览](./appendix/svg-header-product-fit-preview.html) | 贴近现有产品 Header 结构的预览，包含常驻态、反馈态、深夜态与轻动效 | ✅ |
+| — | [附录: Header 小游戏 Dock 预览](./appendix/svg-header-minigame-dock-preview.html) | 以 Activity Dock 方式将钓鱼等小游戏接入 Header，支持 teaser、Dock、结果回收与后续扩展 | ✅ |
+| — | [附录: Header 终版预览](./appendix/svg-header-terminal-final-preview.html) | 更贴近终端风格的最终预览，统一小游戏为 command/lane/result queue 协议并保留 Header 轻量密度 | ✅ |
+| — | [附录: Header Inline Dock 终版预览](./appendix/svg-header-inline-dock-final-preview.html) | 最终确定方向：小游戏完全内嵌在 Header 行内，保持终端风、简约感和可扩展性 | ✅ |
 
 ## 架构总览
 

@@ -7,8 +7,10 @@
  * - PRNG: mirrors Python bones._mulberry32 — duplication is intentional
  *   (seed-based replay requires identical PRNG on both sides).
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import './FishingGame.css';
+import { fetchMinigameConfig, submitMinigameResult } from './game-api';
+import type { MiniGameProps } from './types';
 
 interface FishDef {
   name: string; emoji: string; rarity: string;
@@ -16,22 +18,14 @@ interface FishDef {
   appear_weight: number;
 }
 
-interface Props {
-  uid: string;
-  onDone: (result: { food_value: number; items: string[]; reaction: string; bubble: string }) => void;
-}
-
 const TICK_MS = 100;
 
-export default function FishingGame({ uid, onDone }: Props) {
+export default function FishingGame({ uid, onDone, label = '~> fish', onSwitchGame }: MiniGameProps) {
   const [phase, setPhase] = useState('waiting');
-  const [bobberPos, setBobberPos] = useState(50);
   const [tension, setTension] = useState(0);
   const [catches, setCatches] = useState<FishDef[]>([]);
-  const [biteTimer, setBiteTimer] = useState(0);
   const [timer, setTimer] = useState(0);
   const [fishOnHook, setFishOnHook] = useState<FishDef | null>(null);
-  const [biteWindow, setBiteWindow] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   const stateRef = useRef({
@@ -45,20 +39,17 @@ export default function FishingGame({ uid, onDone }: Props) {
   // Init game — fish_table comes from backend (single source of truth)
   useEffect(() => {
     (async () => {
-      const res = await fetch(`/api/minigame/config?uid=${encodeURIComponent(uid)}&game=fishing`);
-      const { seed, signature, params } = await res.json();
+      const { seed, signature, params } = await fetchMinigameConfig(uid, 'fishing');
       const rng = mulberry32(seed);
       const s = stateRef.current;
       s.seed = seed;
       s.signature = signature;
       s.rng = rng;
       // Build pond from backend fish_table (no local copy)
-      const fishTable: FishDef[] = params.fish_table || [];
-      s.pond = buildPond(fishTable, rng, params.rarity_bonus || 0);
+      const fishTable = (params.fish_table || []) as FishDef[];
+      s.pond = buildPond(fishTable, params.rarity_bonus || 0);
       s.bobberPos = Math.floor(rng() * 80 + 10);
       s.biteTimer = rng() * 6 + 2;
-      setBobberPos(s.bobberPos);
-      setBiteTimer(s.biteTimer);
     })();
   }, [uid]);
 
@@ -76,7 +67,6 @@ export default function FishingGame({ uid, onDone }: Props) {
         s.biteWindow = s.rng!() * 0.9 + 0.6;
         setPhase('biting');
         setFishOnHook(s.fishOnHook);
-        setBiteWindow(s.biteWindow);
       }
 
       if ((s.phase === 'missed' || s.phase === 'caught') && s.timer >= s.biteTimer + (s.phase === 'caught' ? 2 : 3)) {
@@ -85,7 +75,6 @@ export default function FishingGame({ uid, onDone }: Props) {
         s.fishOnHook = null;
         setPhase('waiting');
         setFishOnHook(null);
-        setBiteTimer(s.biteTimer);
       }
 
       if (s.timer >= 90 && !submitting) {
@@ -150,15 +139,7 @@ export default function FishingGame({ uid, onDone }: Props) {
     try {
       const totalFood = s.catches.reduce((a, f) => a + f.food_value, 0);
       const result = { food_value: totalFood, items: s.catches.map(f => f.name) };
-      const res = await fetch('/api/minigame/feed', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uid, game: 'fishing', seed: s.seed, signature: s.signature,
-          actions: s.actions, result,
-        }),
-      });
-      const data = await res.json();
+      const data = await submitMinigameResult(uid, 'fishing', s.seed, s.signature, result, s.actions);
       onDone({ ...result, reaction: data.reaction || 'yummy', bubble: data.bubble || '好吃！' });
     } catch {
       onDone({ food_value: 0, items: [], reaction: 'nibble', bubble: '鱼跑了...' });
@@ -167,12 +148,31 @@ export default function FishingGame({ uid, onDone }: Props) {
 
   const remaining = Math.max(0, 90 - Math.floor(timer));
   const progressPct = Math.min(100, (tension * 100));
+  const phaseLabel =
+    phase === 'biting' ? '鱼上钩了' :
+    phase === 'reeling' ? '正在拉住' :
+    phase === 'caught' ? '已经钓到' :
+    phase === 'missed' ? '鱼跑掉了' :
+    '等待咬钩';
+  const fishLabel = fishOnHook ? fishOnHook.name : '还没有鱼';
+  const logText =
+    phase === 'biting' ? '看到浮标抖动就点收线。' :
+    phase === 'reeling' ? `继续点按钮，把 ${fishLabel} 拉上来。` :
+    phase === 'caught' ? `${fishOnHook?.emoji ?? ''} ${fishLabel}`.trim() :
+    phase === 'missed' ? '慢了一点，再等下一条鱼。' :
+    '先等浮标动起来。';
 
   return (
-    <div className="fishing-game">
-      {/* Single-row compact layout */}
-      <span className="fishing-timer">{remaining}s</span>
-
+    <div className="minigame-inline-game fishing-game">
+      <button
+        type="button"
+        className={`minigame-inline-chip ${onSwitchGame ? 'is-switcher' : ''}`}
+        onClick={onSwitchGame}
+        aria-label="切换小游戏"
+      >
+        {label}
+      </button>
+      <span className="minigame-inline-state">{phaseLabel}</span>
       <span className="fishing-pond-h">
         <span className="fishing-waves-h">~~~~</span>
         <span className={`fishing-bobber-h ${phase === 'biting' ? 'biting' : ''}`}>
@@ -184,40 +184,32 @@ export default function FishingGame({ uid, onDone }: Props) {
         <span className="fishing-waves-h">~~~~</span>
       </span>
 
-      {phase === 'reeling' && (
-        <span className="fishing-tension-h">
-          <span className="fishing-tension-bar-h">
-            <span className="fishing-tension-fill-h" style={{ width: `${progressPct}%` }} />
-          </span>
+      <span className="fishing-tension-h">
+        <span className="fishing-tension-bar-h">
+          <span className="fishing-tension-fill-h" style={{ width: `${progressPct}%` }} />
         </span>
-      )}
+      </span>
+
+      <span className="minigame-inline-log">{logText}</span>
 
       {phase === 'biting' && (
         <button className="btn btn-primary fishing-btn" onClick={onReel}>收线</button>
       )}
       {phase === 'reeling' && (
-        <button className="btn btn-primary fishing-btn" onMouseDown={onPull} onTouchStart={onPull}>拉</button>
+        <button className="btn btn-primary fishing-btn" onMouseDown={onPull} onTouchStart={onPull}>继续拉</button>
       )}
       {phase === 'waiting' && (
-        <span className="fishing-waiting-h">等待咬钩...</span>
-      )}
-      {phase === 'missed' && (
-        <span className="fishing-missed-h">跑了!</span>
-      )}
-      {phase === 'caught' && fishOnHook && (
-        <span className="fishing-caught-h">{fishOnHook.emoji} {fishOnHook.name}!</span>
+        <span className="fishing-keycap-h">等浮标抖动后再收线</span>
       )}
 
-      {catches.length > 0 && (
-        <span className="fishing-catches-h">
-          {catches.map((f, i) => (
-            <span key={i} className="fishing-catch-item" title={f.name}>{f.emoji}</span>
-          ))}
-        </span>
+      {catches.length > 0 ? (
+        <span className="minigame-inline-reward">已收获 {catches.reduce((sum, fish) => sum + fish.food_value, 0)} 点零食</span>
+      ) : (
+        <span className="minigame-inline-timer">剩 {remaining}s</span>
       )}
 
-      <button className="fishing-close-btn" onClick={finish} disabled={submitting} aria-label="关闭钓鱼">
-        ✕
+      <button className="fishing-close-btn" onClick={finish} disabled={submitting} aria-label="结束钓鱼">
+        结束
       </button>
     </div>
   );
@@ -239,7 +231,7 @@ function mulberry32(seed: number): () => number {
 
 // -- fish util — uses API-provided fish_table (single source of truth) ----
 
-function buildPond(fishTable: FishDef[], rng: () => number, bonus: number): FishDef[] {
+function buildPond(fishTable: FishDef[], bonus: number): FishDef[] {
   const pond: FishDef[] = [];
   for (const f of fishTable) {
     const base = f.appear_weight || (f.rarity_rank > 0 ? 1 : 10);
@@ -249,6 +241,6 @@ function buildPond(fishTable: FishDef[], rng: () => number, bonus: number): Fish
   return pond;
 }
 
-function rollFish(pond: FishDef[], rng: () => number): FishDef {
-  return pond[Math.floor(rng() * pond.length)];
+function rollFish(pond: FishDef[], random: () => number): FishDef {
+  return pond[Math.floor(random() * pond.length)];
 }
