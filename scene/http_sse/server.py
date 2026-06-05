@@ -690,6 +690,82 @@ async def get_companion(uid: str) -> dict[str, Any]:
     }
 
 
+# ---- Minigame API ------------------------------------------------------------
+
+
+@app.get("/api/minigame/config")
+async def get_minigame_config(request: Request) -> dict[str, Any]:
+    """Return a signed seed + game params for a minigame round."""
+    import hashlib
+    import hmac
+    import os
+    import time as _time
+
+    uid = request.headers.get("uid", "anon")
+    game = request.query_params.get("game", "fishing")
+    secret = os.environ.get("MINIGAME_SECRET", "mitu-dev-secret")
+
+    seed_input = f"{uid}:{game}:{int(_time.time())}"
+    seed = int(hashlib.sha256(seed_input.encode()).hexdigest()[:16], 16)
+    signature = hmac.new(
+        secret.encode(),
+        f"{uid}:{game}:{seed}".encode(),
+        hashlib.sha256,
+    ).hexdigest()[:16]
+
+    from agent_core.companion import roll_companion
+    bones = roll_companion(uid)
+    rarity_bonus = {"common": 0, "uncommon": 5, "rare": 10, "epic": 15, "legendary": 25}
+    bonus = rarity_bonus.get(bones.rarity, 0)
+
+    return {
+        "game": game,
+        "seed": seed,
+        "signature": signature,
+        "params": {"rarity_bonus": bonus, "max_duration_s": 90},
+    }
+
+
+@app.post("/api/minigame/feed")
+async def feed_companion(request: Request) -> dict[str, Any]:
+    """Verify game result via seed replay and grant rewards."""
+    import hashlib
+    import hmac
+    import os
+
+    body = await request.json()
+    uid = body.get("uid", "anon")
+    game = body.get("game", "fishing")
+    seed = body.get("seed", 0)
+    signature = body.get("signature", "")
+    actions = body.get("actions", [])
+    claimed_result = body.get("result", {})
+
+    secret = os.environ.get("MINIGAME_SECRET", "mitu-dev-secret")
+    expected_sig = hmac.new(
+        secret.encode(),
+        f"{uid}:{game}:{seed}".encode(),
+        hashlib.sha256,
+    ).hexdigest()[:16]
+    if not hmac.compare_digest(expected_sig, signature):
+        return {"valid": False, "error": "签名无效"}
+
+    from agent_core.companion.minigames.base import GameReward
+    from agent_core.companion.minigames.fishing.rewards import FeedingSystem
+
+    feeding = FeedingSystem().feed(GameReward(
+        food_value=claimed_result.get("food_value", 0),
+        items=claimed_result.get("items", []),
+    ))
+    return {
+        "valid": True,
+        "reaction": feeding.reaction,
+        "bubble": feeding.bubble,
+        "bond_progress": feeding.bond_progress,
+        "items": feeding.items,
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
