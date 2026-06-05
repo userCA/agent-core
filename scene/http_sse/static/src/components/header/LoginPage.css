@@ -54,63 +54,6 @@
     .login-card { animation: none; }
 }
 
-/* ---- ASCII logo ---- */
-
-.login-logo {
-    position: relative;
-    display: inline-block;
-    margin: 0 0 4px 0;
-}
-
-.login-logo-art {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--ink);
-    line-height: 1.2;
-    margin: 0;
-    opacity: 0.85;
-    padding-left: 20px;
-}
-
-/* ---- Sleeping zzz animation ---- */
-
-.login-zzz {
-    position: absolute;
-    top: -30px;
-    left: 50px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--mute);
-    pointer-events: none;
-}
-
-.login-zzz-z {
-    display: inline-block;
-    animation: zzzFloat 2s ease-out infinite;
-    opacity: 0;
-}
-
-@keyframes zzzFloat {
-    0%   { opacity: 0; transform: translate(0, 6px) scale(0.7); }
-    12%  { opacity: 0.9; transform: translate(3px, 2px) scale(1); }
-    40%  { opacity: 0.8; transform: translate(10px, -8px) scale(1.25); }
-    70%  { opacity: 0.4; transform: translate(18px, -18px) scale(1.55); }
-    100% { opacity: 0; transform: translate(26px, -28px) scale(1.9); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .login-zzz-z {
-        animation: none;
-        opacity: 0.5;
-    }
-}
-
 /* ---- Title ---- */
 
 .login-title {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { AUTH_KEYS } from '../../config';
 import Icon from '../shared/Icon';
+import LoginCompanion from '../companion/LoginCompanion';
 import './LoginPage.css';
 
 function generateId(prefix: string): string {
@@ -9,12 +10,6 @@ function generateId(prefix: string): string {
   const ts = Date.now().toString(36);
   return `${prefix}_${ts}_${entropy}`;
 }
-
-const CAT_ART = [
-  '  /\\_/\\',
-  '  ( -.-)咪兔',
-  '  ( z z)你的AI伙伴',
-].join('\n');
 
 export default function LoginPage() {
   const { authHeaders, saveAuth, knownUids, registerUid } = useSessionStore();
@@ -71,14 +66,12 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-ambient" aria-hidden="true" />
       <div className="login-card" role="main" aria-label="登录">
-        <div className="login-logo" aria-hidden="true">
-          <pre className="login-logo-art">{CAT_ART}</pre>
-          <span className="login-zzz" aria-hidden="true">
-            <span className="login-zzz-z" style={{ animationDelay: '0s' }}>z</span>
-            <span className="login-zzz-z" style={{ animationDelay: '0.4s' }}>z</span>
-            <span className="login-zzz-z" style={{ animationDelay: '0.2s' }}>Z</span>
-          </span>
-        </div>
+        <LoginCompanion
+          isNewUser={isNewUser}
+          isReturning={isReturning}
+          hasInput={isValid}
+          loading={loading}
+        />
 
         <h2 className="login-title">欢迎回来</h2>
         <p className="login-subtitle">输入你的身份标识以继续对话</p>
