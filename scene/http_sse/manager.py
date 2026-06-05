@@ -88,6 +88,8 @@ class SessionManager:
     async def get_or_create(
         self, session_id: str | None, persona_id: str | None = None,
         provider_name: str | None = None, model_id: str | None = None,
+        companion_queue: "asyncio.Queue[Any] | None" = None,
+        companion_uid: str = "",
     ) -> tuple[str, ChatAssistant]:
         """Get an existing assistant or create a new one."""
         if session_id:
@@ -126,6 +128,8 @@ class SessionManager:
                 api_key_env=api_key_env,
                 persona=persona,
                 mcp_manager=self._mcp_manager,
+                companion_queue=companion_queue,
+                companion_uid=companion_uid,
             )
             # Remember persona + model used to create this assistant
             assistant._persona_id = persona_id

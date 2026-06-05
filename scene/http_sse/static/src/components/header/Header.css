@@ -15,7 +15,8 @@
     align-items: center;
 }
 
-.logo-art {
+.logo-art,
+.header-companion-art {
     font-family: var(--font-mono);
     font-size: 13px;
     font-weight: 700;

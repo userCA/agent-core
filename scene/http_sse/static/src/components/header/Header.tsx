@@ -2,6 +2,7 @@ import React from 'react';
 import { useChatStore } from '../../stores/chat-store';
 import { useThemeStore } from '../../stores/theme-store';
 import Icon, { ICON_SIZES } from '../shared/Icon';
+import HeaderCompanion from '../companion/HeaderCompanion';
 import './Header.css';
 
 interface Props {
@@ -15,10 +16,7 @@ export default function Header({ onAbort }: Props) {
   return (
     <header className="app-header">
       <div className="logo" aria-hidden="true">
-        <pre className="logo-art">{`  /\\_/\\   咪兔
- ( o.o )  你的AI伙伴
- ( > < )
-`}</pre>
+        <HeaderCompanion />
       </div>
       <span className="sr-only">咪兔 - 你的AI伙伴</span>
       <div className="header-actions">

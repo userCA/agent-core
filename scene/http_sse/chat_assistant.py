@@ -135,6 +135,8 @@ class ChatAssistant:
         cwd: str = "",
         memory_backend: str = "",
         memory_config: dict[str, Any] | None = None,
+        companion_queue: "asyncio.Queue[Any] | None" = None,
+        companion_uid: str = "",
     ) -> "ChatAssistant":
         """Factory method to create a ChatAssistant with minimal configuration."""
         from agent_core.providers.openai_provider import OpenAIProvider
@@ -332,6 +334,15 @@ class ChatAssistant:
         )
 
         extensions = _build_memory_extension(memory_backend, memory_config or {}, session_id or "")
+
+        # Companion extension — optional, wired when a companion queue is provided
+        if companion_queue is not None and companion_uid:
+            from agent_core.extensions.companion import CompanionExtension
+            extensions.append(CompanionExtension(
+                uid=companion_uid,
+                send_event=companion_queue.put_nowait,
+            ))
+
         assistant = cls(
             agent=agent,
             session_store=session_store,

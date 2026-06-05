@@ -72,17 +72,41 @@ def _format_sse(data: dict[str, Any]) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
+def _companion_event_to_sse(evt: Any) -> dict[str, Any]:
+    """Convert a CompanionEvent or CompanionBubbleEvent to SSE-safe dict."""
+    from agent_core.extensions.companion import CompanionBubbleEvent, CompanionEvent
+    if isinstance(evt, CompanionBubbleEvent):
+        return {
+            "event": "companion_bubble",
+            "uid": evt.uid,
+            "text": evt.bubble.text,
+            "ttl_ms": evt.bubble.ttl_ms,
+            "priority": evt.bubble.priority,
+        }
+    if isinstance(evt, CompanionEvent):
+        return {
+            "event": "companion",
+            "type": evt.type,
+            "uid": evt.uid,
+        }
+    return {"event": "companion", "raw": str(evt)}
+
+
 async def _event_stream(
     session_id: str | None,
     message: str,
     persona_id: str | None = None,
     provider_name: str | None = None,
     model_id: str | None = None,
+    companion_uid: str = "",
 ) -> AsyncIterator[str]:
     """Yield SSE-formatted events for a chat turn."""
+    companion_queue: asyncio.Queue[Any] = asyncio.Queue() if companion_uid else None  # type: ignore[assignment]
     sid, assistant = await manager.get_or_create(
         session_id, persona_id=persona_id,
         provider_name=provider_name, model_id=model_id,
+        companion_queue=companion_queue,
+        companion_uid=companion_uid,
     )
 
     # Send session_id first
@@ -107,6 +131,12 @@ async def _event_stream(
 
         # Wait until message_end arrives, then send done
         while True:
+            # Poll both agent events and companion events
+            if companion_queue is not None and not companion_queue.empty():
+                cevt = companion_queue.get_nowait()
+                yield _format_sse(_companion_event_to_sse(cevt))
+                continue
+
             evt = await asyncio.wait_for(queue.get(), timeout=600.0)
             if evt is None:
                 break
@@ -132,9 +162,12 @@ async def chat_stream(request: Request, chat_request: ChatRequest) -> StreamingR
     session_id = request.query_params.get("session_id")
     persona_id = request.query_params.get("persona_id")
     current_request_headers.set(dict(request.headers))
+    headers: dict[str, str] = dict(request.headers)
+    companion_uid = headers.get("uid", "")
     return StreamingResponse(
         _event_stream(session_id, chat_request.message, persona_id=persona_id,
-                      provider_name=chat_request.provider, model_id=chat_request.model),
+                      provider_name=chat_request.provider, model_id=chat_request.model,
+                      companion_uid=companion_uid),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
