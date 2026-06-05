@@ -15,7 +15,7 @@ from agent_core.companion.templates import (
     pick_idle_tip,
 )
 
-from agent_core.extensions.companion import CompanionBubble
+from agent_core.companion.types import CompanionBubble
 
 
 def _days_ago(timestamp: float) -> int:

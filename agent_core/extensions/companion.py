@@ -15,12 +15,13 @@ from agent_core.core.events import (
     TurnEnd,
     TurnStart,
 )
+from agent_core.companion.types import CompanionBubble
 from agent_core.memory.base import MemoryStore
 
 logger = logging.getLogger(__name__)
 
 
-# ---- public types -----------------------------------------------------------
+# ---- wire-format types ------------------------------------------------------
 
 
 @dataclass
@@ -31,17 +32,27 @@ class CompanionEvent:
 
 
 @dataclass
-class CompanionBubble:
-    text: str
-    ttl_ms: int = 8000
-    priority: str = "normal"
-
-
-@dataclass
 class CompanionBubbleEvent:
     uid: str
     bubble: CompanionBubble
     type: str = "companion_bubble"
+
+
+def companion_event_to_sse(evt: CompanionEvent | CompanionBubbleEvent) -> dict[str, object]:
+    """Convert companion events to SSE-safe dicts."""
+    if isinstance(evt, CompanionBubbleEvent):
+        return {
+            "event": "companion_bubble",
+            "uid": evt.uid,
+            "text": evt.bubble.text,
+            "ttl_ms": evt.bubble.ttl_ms,
+            "priority": evt.bubble.priority,
+        }
+    return {
+        "event": "companion",
+        "type": evt.type,
+        "uid": evt.uid,
+    }
 
 
 # ---- extension --------------------------------------------------------------

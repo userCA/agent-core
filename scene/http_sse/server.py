@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
 from agent_core.resources.personas import load_personas
 
+from agent_core.extensions.companion import companion_event_to_sse
 from scene.http_sse.events import agent_event_to_sse_json
 from agent_core.tools.mcp_tool import add_mcp_server_to_json, remove_mcp_server_from_json
 from scene.http_sse.manager import SessionManager
@@ -72,26 +73,6 @@ def _format_sse(data: dict[str, Any]) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
-def _companion_event_to_sse(evt: Any) -> dict[str, Any]:
-    """Convert a CompanionEvent or CompanionBubbleEvent to SSE-safe dict."""
-    from agent_core.extensions.companion import CompanionBubbleEvent, CompanionEvent
-    if isinstance(evt, CompanionBubbleEvent):
-        return {
-            "event": "companion_bubble",
-            "uid": evt.uid,
-            "text": evt.bubble.text,
-            "ttl_ms": evt.bubble.ttl_ms,
-            "priority": evt.bubble.priority,
-        }
-    if isinstance(evt, CompanionEvent):
-        return {
-            "event": "companion",
-            "type": evt.type,
-            "uid": evt.uid,
-        }
-    return {"event": "companion", "raw": str(evt)}
-
-
 async def _event_stream(
     session_id: str | None,
     message: str,
@@ -134,7 +115,7 @@ async def _event_stream(
             # Poll both agent events and companion events
             if companion_queue is not None and not companion_queue.empty():
                 cevt = companion_queue.get_nowait()
-                yield _format_sse(_companion_event_to_sse(cevt))
+                yield _format_sse(companion_event_to_sse(cevt))
                 continue
 
             evt = await asyncio.wait_for(queue.get(), timeout=600.0)
