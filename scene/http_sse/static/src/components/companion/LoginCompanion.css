@@ -87,3 +87,7 @@
     from { opacity: 0; transform: translateY(6px) scale(0.9); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+@media (prefers-reduced-motion: reduce) {
+    .companion-rarity { animation: none; }
+}

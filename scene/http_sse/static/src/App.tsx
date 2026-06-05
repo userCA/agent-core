@@ -10,7 +10,7 @@ import LoginPage from './components/header/LoginPage';
 import ChatContainer from './components/chat/ChatContainer';
 import ChatInput from './components/input/ChatInput';
 import PendingBubbles from './components/input/PendingBubbles';
-import MiniGameHost from './components/companion/minigames/MiniGameHost';
+
 import SkillsPage from './components/pages/SkillsPage';
 import ConnectorsPage from './components/pages/ConnectorsPage';
 import ExpertsPage from './components/pages/ExpertsPage';
@@ -69,7 +69,6 @@ export default function App() {
           {activePage === 'chat' && (
             <>
               <ChatContainer onExampleClick={sendMessage} />
-              <MiniGameHost />
               <PendingBubbles />
               <ChatInput onSend={sendMessage} />
             </>

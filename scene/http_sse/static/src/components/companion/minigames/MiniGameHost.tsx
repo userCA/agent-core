@@ -42,25 +42,25 @@ export default function MiniGameHost() {
   };
 
   return (
-    <>
-      {/* Activation button during streaming */}
-      {isStreaming && !active && elapsed > 3 && elapsed <= 15 && (
-        <button className="minigame-teaser" onClick={() => setActive(true)}>
-          🎣 钓鱼等一会儿
+    <span className="minigame-host">
+      {/* Teaser button — inline next to cat */}
+      {isStreaming && !active && elapsed > 3 && (
+        <button className="minigame-teaser" onClick={() => setActive(true)} aria-label="打开钓鱼游戏">
+          ~{'>'}~
         </button>
       )}
 
-      {/* Game overlay */}
+      {/* Game dropdown — below header, doesn't block chat */}
       {active && (
         <FishingGame uid={uid} onDone={handleDone} />
       )}
 
-      {/* Result bubble */}
+      {/* Result — inline next to cat */}
       {result && (
-        <div className="minigame-result">
+        <span className="minigame-result">
           {result.bubble}
-        </div>
+        </span>
       )}
-    </>
+    </span>
   );
 }

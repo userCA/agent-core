@@ -170,73 +170,54 @@ export default function FishingGame({ uid, onDone }: Props) {
 
   return (
     <div className="fishing-game">
-      <div className="fishing-header">
-        <span className="fishing-icon">🎣</span>
-        <span className="fishing-timer">{remaining}s</span>
-      </div>
+      {/* Single-row compact layout */}
+      <span className="fishing-timer">{remaining}s</span>
 
-      <div className="fishing-pond">
-        <div className="fishing-waves">
-          <span className="wave">~~~~</span>
-          <span className="wave">~~~~</span>
-          <span className="wave">~~~~</span>
-        </div>
-        <div className="fishing-bobber" style={{ left: `${bobberPos}%` }}>
+      <span className="fishing-pond-h">
+        <span className="fishing-waves-h">~~~~</span>
+        <span className={`fishing-bobber-h ${phase === 'biting' ? 'biting' : ''}`}>
           {phase === 'biting' ? '◎' : '○'}
-        </div>
+        </span>
         {fishOnHook && phase === 'biting' && (
-          <div className="fishing-fish-shadow">
-            {fishOnHook.sprite}
-          </div>
+          <span className="fishing-fish-shadow-h">{fishOnHook.sprite}</span>
         )}
-        <div className="fishing-waves">
-          <span className="wave">~~~~</span>
-          <span className="wave">~~~~</span>
-          <span className="wave">~~~~</span>
-        </div>
-      </div>
+        <span className="fishing-waves-h">~~~~</span>
+      </span>
 
       {phase === 'reeling' && (
-        <div className="fishing-tension">
-          <div className="fishing-tension-bar">
-            <div className="fishing-tension-fill" style={{ width: `${progressPct}%` }} />
-          </div>
-          <span>松线中... 点击收线!</span>
-        </div>
+        <span className="fishing-tension-h">
+          <span className="fishing-tension-bar-h">
+            <span className="fishing-tension-fill-h" style={{ width: `${progressPct}%` }} />
+          </span>
+        </span>
       )}
 
-      <div className="fishing-actions">
-        {phase === 'biting' && (
-          <button className="btn btn-primary fishing-btn" onClick={onReel}>
-            收线!
-          </button>
-        )}
-        {phase === 'reeling' && (
-          <button className="btn btn-primary fishing-btn" onMouseDown={onPull} onTouchStart={onPull}>
-            拉!
-          </button>
-        )}
-        {phase === 'waiting' && (
-          <span className="fishing-waiting">等待鱼咬钩...</span>
-        )}
-        {phase === 'missed' && (
-          <span className="fishing-missed">鱼跑了!</span>
-        )}
-        {phase === 'caught' && fishOnHook && (
-          <span className="fishing-caught">钓到了 {fishOnHook.emoji} {fishOnHook.name}!</span>
-        )}
-      </div>
+      {phase === 'biting' && (
+        <button className="btn btn-primary fishing-btn" onClick={onReel}>收线</button>
+      )}
+      {phase === 'reeling' && (
+        <button className="btn btn-primary fishing-btn" onMouseDown={onPull} onTouchStart={onPull}>拉</button>
+      )}
+      {phase === 'waiting' && (
+        <span className="fishing-waiting-h">等待咬钩...</span>
+      )}
+      {phase === 'missed' && (
+        <span className="fishing-missed-h">跑了!</span>
+      )}
+      {phase === 'caught' && fishOnHook && (
+        <span className="fishing-caught-h">{fishOnHook.emoji} {fishOnHook.name}!</span>
+      )}
 
       {catches.length > 0 && (
-        <div className="fishing-catches">
-          已钓到: {catches.map((f, i) => (
+        <span className="fishing-catches-h">
+          {catches.map((f, i) => (
             <span key={i} className="fishing-catch-item" title={f.name}>{f.emoji}</span>
           ))}
-        </div>
+        </span>
       )}
 
-      <button className="fishing-end-btn" onClick={finish} disabled={submitting}>
-        {submitting ? '结算中...' : '提前结束'}
+      <button className="fishing-close-btn" onClick={finish} disabled={submitting} aria-label="关闭钓鱼">
+        ✕
       </button>
     </div>
   );

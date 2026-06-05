@@ -3,6 +3,7 @@ import { useChatStore } from '../../stores/chat-store';
 import { useThemeStore } from '../../stores/theme-store';
 import Icon, { ICON_SIZES } from '../shared/Icon';
 import HeaderCompanion from '../companion/HeaderCompanion';
+import MiniGameHost from '../companion/minigames/MiniGameHost';
 import './Header.css';
 
 interface Props {
@@ -17,6 +18,7 @@ export default function Header({ onAbort }: Props) {
     <header className="app-header">
       <div className="logo" aria-hidden="true">
         <HeaderCompanion />
+        <MiniGameHost />
       </div>
       <span className="sr-only">咪兔 - 你的AI伙伴</span>
       <div className="header-actions">
