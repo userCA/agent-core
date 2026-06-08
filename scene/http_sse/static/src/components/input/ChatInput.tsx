@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react';
+import { motion } from 'motion/react';
 import { useChatStore } from '../../stores/chat-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useSkillStore } from '../../stores/skill-store';
@@ -263,14 +264,16 @@ export default function ChatInput({ onSend }: Props) {
             >
               <Icon name="recording" size={16} />
             </button>
-            <button
+            <motion.button
               className="send-btn"
               onClick={handleSend}
               disabled={!inputValue.trim() || isStreaming}
               aria-label="发送消息"
+              whileTap={{ scale: 0.85 }}
+              transition={{ type: 'spring', duration: 0.3, bounce: 0.3 }}
             >
               <Icon name="send" size={16} />
-            </button>
+            </motion.button>
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useChatStore } from '../../stores/chat-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
@@ -39,11 +40,21 @@ export default function ChatContainer({ onExampleClick }: Props) {
         ))}
         {showStreaming && <StreamingMessage />}
       </div>
-      {showButton && (
-        <button className="scroll-to-bottom" onClick={forceScrollToBottom} aria-label="滚动到底部">
-          <Icon name="chevron-down" size={18} />
-        </button>
-      )}
+      <AnimatePresence>
+        {showButton && (
+          <motion.button
+            className="scroll-to-bottom"
+            onClick={forceScrollToBottom}
+            aria-label="滚动到底部"
+            initial={{ opacity: 0, y: 8, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.9 }}
+            transition={{ type: 'spring', duration: 0.4, bounce: 0.2 }}
+          >
+            <Icon name="chevron-down" size={18} />
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useSessionStore, type SessionSummary } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useChatStore } from '../../stores/chat-store';
@@ -136,69 +137,83 @@ export default function Sidebar() {
         </div>
 
         <div className="sidebar-menu">
-          <button
+          <motion.button
             className="sidebar-menu-item"
             onClick={() => setActivePage('experts')}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.97 }}
           >
             <span className="sidebar-menu-icon"><Icon name="briefcase" size={14} /></span>
             <span className="sidebar-menu-label">专家</span>
             <span className="sidebar-menu-value">{currentPersona?.name ?? '通用助手'}</span>
             <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             className="sidebar-menu-item"
             onClick={() => setActivePage('skills')}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.97 }}
           >
             <span className="sidebar-menu-icon"><Icon name="code" size={14} /></span>
             <span className="sidebar-menu-label">技能</span>
             <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             className="sidebar-menu-item"
             onClick={() => setActivePage('connectors')}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.97 }}
           >
             <span className="sidebar-menu-icon"><Icon name="tool" size={14} /></span>
             <span className="sidebar-menu-label">连接器</span>
             <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             className="sidebar-menu-item"
             onClick={() => setActivePage('knowledge')}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.97 }}
           >
             <span className="sidebar-menu-icon"><Icon name="book" size={14} /></span>
             <span className="sidebar-menu-label">知识库</span>
             <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             className="sidebar-menu-item"
             onClick={() => setActivePage('channels')}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.97 }}
           >
             <span className="sidebar-menu-icon"><Icon name="send" size={14} /></span>
             <span className="sidebar-menu-label">渠道管理</span>
             <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             className="sidebar-menu-item"
             onClick={() => setAuthModalOpen(true)}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.97 }}
           >
             <span className="sidebar-menu-icon"><Icon name="key" size={14} /></span>
             <span className="sidebar-menu-label">认证设置</span>
             <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
             className="sidebar-menu-item sidebar-menu-item--danger"
             onClick={() => useSessionStore.getState().clearAuth()}
+            whileHover={{ x: 4 }}
+            whileTap={{ scale: 0.97 }}
           >
             <span className="sidebar-menu-icon"><Icon name="cancel" size={14} /></span>
             <span className="sidebar-menu-label">退出登录</span>
             <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
-          </button>
+          </motion.button>
         </div>
 
         <div className="sidebar-divider" />
@@ -239,12 +254,15 @@ export default function Sidebar() {
 
           {filteredSessions.length > 0 && (
             <div className="session-list">
-              {filteredSessions.map((s: SessionSummary) => {
+              {filteredSessions.map((s: SessionSummary, i: number) => {
                 const active = s.session_id === sessionId;
                 return (
-                  <div
+                  <motion.div
                     key={s.session_id}
                     className={`session-item${active ? ' active' : ''}`}
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: Math.min(i * 0.03, 0.3), duration: 0.25, ease: 'easeOut' }}
                   >
                     <button
                       className="session-item-main"
@@ -269,7 +287,7 @@ export default function Sidebar() {
                     >
                       <Icon name="cancel" size={12} />
                     </button>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>

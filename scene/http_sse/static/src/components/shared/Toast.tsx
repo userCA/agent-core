@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useToastStore } from '../../stores/toast-store';
 import './Toast.css';
 
@@ -31,46 +32,41 @@ function ToastIcon({ type }: { type: string }) {
 export default function ToastContainer() {
   const toasts = useToastStore((s) => s.toasts);
   const removeToast = useToastStore((s) => s.removeToast);
-  const [exiting, setExiting] = useState<Set<string>>(new Set());
 
   const handleClose = useCallback((id: string) => {
-    setExiting((prev) => new Set(prev).add(id));
-    setTimeout(() => {
-      removeToast(id);
-      setExiting((prev) => {
-        const n = new Set(prev);
-        n.delete(id);
-        return n;
-      });
-    }, 200);
+    removeToast(id);
   }, [removeToast]);
-
-  if (toasts.length === 0) return null;
 
   return (
     <div className="toast-container" role="region" aria-live="polite" aria-label="通知">
-      {toasts.map((t) => (
-        <div
-          key={t.id}
-          className={`toast-item ${t.type}${exiting.has(t.id) ? ' exit' : ''}`}
-          role="status"
-        >
-          <span className="toast-icon">
-            <ToastIcon type={t.type} />
-          </span>
-          <span className="toast-message">{t.message}</span>
-          <button
-            className="toast-close"
-            onClick={() => handleClose(t.id)}
-            aria-label="关闭通知"
+      <AnimatePresence>
+        {toasts.map((t) => (
+          <motion.div
+            key={t.id}
+            className={`toast-item ${t.type}`}
+            role="status"
+            initial={{ opacity: 0, x: 48, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 48, scale: 0.95 }}
+            transition={{ type: 'spring', duration: 0.4, bounce: 0.2 }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-      ))}
+            <span className="toast-icon">
+              <ToastIcon type={t.type} />
+            </span>
+            <span className="toast-message">{t.message}</span>
+            <button
+              className="toast-close"
+              onClick={() => handleClose(t.id)}
+              aria-label="关闭通知"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 }

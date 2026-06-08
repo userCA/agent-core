@@ -22,6 +22,7 @@
 | 2026-06-02 | 47. ToolResultMessage 持久化字段缺失 48. get_or_create 误销毁 assistant 49. Agnes 视频工具 50. 历史 widget 渲染 51. widget 重复渲染 52. widget timeline 对齐 53. 切换会话保留流式状态 54. 模型选择器移到底部 55. 视频 API 字段修复+重试 56. 快速轮询+check 工具 57. 视频播放器渲染 58. UX 审查修复 | [2026-06-02.md](development-log/2026-06-02.md) |
 | 2026-06-03 | 59-61. Bash 操作协议优化（流式+signal+截断+进程树） 62-64. 沙箱服务接入（Docker+策略+自愈） 65-66. 扩展系统增强（mutated_args+args_model+hook） 67-69. Agent 重构（loop 解耦+配置提取+provider 分离） 70. tool_name 漏传修复 | [2026-06-03.md](development-log/2026-06-03.md) |
 | 2026-06-05 | 60. 咪兔伴侣系统 Phase 1-5：多帧动画、确定性生成、Extension 集成、伴侣记忆+NPC、钓鱼小游戏 | [2026-06-05.md](development-log/2026-06-05.md) |
+| 2026-06-08 | Motion 动画 P0 优化：stagger/AnimatePresence/whileTap 增强，CSS 持续循环动画替代 Motion JS 防掉帧 | [2026-06-08.md](development-log/2026-06-08.md) |
 
 ---
 

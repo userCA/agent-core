@@ -7,6 +7,15 @@
   color: var(--ash);
 }
 
+.loading-indicator > span {
+  animation: textPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes textPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
 .loading-md {
   padding: 48px 16px;
   font-size: 13px;

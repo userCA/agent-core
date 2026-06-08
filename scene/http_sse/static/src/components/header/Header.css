@@ -90,6 +90,17 @@
     transform-origin: left bottom;
 }
 
+/* CSS animation for header float — compositor thread, immune to React re-renders */
+.header-companion-float {
+    display: inline-block;
+    animation: companionFloat 1.9s ease-in-out infinite;
+}
+
+@keyframes companionFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-1px); }
+}
+
 /* Companion speech bubble — floats above the sprite so it never shifts the dock */
 .companion-bubble-speech {
     position: absolute;

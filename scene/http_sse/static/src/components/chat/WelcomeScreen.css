@@ -6,7 +6,6 @@
     min-height: 280px;
     padding: 24px;
     gap: 12px;
-    animation: welcomeIn 0.3s ease;
     max-width: 520px;
     margin: 0 auto;
     position: relative;
@@ -27,11 +26,6 @@
     z-index: 1;
 }
 
-@keyframes welcomeIn {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
 .welcome-logo {
     font-family: var(--font-mono);
     font-size: 12px;
@@ -41,8 +35,11 @@
     text-align: center;
     letter-spacing: 0;
     margin: 0;
-    animation: logoFloat 4s ease-in-out 1;
-    will-change: transform;
+}
+
+/* CSS animation runs on compositor thread — no JS jank */
+.welcome-logo--float {
+    animation: logoFloat 3s ease-in-out infinite;
 }
 
 @keyframes logoFloat {
@@ -133,21 +130,6 @@
     text-align: left;
     transition: border-color 0.15s ease, background 0.15s ease;
     touch-action: manipulation;
-}
-
-.prompt-card.animated {
-    animation: cardEnter 0.3s ease both;
-}
-
-@keyframes cardEnter {
-    from {
-        opacity: 0;
-        transform: translateY(6px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 .prompt-card:hover {

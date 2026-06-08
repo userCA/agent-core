@@ -73,11 +73,11 @@ export default function CompanionSprite({ mood, breed, eyeOverride, stage, shiny
   // Emotion transition pulse
   const [scope, animate] = useAnimate();
 
-  // Reset seq on mood change + trigger pulse
+  // Reset seq on mood change + trigger subtle flash
   useEffect(() => {
     setSeqIdx(0);
     setFrame(0);
-    animate(scope.current, { scale: [1, 0.96, 1], opacity: [0.85, 0.65, 0.85] }, { duration: 0.35, ease: 'easeOut' });
+    animate(scope.current, { opacity: [1, 0.5, 1] }, { duration: 0.3, ease: 'easeOut' });
   }, [mood]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const lines = frames[frame];
@@ -102,7 +102,7 @@ export default function CompanionSprite({ mood, breed, eyeOverride, stage, shiny
 
   const renderedLines = variant === 'header' ? display.slice(0, 3) : display;
 
-  return (
+  const sprite = (
     <motion.pre
       ref={scope}
       className={className}
@@ -112,14 +112,16 @@ export default function CompanionSprite({ mood, breed, eyeOverride, stage, shiny
         scale: kittenScale,
         ...style,
       }}
-      animate={{ y: variant === 'header' ? [0, -1, 0] : 0 }}
-      transition={variant === 'header'
-        ? { y: { repeat: Infinity, duration: 3.8, ease: 'easeInOut' } }
-        : {}}
     >
       {renderedLines.join('\n')}
     </motion.pre>
   );
+
+  // CSS animation on wrapper for header float (compositor thread, no JS jank)
+  if (variant === 'header') {
+    return <span className="header-companion-float">{sprite}</span>;
+  }
+  return sprite;
 }
 
 export { SPRITES };
