@@ -1,0 +1,123 @@
+.h5-login {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--canvas);
+  padding: 24px 20px;
+}
+
+.h5-login-inner {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.h5-login-art {
+  margin-bottom: 8px;
+}
+
+.h5-login-brand {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0;
+}
+
+.h5-login-tagline {
+  font-size: 14px;
+  color: var(--mute);
+  margin: 0;
+}
+
+.h5-login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.h5-login-input {
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.h5-login-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.h5-login-input::placeholder {
+  color: var(--ash);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+.h5-login-btn {
+  padding: 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--canvas);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 52px;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.h5-login-btn:active {
+  transform: scale(0.98);
+}
+.h5-login-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.h5-login-recent {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.h5-login-recent-title {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--ash);
+  margin: 0 0 8px;
+  letter-spacing: 0.04em;
+}
+
+.h5-login-recent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.h5-login-recent-item {
+  padding: 6px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  color: var(--body);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  min-height: 44px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.h5-login-recent-item:hover {
+  border-color: var(--hairline-strong);
+}
+.h5-login-recent-item:disabled {
+  opacity: 0.5;
+}

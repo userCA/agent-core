@@ -11,6 +11,7 @@ function getInitialCollapsed(): boolean {
 }
 
 export type Page = 'chat' | 'skills' | 'connectors' | 'experts' | 'knowledge' | 'channels';
+export type H5Tab = 'chat' | 'skills' | 'settings';
 
 interface UIState {
   activePage: Page;
@@ -24,6 +25,11 @@ interface UIState {
   setAuthModalOpen: (v: boolean) => void;
   setInputValue: (v: string) => void;
   toggleSidebar: () => void;
+
+  h5ActiveTab: H5Tab;
+  h5SettingsSubPage: string | null;
+  setH5ActiveTab: (tab: H5Tab) => void;
+  setH5SettingsSubPage: (page: string | null) => void;
 }
 
 function getInitialPage(): Page {
@@ -77,4 +83,9 @@ export const useUIStore = create<UIState>((set) => ({
       }
       return { sidebarCollapsed: next };
     }),
+
+  h5ActiveTab: 'chat',
+  h5SettingsSubPage: null,
+  setH5ActiveTab: (tab) => set({ h5ActiveTab: tab, h5SettingsSubPage: null }),
+  setH5SettingsSubPage: (page) => set({ h5SettingsSubPage: page }),
 }));

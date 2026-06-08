@@ -14,9 +14,12 @@ const emptyChannel = (): ChannelInfo => ({
   app_id: '', app_secret: '',
 });
 
-export default function ChannelsPage() {
+interface Props { onBack?: () => void; }
+
+export default function ChannelsPage({ onBack }: Props) {
   const { channels, loading, loadError, load, save, remove } = useChannelStore();
   const setActivePage = useUIStore((s) => s.setActivePage);
+  const back = onBack ?? (() => setActivePage('chat'));
   const requestConfirm = useConfirmStore((s) => s.requestConfirm);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showForm, setShowForm] = useState(false);
@@ -88,7 +91,7 @@ export default function ChannelsPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <button className="page-back" onClick={() => setActivePage('chat')} aria-label="返回聊天">
+        <button className="page-back" onClick={back} aria-label="返回聊天">
           <Icon name="chevron-left" size={18} />
         </button>
         <h1 className="page-title">渠道管理</h1>

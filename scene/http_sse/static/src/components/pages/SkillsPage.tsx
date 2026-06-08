@@ -8,7 +8,9 @@ import Loading from '../shared/Loading';
 import EmptyState from '../shared/EmptyState';
 import './Pages.css';
 
-export default function SkillsPage() {
+interface Props { onBack?: () => void; }
+
+export default function SkillsPage({ onBack }: Props) {
   const skills = useSkillStore((s) => s.skills);
   const tools = useSkillStore((s) => s.tools);
   const loading = useSkillStore((s) => s.loading);
@@ -16,6 +18,7 @@ export default function SkillsPage() {
   const loadCapabilities = useSkillStore((s) => s.loadCapabilities);
   const toggleSkill = useSkillStore((s) => s.toggleSkill);
   const setActivePage = useUIStore((s) => s.setActivePage);
+  const back = onBack ?? (() => setActivePage('chat'));
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState('');
@@ -151,7 +154,7 @@ export default function SkillsPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <button className="page-back" onClick={() => setActivePage('chat')} aria-label="返回聊天">
+        <button className="page-back" onClick={back} aria-label="返回聊天">
           <Icon name="chevron-left" size={18} />
         </button>
         <h1 className="page-title">技能管理</h1>

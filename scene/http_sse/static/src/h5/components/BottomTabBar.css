@@ -1,0 +1,38 @@
+.h5-tab-bar {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 44px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--canvas);
+  border-top: 1px solid var(--hairline);
+  flex-shrink: 0;
+  z-index: var(--z-sticky);
+}
+
+.h5-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.h5-tab--active {
+  color: var(--accent);
+}
+
+.h5-tab-label {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.03em;
+}

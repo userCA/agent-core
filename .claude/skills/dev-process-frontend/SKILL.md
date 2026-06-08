@@ -553,3 +553,28 @@ for (let i = blocks.length - 1; i >= 0; i--) {
    - 检查 hooks：只为被删组件服务的 `useLayoutEffect`/`useEffect`/event listener 是否应移除
 2. 每清理一处 → 检查关联的 import 是否需要修剪（如 `useLayoutEffect` 移除后 import 中只剩 `useEffect`）
 3. 最后 `npm run build` 确认零 warning
+
+---
+
+## 规则 31：持续循环动画必须用 CSS `@keyframes`，禁止用 Motion JS 驱动
+
+**模式：** Motion/Framer Motion 的 `animate` prop 通过 `requestAnimationFrame` 每帧写入 inline `transform`，运行在主线程。React 组件 re-render（state 更新、父组件渲染、zustand selector 变化）会中断或重置 Motion 动画，产生肉眼可见的掉帧。CSS `@keyframes` 运行在浏览器合成器线程，与 JS 主线程完全隔离，不会掉帧。
+
+**真实案例（2026-06-08）：**
+1. WelcomeScreen Logo 浮动用 `animate={{ y: [0, -6, 0] }}` → 卡顿。改为 CSS `@keyframes logoFloat` → 顺滑。
+2. CompanionSprite header 浮动用 `animate={{ y: -1 }}` + `repeatType: 'mirror'` → 500ms `setInterval` 驱动的 sprite 帧动画每次 `setState` 触发 re-render 都打断 Motion 动画。改为 CSS `@keyframes companionFloat` + wrapper `<span>` → 顺滑。
+
+**额外陷阱：** Motion keyframes `[a, b, a]` 配合 `easeInOut` 时，每段独立 ease 导致中点 `b` 有可见停顿。正确做法是 `repeatType: 'mirror'` 或直接用 CSS。
+
+**规则：**
+1. 持续循环动画（float/pulse/shimmer/spin）→ CSS `@keyframes` animation
+2. 一次性交互动画（入场/退场/hover/tap）→ Motion 的 `initial`/`animate`/`exit`/`whileHover`/`whileTap`
+3. Motion `animate` prop 只用于有限次数的动画（1 次或有限 repeat），不用于 `repeat: Infinity`
+4. **例外：** `AnimatePresence` 的 exit 动画即使设置 `repeat: Infinity` 也不受影响（因为元素退出即销毁）
+5. CSS animation 和 Motion inline transform 冲突时 → 用 wrapper 元素隔离：CSS animation 在外层 `<span>`，Motion 在内层元素
+
+**检查：** 新增动画时问自己：
+- 这个动画会一直循环吗？→ CSS `@keyframes`
+- 这个动画只播放一次或响应交互？→ Motion
+- 如果 Motion 目标元素和 CSS animation 目标元素是同一个 → 必须拆分`
+

@@ -1,6 +1,8 @@
 /* Mobile responsive overrides — loaded after tokens.css */
+/* Breakpoints: --bp-phone: 480px, --bp-tablet: 768px, --bp-wide: 1024px */
 
-@media (max-width: 767px) {
+/* ---- Phone (≤768px) ---- */
+@media (max-width: 768px) {
     body {
         font-size: 13px;
     }
@@ -56,7 +58,6 @@
     /* Input area */
     .chat-input-area {
         padding: 8px 16px 12px;
-        /* Safe area for bottom indicator bar */
         padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     }
 
@@ -95,7 +96,8 @@
 
     /* Auth modal */
     .auth-modal {
-        width: 95%;
+        width: calc(100% - 32px);
+        max-width: 400px;
         padding: 16px;
     }
 
@@ -117,6 +119,106 @@
     /* Widget */
     .widget-container iframe {
         height: 300px !important;
+    }
+}
+
+/* ---- Small phone (≤480px) ---- */
+@media (max-width: 480px) {
+    .app-header {
+        padding: 8px 12px;
+    }
+
+    .chat-container {
+        padding: 8px 12px;
+    }
+
+    .bubble-user {
+        max-width: 90%;
+    }
+
+    .chat-input-area {
+        padding: 6px 12px 10px;
+        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .welcome {
+        padding: 24px 12px;
+        min-height: 160px;
+    }
+
+    .welcome-logo {
+        font-size: 10px;
+    }
+
+    .auth-modal {
+        width: calc(100% - 16px);
+        padding: 12px;
+    }
+
+    .header-actions .btn {
+        padding: 4px 8px;
+        font-size: 10px;
+    }
+}
+
+/* ---- Tablet (769px–1023px) ---- */
+@media (min-width: 769px) and (max-width: 1023px) {
+    .chat-container {
+        padding: 16px 24px;
+    }
+
+    .chat-inner {
+        max-width: 90%;
+    }
+
+    .bubble-user {
+        max-width: 75%;
+    }
+
+    .chat-input-area {
+        padding: 12px 24px 16px;
+    }
+
+    .app-header {
+        padding: 12px 20px;
+    }
+
+    .welcome {
+        padding: 40px 24px;
+    }
+}
+
+/* ---- Landscape phone (short height) ---- */
+@media (max-height: 500px) and (orientation: landscape) {
+    .app-header {
+        padding: 6px 16px;
+        min-height: auto;
+    }
+
+    .chat-container {
+        padding: 8px 16px;
+    }
+
+    .chat-input-area {
+        padding: 6px 16px 8px;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .chat-textarea {
+        min-height: 32px;
+    }
+
+    .welcome {
+        min-height: 120px;
+        padding: 16px;
+    }
+
+    .welcome-logo {
+        font-size: 9px;
+    }
+
+    .companion-bubble-speech {
+        max-width: 120px;
     }
 }
 

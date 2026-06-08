@@ -1,11 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
 import './theme/tokens.css';
-import './theme/mobile.css';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+async function bootstrap() {
+  const root = document.getElementById('root')!;
+  document.documentElement.classList.add('h5-html');
+
+  const { default: H5App } = await import('./h5/App');
+  ReactDOM.createRoot(root).render(
+    <React.StrictMode><H5App /></React.StrictMode>
+  );
+}
+
+bootstrap();

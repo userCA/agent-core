@@ -14,7 +14,9 @@ function emptyPersona(): PersonaInfo {
   return { id: '', name: '', description: '', system_prompt: '', enabled_tools: null, knowledge_bases: null };
 }
 
-export default function ExpertsPage() {
+interface Props { onBack?: () => void; }
+
+export default function ExpertsPage({ onBack }: Props) {
   const personas = useSessionStore((s) => s.personas);
   const personasLoading = useSessionStore((s) => s.personasLoading);
   const loadPersonas = useSessionStore((s) => s.loadPersonas);
@@ -23,6 +25,7 @@ export default function ExpertsPage() {
   const personaId = useSessionStore((s) => s.personaId);
   const setPersonaId = useSessionStore((s) => s.setPersonaId);
   const setActivePage = useUIStore((s) => s.setActivePage);
+  const back = onBack ?? (() => setActivePage('chat'));
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -174,7 +177,7 @@ export default function ExpertsPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <button className="page-back" onClick={() => setActivePage('chat')} aria-label="返回聊天">
+        <button className="page-back" onClick={back} aria-label="返回聊天">
           <Icon name="chevron-left" size={18} />
         </button>
         <h1 className="page-title">专家管理</h1>

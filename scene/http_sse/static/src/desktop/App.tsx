@@ -1,30 +1,30 @@
 import React, { useEffect } from 'react';
 import { MotionConfig, AnimatePresence, motion } from 'motion/react';
-import { BridgeProvider } from './bridge/BridgeContext';
-import { useSSE } from './hooks/useSSE';
-import { useSessionStore } from './stores/session-store';
-import { useUIStore } from './stores/ui-store';
-import Sidebar from './components/sidebar/Sidebar';
-import Header from './components/header/Header';
-import AuthModal from './components/header/AuthModal';
-import LoginPage from './components/header/LoginPage';
-import ChatContainer from './components/chat/ChatContainer';
-import ChatInput from './components/input/ChatInput';
-import PendingBubbles from './components/input/PendingBubbles';
+import { BridgeProvider } from '../bridge/BridgeContext';
+import { useSSE } from '../hooks/useSSE';
+import { useSessionStore } from '../stores/session-store';
+import { useUIStore } from '../stores/ui-store';
+import Sidebar from '../components/sidebar/Sidebar';
+import Header from '../components/header/Header';
+import AuthModal from '../components/header/AuthModal';
+import LoginPage from '../components/header/LoginPage';
+import ChatContainer from '../components/chat/ChatContainer';
+import ChatInput from '../components/input/ChatInput';
+import PendingBubbles from '../components/input/PendingBubbles';
 
-import SkillsPage from './components/pages/SkillsPage';
-import ConnectorsPage from './components/pages/ConnectorsPage';
-import ExpertsPage from './components/pages/ExpertsPage';
-import KnowledgePage from './components/pages/KnowledgePage';
-import ChannelsPage from './components/pages/ChannelsPage';
-import ToastContainer from './components/shared/Toast';
-import ConfirmDialog from './components/shared/ConfirmDialog';
-import { useModelStore } from './stores/model-store';
+import SkillsPage from '../components/pages/SkillsPage';
+import ConnectorsPage from '../components/pages/ConnectorsPage';
+import ExpertsPage from '../components/pages/ExpertsPage';
+import KnowledgePage from '../components/pages/KnowledgePage';
+import ChannelsPage from '../components/pages/ChannelsPage';
+import ToastContainer from '../components/shared/Toast';
+import ConfirmDialog from '../components/shared/ConfirmDialog';
+import { useModelStore } from '../stores/model-store';
 import './App.css';
 
 const VALID_PAGES = ['chat', 'skills', 'connectors', 'experts', 'knowledge', 'channels'];
 
-export default function App() {
+export default function DesktopApp() {
   const { sendMessage, abort } = useSSE();
   const hasAuth = useSessionStore((s) => s.hasAuth);
   const loadAuth = useSessionStore((s) => s.loadAuth);

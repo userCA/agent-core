@@ -1,0 +1,475 @@
+/* ── H5 mobile-app proportions ── */
+/* Phone scale: max 430px. Principle: chat-forward, minimal chrome. */
+
+/* ── Chat container: comfortable whitespace ── */
+.h5-app-layout .chat-container {
+    padding: 8px 10px;
+}
+
+.h5-app-layout .chat-inner {
+    max-width: 100%;
+    margin: 0;
+    gap: 6px;
+}
+
+/* ── Message bubbles: readable, not cramped ── */
+.h5-app-layout .bubble {
+    padding: 10px 14px;
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+.h5-app-layout .bubble-user {
+    max-width: 78%;
+}
+
+.h5-app-layout .bubble-assistant {
+    max-width: 100%;
+    background: transparent;
+    border: none;
+    padding: 6px 2px;
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+[data-theme="dark"] .h5-app-layout .bubble-assistant {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-sm);
+    padding: 6px 8px;
+}
+
+.h5-app-layout .msg-wrapper {
+    margin: 6px 0;
+}
+
+.h5-app-layout .msg-label {
+    font-size: 10px;
+    margin-bottom: 2px;
+}
+
+/* ── Input area: minimal, just text + send ── */
+.h5-app-layout .chat-input-area {
+    padding: 4px 8px 6px;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+}
+
+.h5-app-layout .chat-textarea {
+    font-size: 15px;
+    min-height: 34px;
+    padding: 7px 34px 5px 10px;
+    line-height: 1.4;
+}
+
+.h5-app-layout .input-box {
+    border-radius: 18px;
+}
+
+/* Compact mode: single + button + send */
+.h5-app-layout .input-actions--compact {
+    padding: 0 4px 2px;
+    justify-content: space-between;
+}
+
+.h5-app-layout .input-actions--compact .actions-right {
+    margin-left: auto;
+}
+
+.h5-app-layout .input-actions {
+    padding: 2px 6px 4px;
+}
+
+.h5-app-layout .actions-left,
+.h5-app-layout .actions-right {
+    gap: 2px;
+}
+
+.h5-app-layout .action-btn {
+    min-width: 32px;
+    min-height: 32px;
+}
+
+/* Send button */
+.h5-app-layout .send-btn {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0;
+    border-radius: 50%;
+}
+
+.h5-app-layout .send-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Clear button */
+.h5-app-layout .input-clear-btn {
+    top: 5px;
+    right: 4px;
+    min-width: 26px;
+    min-height: 26px;
+}
+
+.h5-app-layout .input-clear-btn svg {
+    width: 9px;
+    height: 9px;
+}
+
+/* Popover & skill panel compact */
+.h5-app-layout .skill-panel {
+    max-height: 120px;
+    padding: 4px;
+    gap: 1px;
+    margin-bottom: 4px;
+}
+
+.h5-app-layout .skill-item {
+    padding: 5px 8px;
+    font-size: 11px;
+    gap: 6px;
+}
+
+.h5-app-layout .more-popover {
+    min-width: 100px;
+    padding: 3px;
+    gap: 1px;
+}
+
+.h5-app-layout .more-popover button {
+    padding: 5px 8px;
+    font-size: 11px;
+    gap: 6px;
+}
+
+.h5-app-layout .model-popover {
+    min-width: 160px;
+}
+
+.h5-app-layout .model-popover button {
+    font-size: 11px;
+}
+
+.h5-app-layout .model-filter {
+    padding: 4px 6px;
+}
+
+.h5-app-layout .model-filter input {
+    font-size: 11px;
+}
+
+.h5-app-layout .pending-hint {
+    font-size: 10px;
+    padding: 1px 6px;
+    margin-bottom: 2px;
+}
+
+/* ── Welcome screen: proportional to 375-430px ── */
+.h5-app-layout .welcome {
+    max-width: 100%;
+    min-height: auto;
+    padding: 28px 20px 16px;
+    gap: 8px;
+}
+
+.h5-app-layout .welcome-logo {
+    font-size: 8px;
+    line-height: 1;
+}
+
+/* ── Scroll button: positioned above tab bar ── */
+.h5-app-layout .scroll-to-bottom {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    right: 14px;
+    width: 38px;
+    height: 38px;
+}
+
+/* ── Markdown in bubbles ── */
+.h5-app-layout .markdown-body {
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+.h5-app-layout .markdown-body pre {
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.h5-app-layout .markdown-body code {
+    font-size: 13px;
+}
+
+.h5-app-layout .markdown-body p {
+    margin: 8px 0;
+}
+
+/* ── Tool panels ── */
+.h5-app-layout .section-summary {
+    font-size: 13px;
+    padding: 8px 12px;
+    margin: 2px 0;
+}
+
+.h5-app-layout .tool-step {
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* ── HITL card ── */
+.h5-app-layout .hitl-card {
+    margin: 4px 0;
+    padding: 14px;
+}
+
+.h5-app-layout .hitl-field input[type="text"],
+.h5-app-layout .hitl-field textarea,
+.h5-app-layout .hitl-field select {
+    font-size: 16px;
+    padding: 10px 12px;
+}
+
+/* ── Widget iframe ── */
+.h5-app-layout .widget-container iframe {
+    max-height: 40vh;
+    border-radius: var(--radius-sm);
+}
+
+/* ── Toast: above tab bar ── */
+.h5-app-layout .toast-container {
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── Touch targets ── */
+.h5-app-layout .btn {
+    min-height: 44px;
+    touch-action: manipulation;
+}
+
+.h5-app-layout input,
+.h5-app-layout textarea,
+.h5-app-layout select {
+    font-size: 16px;
+}
+
+.h5-app-layout .msg-action-btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px;
+}
+
+/* ── Code blocks ── */
+.h5-app-layout .code-block-header {
+    padding: 4px 10px;
+}
+
+.h5-app-layout .code-block-wrapper {
+    margin: 4px 0;
+}
+
+.h5-app-layout .code-copy-btn {
+    min-height: 36px;
+    padding: 4px 10px;
+    font-size: 11px;
+}
+
+/* ── Streaming cursor ── */
+.h5-app-layout .streaming-cursor {
+    font-size: 15px;
+}
+
+/* ── Page header (skills/settings) ── */
+.h5-app-layout .page-header {
+    padding: 8px 12px;
+    min-height: 40px;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.h5-app-layout .page-title {
+    font-size: 14px;
+}
+
+.h5-app-layout .page-body {
+    padding: 8px 12px;
+    gap: 8px;
+}
+
+.h5-app-layout .page-search {
+    min-width: 0;
+    flex: 1;
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+.h5-app-layout .page-search input {
+    font-size: 14px;
+}
+
+.h5-app-layout .page-filter-row {
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+.h5-app-layout .filter-tab {
+    padding: 3px 8px;
+    font-size: 11px;
+}
+
+/* ── Cards: single-column, compact ── */
+.h5-app-layout .card-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+}
+
+.h5-app-layout .card {
+    padding: 10px 12px;
+    gap: 4px;
+}
+
+.h5-app-layout .card-title {
+    font-size: 12px;
+}
+
+.h5-app-layout .card-desc {
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.h5-app-layout .card-meta code {
+    font-size: 10px;
+    padding: 2px 6px;
+}
+
+/* ── Tags ── */
+.h5-app-layout .tag-cloud {
+    gap: 4px;
+}
+
+.h5-app-layout .tag {
+    font-size: 10px;
+    padding: 2px 8px;
+}
+
+/* ── Connector items ── */
+.h5-app-layout .connector-item-header {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+}
+
+.h5-app-layout .connector-item-meta {
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 10px;
+}
+
+.h5-app-layout .connector-item-tools {
+    padding: 6px 10px 8px;
+}
+
+.h5-app-layout .connector-item-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+}
+
+/* ── Expert items: prevent overflow ── */
+.h5-app-layout .expert-item-info {
+    flex-wrap: wrap;
+    gap: 2px;
+}
+
+.h5-app-layout .expert-item-desc {
+    width: 100%;
+    font-size: 11px;
+}
+
+.h5-app-layout .expert-item-right {
+    gap: 4px;
+}
+
+.h5-app-layout .expert-item-meta {
+    font-size: 10px;
+}
+
+.h5-app-layout .expert-item-actions {
+    gap: 6px;
+    padding-left: 4px;
+}
+
+.h5-app-layout .expert-action-link {
+    font-size: 11px;
+}
+
+.h5-app-layout .expert-active-head {
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.h5-app-layout .expert-active-head-text {
+    font-size: 13px;
+    white-space: normal;
+}
+
+.h5-app-layout .expert-active-desc {
+    font-size: 11px;
+}
+
+/* ── Tool toggles ── */
+.h5-app-layout .tool-toggle-grid {
+    gap: 3px;
+}
+
+.h5-app-layout .tool-toggle {
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+/* ── Forms ── */
+.h5-app-layout .form-field {
+    font-size: 11px;
+}
+
+.h5-app-layout .form-field input,
+.h5-app-layout .form-field select,
+.h5-app-layout .form-field textarea {
+    padding: 8px 10px;
+    font-size: 14px;
+}
+
+/* ── Skills page ── */
+.h5-app-layout .skill-toggle {
+    width: 34px;
+    height: 18px;
+}
+
+.h5-app-layout .skill-toggle-knob {
+    width: 12px;
+    height: 12px;
+    top: 2px;
+    left: 2px;
+}
+
+.h5-app-layout .skill-toggle.on .skill-toggle-knob {
+    transform: translateX(14px);
+}
+
+/* ── Upload status ── */
+.h5-app-layout .upload-status {
+    font-size: 11px;
+    padding: 6px 10px;
+}
+
+/* ── Modal ── */
+.h5-app-layout .modal-content {
+    width: calc(100% - 32px);
+    max-width: 400px;
+    padding: 16px;
+}
+
+/* ── Expert active card ── */
+.h5-app-layout .expert-active-card {
+    padding: 10px 12px;
+}
+
+

@@ -10,9 +10,10 @@ import './ChatInput.css';
 
 interface Props {
   onSend: (text: string) => void;
+  compact?: boolean;
 }
 
-export default function ChatInput({ onSend }: Props) {
+export default function ChatInput({ onSend, compact }: Props) {
   const isStreaming = useChatStore((s) => s.isStreaming);
   const pendingQueue = useChatStore((s) => s.pendingQueue);
   const inputValue = useUIStore((s) => s.inputValue);
@@ -184,86 +185,168 @@ export default function ChatInput({ onSend }: Props) {
           </button>
         )}
 
-        <div className="input-actions">
-          <div className="actions-left">
-            <button
-              className="action-btn"
-              onClick={() => setShowSkills((v) => !v)}
-              title="选择技能"
-              aria-label="选择技能"
-            >
-              <Icon name="code" size={16} />
-            </button>
-            <button
-              className={`action-btn${showMore ? ' active' : ''}`}
-              onClick={() => setShowMore((v) => !v)}
-              title="更多工具"
-              aria-label="更多工具"
-            >
-              <Icon name="plus" size={16} />
-            </button>
-            <div className="model-bar">
-              <button className="model-pick" onClick={() => setShowModels(!showModels)} title="切换模型">
-                <span className="model-label">{models.find(m => m.provider === currentProvider && m.model === currentModel)?.label || `${currentProvider}/${currentModel}`}</span>
-                <Icon name="chevron-down" size={10} />
+        <div className={`input-actions${compact ? ' input-actions--compact' : ''}`}>
+          {compact ? (
+            <>
+              <button
+                className={`action-btn${showMore ? ' active' : ''}`}
+                onClick={() => setShowMore((v) => !v)}
+                title="更多"
+                aria-label="更多"
+              >
+                <Icon name="plus" size={18} />
               </button>
-              {showModels && (
+              {showMore && (
                 <>
-                  <div className="more-backdrop" onClick={() => setShowModels(false)} />
-                  <div className="more-popover model-popover" style={{ bottom: '100%', top: 'auto', marginBottom: 6 }}>
-                    {models.length > 6 && (
-                      <div className="model-filter">
-                        <Icon name="search" size={12} />
-                        <input
-                          type="text"
-                          placeholder="搜索模型..."
-                          value={modelFilter}
-                          onChange={(e) => setModelFilter(e.target.value)}
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()}
-                        />
+                  <div className="more-backdrop" onClick={() => setShowMore(false)} />
+                  <div className="more-popover">
+                    <button onClick={() => { setShowSkills((v) => !v); setShowMore(false); }}>
+                      <Icon name="code" size={14} /> 技能
+                    </button>
+                    <button onClick={() => { fileRef.current?.click(); setShowMore(false); }}>
+                      <Icon name="upload" size={14} /> 文件
+                    </button>
+                    <button onClick={() => { imageRef.current?.click(); setShowMore(false); }}>
+                      <Icon name="image" size={14} /> 图片
+                    </button>
+                    <button onClick={() => { toggleRecording(); setShowMore(false); }}>
+                      <Icon name="recording" size={14} /> 语音
+                    </button>
+                    <button onClick={() => { setShowModels(!showModels); setShowMore(false); }}>
+                      <Icon name="chevron-down" size={14} /> 模型
+                    </button>
+                  </div>
+                  {showModels && (
+                    <>
+                      <div className="more-backdrop" onClick={() => setShowModels(false)} />
+                      <div className="more-popover model-popover" style={{ bottom: '100%', top: 'auto', marginBottom: 6 }}>
+                        {models.length > 6 && (
+                          <div className="model-filter">
+                            <Icon name="search" size={12} />
+                            <input
+                              type="text"
+                              placeholder="搜索模型..."
+                              value={modelFilter}
+                              onChange={(e) => setModelFilter(e.target.value)}
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        )}
+                        {filteredModels.map((m) => (
+                          <button key={`${m.provider}/${m.model}`}
+                            className={currentProvider === m.provider && currentModel === m.model ? 'active' : ''}
+                            onClick={() => { selectModel(m.provider, m.model); setShowModels(false); setModelFilter(''); }}>
+                            <span style={{ fontWeight: 600 }}>{m.label}</span>
+                            <span style={{ fontSize: 10, color: 'var(--ash)', marginLeft: 8 }}>{m.desc}</span>
+                          </button>
+                        ))}
+                        {filteredModels.length === 0 && (
+                          <div className="model-empty">无匹配模型</div>
+                        )}
                       </div>
-                    )}
-                    {filteredModels.map((m) => (
-                      <button key={`${m.provider}/${m.model}`}
-                        className={currentProvider === m.provider && currentModel === m.model ? 'active' : ''}
-                        onClick={() => { selectModel(m.provider, m.model); setShowModels(false); setModelFilter(''); }}>
-                        <span style={{ fontWeight: 600 }}>{m.label}</span>
-                        <span style={{ fontSize: 10, color: 'var(--ash)', marginLeft: 8 }}>{m.desc}</span>
-                      </button>
-                    ))}
-                    {filteredModels.length === 0 && (
-                      <div className="model-empty">无匹配模型</div>
-                    )}
+                    </>
+                  )}
+                </>
+              )}
+              {showSkills && visibleSkills.length > 0 && (
+                <div className="skill-panel">
+                  {visibleSkills.map((s) => (
+                    <button
+                      key={s.name}
+                      className="skill-item"
+                      onClick={() => insertSkill(s.name)}
+                      title={s.description}
+                    >
+                      <span className="skill-name">{s.name}</span>
+                      <span className="skill-desc">{s.description}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="actions-left">
+              <button
+                className="action-btn"
+                onClick={() => setShowSkills((v) => !v)}
+                title="选择技能"
+                aria-label="选择技能"
+              >
+                <Icon name="code" size={16} />
+              </button>
+              <button
+                className={`action-btn${showMore ? ' active' : ''}`}
+                onClick={() => setShowMore((v) => !v)}
+                title="更多工具"
+                aria-label="更多工具"
+              >
+                <Icon name="plus" size={16} />
+              </button>
+              <div className="model-bar">
+                <button className="model-pick" onClick={() => setShowModels(!showModels)} title="切换模型">
+                  <span className="model-label">{models.find(m => m.provider === currentProvider && m.model === currentModel)?.label || `${currentProvider}/${currentModel}`}</span>
+                  <Icon name="chevron-down" size={10} />
+                </button>
+                {showModels && (
+                  <>
+                    <div className="more-backdrop" onClick={() => setShowModels(false)} />
+                    <div className="more-popover model-popover" style={{ bottom: '100%', top: 'auto', marginBottom: 6 }}>
+                      {models.length > 6 && (
+                        <div className="model-filter">
+                          <Icon name="search" size={12} />
+                          <input
+                            type="text"
+                            placeholder="搜索模型..."
+                            value={modelFilter}
+                            onChange={(e) => setModelFilter(e.target.value)}
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      )}
+                      {filteredModels.map((m) => (
+                        <button key={`${m.provider}/${m.model}`}
+                          className={currentProvider === m.provider && currentModel === m.model ? 'active' : ''}
+                          onClick={() => { selectModel(m.provider, m.model); setShowModels(false); setModelFilter(''); }}>
+                          <span style={{ fontWeight: 600 }}>{m.label}</span>
+                          <span style={{ fontSize: 10, color: 'var(--ash)', marginLeft: 8 }}>{m.desc}</span>
+                        </button>
+                      ))}
+                      {filteredModels.length === 0 && (
+                        <div className="model-empty">无匹配模型</div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {showMore && (
+                <>
+                  <div className="more-backdrop" onClick={() => setShowMore(false)} />
+                  <div className="more-popover">
+                    <button onClick={() => { fileRef.current?.click(); }}>
+                      <Icon name="upload" size={14} /> 文件
+                    </button>
+                    <button onClick={() => { imageRef.current?.click(); }}>
+                      <Icon name="image" size={14} /> 图片
+                    </button>
                   </div>
                 </>
               )}
             </div>
-
-            {showMore && (
-              <>
-                <div className="more-backdrop" onClick={() => setShowMore(false)} />
-                <div className="more-popover">
-                  <button onClick={() => { fileRef.current?.click(); }}>
-                    <Icon name="upload" size={14} /> 文件
-                  </button>
-                  <button onClick={() => { imageRef.current?.click(); }}>
-                    <Icon name="image" size={14} /> 图片
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
+          )}
           <div className="actions-right">
-            <button
-              className={`action-btn${recording ? ' recording' : ''}`}
-              onClick={toggleRecording}
-              title={recording ? '停止录音' : '语音输入'}
-              aria-label={recording ? '停止录音' : '语音输入'}
-            >
-              <Icon name="recording" size={16} />
-            </button>
+            {!compact && (
+              <button
+                className={`action-btn${recording ? ' recording' : ''}`}
+                onClick={toggleRecording}
+                title={recording ? '停止录音' : '语音输入'}
+                aria-label={recording ? '停止录音' : '语音输入'}
+              >
+                <Icon name="recording" size={16} />
+              </button>
+            )}
             <motion.button
               className="send-btn"
               onClick={handleSend}

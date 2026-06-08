@@ -1,0 +1,64 @@
+/* ── Phone-frame container ── */
+/* On desktop the H5 app renders at phone width, centered */
+html.h5-html,
+html.h5-html body {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-soft);
+}
+
+html.h5-html body {
+  overflow: hidden;
+}
+
+#root:has(.h5-app-layout) {
+  width: 100%;
+  max-width: 430px;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(0,0,0,0.12);
+}
+
+/* ── App shell ── */
+.h5-app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.h5-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.h5-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* H5 chat-container handles its own scroll */
+.h5-app-layout .chat-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ChatInput pinned to bottom of .h5-page */
+.h5-app-layout .chat-input-area {
+  flex-shrink: 0;
+}

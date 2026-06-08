@@ -1,0 +1,193 @@
+.h5-input-dock {
+  position: relative;
+  flex-shrink: 0;
+  z-index: var(--z-sticky);
+}
+
+/* ── FAB trigger: circular floating avatar ── */
+.h5-input-fab {
+  position: absolute;
+  bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background: var(--canvas);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--hairline);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  overflow: visible;
+}
+
+.h5-input-fab:active {
+  transform: translateX(-50%) scale(0.94);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.12), 0 0 0 2px var(--accent);
+}
+
+/* FAB gentle bounce — disabled when user prefers reduced motion */
+@media (prefers-reduced-motion: no-preference) {
+  .h5-input-fab {
+    animation: fabBounce 2.8s ease-in-out infinite;
+  }
+}
+
+@keyframes fabBounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-4px); }
+}
+
+/* ── Avatar face (CSS art) ── */
+.h5-fab-avatar {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface-card);
+  z-index: 1;
+}
+
+.h5-fab-avatar--sm {
+  width: 20px;
+  height: 20px;
+}
+
+/* Ears */
+.h5-fab-ear {
+  position: absolute;
+  top: -4px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 6px solid var(--hairline-strong);
+}
+
+.h5-fab-avatar--sm .h5-fab-ear {
+  top: -3px;
+  border-left-width: 3px;
+  border-right-width: 3px;
+  border-bottom-width: 4.5px;
+}
+
+.h5-fab-ear--l { left: 2px; transform: rotate(-12deg); }
+.h5-fab-ear--r { right: 2px; transform: rotate(12deg); }
+
+.h5-fab-avatar--sm .h5-fab-ear--l { left: 1px; }
+.h5-fab-avatar--sm .h5-fab-ear--r { right: 1px; }
+
+/* Eyes */
+.h5-fab-eye {
+  position: absolute;
+  top: 10px;
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.h5-fab-avatar--sm .h5-fab-eye {
+  top: 7px;
+  width: 3px;
+  height: 3px;
+}
+
+.h5-fab-eye--l { left: 5px; }
+.h5-fab-eye--r { right: 5px; }
+.h5-fab-avatar--sm .h5-fab-eye--l { left: 3.5px; }
+.h5-fab-avatar--sm .h5-fab-eye--r { right: 3.5px; }
+
+/* Nose */
+.h5-fab-nose {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2.5px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--mute);
+}
+
+.h5-fab-avatar--sm .h5-fab-nose {
+  top: 10px;
+  width: 2px;
+  height: 1.5px;
+}
+
+/* ── Emotion variants ── */
+.h5-fab-avatar--sleeping .h5-fab-eye {
+  height: 1.5px;
+  width: 4px;
+  border-radius: 1px;
+  top: 10.5px;
+}
+.h5-fab-avatar--sm.h5-fab-avatar--sleeping .h5-fab-eye {
+  top: 7.5px; height: 1px; width: 3px;
+}
+
+.h5-fab-avatar--happy {
+  border: 1.5px solid var(--accent);
+}
+
+.h5-fab-avatar--working .h5-fab-eye {
+  width: 2.5px; height: 2.5px;
+}
+
+.h5-fab-avatar--concerned {
+  transform: rotate(-4deg);
+}
+
+/* ── Backdrop ── */
+.h5-input-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.22);
+  z-index: var(--z-modal-backdrop);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Expanded panel ── */
+.h5-input-expanded {
+  position: relative;
+  z-index: var(--z-modal);
+  background: var(--canvas);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -4px 28px rgba(0, 0, 0, 0.1);
+}
+
+.h5-input-expanded-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 6px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.h5-input-expanded-title {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--mute);
+  letter-spacing: 0.03em;
+}
+
+.h5-input-dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ash);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.h5-input-dismiss:active {
+  background: var(--surface-card);
+  color: var(--ink);
+}

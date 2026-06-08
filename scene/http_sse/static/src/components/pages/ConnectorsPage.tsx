@@ -18,8 +18,11 @@ function emptyPayload(): AddConnectorPayload {
   return { name: '', transport: 'stdio', command: '', args: [], url: '', env: {}, type: 'tool' };
 }
 
-export default function ConnectorsPage() {
+interface Props { onBack?: () => void; }
+
+export default function ConnectorsPage({ onBack }: Props) {
   const setActivePage = useUIStore((s) => s.setActivePage);
+  const back = onBack ?? (() => setActivePage('chat'));
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -150,7 +153,7 @@ export default function ConnectorsPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <button className="page-back" onClick={() => setActivePage('chat')} aria-label="返回聊天">
+        <button className="page-back" onClick={back} aria-label="返回聊天">
           <Icon name="chevron-left" size={18} />
         </button>
         <h1 className="page-title">连接器管理</h1>

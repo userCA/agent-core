@@ -943,10 +943,178 @@
     to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@media (max-width: 640px) {
-    .page-header { padding: 10px 16px; }
-    .page-body { padding: 12px 16px; }
-    .page-header-right { gap: 6px; }
-    .page-search { min-width: 0; }
-    .card-grid { grid-template-columns: 1fr; }
+/* ---- Phone (≤768px) ---- */
+@media (max-width: 768px) {
+    .page-header {
+        padding: 10px 16px;
+        flex-wrap: wrap;
+        gap: 8px;
+        min-height: auto;
+    }
+
+    .page-body {
+        padding: 12px 16px;
+        gap: 12px;
+    }
+
+    .page-header-right {
+        gap: 6px;
+        width: 100%;
+    }
+
+    .page-search {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .page-filter-row {
+        flex-wrap: wrap;
+    }
+
+    .card-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .card {
+        padding: 12px;
+    }
+
+    /* Connector items — allow header to wrap */
+    .connector-item-header {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 10px 12px;
+    }
+
+    .connector-item-meta {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .connector-item-tools {
+        padding: 6px 12px 10px;
+    }
+
+    /* Expert list — stack name + desc on narrow screens */
+    .expert-item-info {
+        flex-wrap: wrap;
+        gap: 2px;
+    }
+
+    .expert-item-desc {
+        width: 100%;
+    }
+
+    .expert-item-right {
+        gap: 6px;
+    }
+
+    .expert-item-actions {
+        gap: 8px;
+        padding-left: 8px;
+    }
+
+    .expert-action-link {
+        font-size: 11px;
+    }
+
+    .expert-active-head {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    /* Expert active card */
+    .expert-active-head-text {
+        white-space: normal;
+    }
+
+    /* Tool toggles */
+    .tool-toggle {
+        padding: 6px 12px;
+        font-size: 12px;
+        min-height: 44px;
+    }
+
+    /* Form fields */
+    .form-field input,
+    .form-field select,
+    .form-field textarea {
+        font-size: 16px; /* prevent iOS zoom */
+        padding: 10px 12px;
+    }
+
+    /* Modal — full-width on mobile */
+    .modal-content {
+        width: calc(100% - 32px);
+        max-width: 400px;
+        padding: 20px;
+    }
+}
+
+/* ---- Small phone (≤480px) ---- */
+@media (max-width: 480px) {
+    .page-header {
+        padding: 8px 12px;
+    }
+
+    .page-body {
+        padding: 10px 12px;
+        gap: 8px;
+    }
+
+    .page-title {
+        font-size: 14px;
+    }
+
+    .card {
+        padding: 10px;
+    }
+
+    .card-title {
+        font-size: 12px;
+    }
+
+    .card-desc {
+        font-size: 11px;
+    }
+
+    .expert-item-meta {
+        display: none;
+    }
+
+    .expert-item-actions {
+        gap: 6px;
+        padding-left: 4px;
+    }
+
+    .connector-item-badge {
+        font-size: 9px;
+        padding: 2px 6px;
+    }
+
+    .filter-tab {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    .tool-toggle {
+        padding: 5px 8px;
+        font-size: 11px;
+        min-height: 40px;
+    }
+}
+
+/* ---- Tablet (769px–1023px) ---- */
+@media (min-width: 769px) and (max-width: 1023px) {
+    .page-body {
+        padding: 16px 20px;
+    }
+
+    .card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+
+    .page-search {
+        min-width: 160px;
+    }
 }
