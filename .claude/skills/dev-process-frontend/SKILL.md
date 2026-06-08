@@ -441,3 +441,115 @@ for (let i = blocks.length - 1; i >= 0; i--) {
 1. 使用新图标前，先打开 Icon.tsx 确认 `ICONS` 中有对应定义
 2. 如缺失，先补充图标定义再使用
 3. 如不确定图标名，在 Icon.tsx 中搜索相似名称
+
+---
+
+## 规则 24：新增 SSE event type 必须三处同步
+
+**模式：** 后端新增 SSE event type（如 `companion`/`companion_bubble`），前端 `processEvent()` 的 switch 语句未处理该 type。后端推送正常，前端静默忽略，用户看到的状态永远不更新。
+
+**真实案例（2026-06-05）：** `extensions/companion.py` 推送 `companion` 和 `companion_bubble` SSE 事件，`server.py` 的 SSE loop 正确 interleave。但 `useSSE.ts` 的 `processEvent()` switch 未处理这两种事件 → Header 猫的 mood/emotion 一直停留在默认值，聊天时完全不变化。修复需要三处：`api/types.ts` 加类型 → `useSSE.ts` 加 case → store 加 handler。
+
+**规则：**
+1. 后端新增 SSE event type 后，按顺序改三处：
+   - `api/types.ts`：新增 interface + 加入 SSEEvent union
+   - `hooks/useSSE.ts`：`processEvent()` switch 新增 case 分支
+   - 对应的 zustand store：如需更新状态，暴露 `setXxx()` 并在 case 中调用
+2. 修改后立即运行 `tsc && vite build` 确认编译通过
+3. 启动服务后发送真实请求验证 event 被正确处理
+
+---
+
+## 规则 25：后端驱动的 Store 状态字段不暴露 setter
+
+**模式：** zustand store 中由后端 SSE 驱动的状态字段暴露了 `setXxx()`，允许前端组件直接修改。组件不经后端调用 store.setter → 前后端状态不一致 → 调试时无法追踪状态来源。
+
+**真实案例（2026-06-05）：** `companion-store.ts` 暴露 `setMood(mood)`，`LoginCompanion.tsx` 和 `HeaderCompanion.tsx` 各自根据本地 UI 状态调用 setMood。同时后端 EmotionFSM 也通过 SSE 推送 mood。三处同时修改同一字段 → "mood 到底是谁决定的"完全不可追踪。修复：删除 setMood，mood 自动从 emotion.frontend_mood 派生；唯一的例外（登录页无 SSE）用 `useMemo` 从 local props 派生，不写入 store。
+
+**规则：**
+1. 后端 SSE 驱动的状态字段 → store 中只暴露 `setXxx()` 给 SSE handler（useSSE.ts），不暴露给 UI 组件
+2. UI 组件只读取，不写入
+3. 如有"无后端"的例外场景（如登录页），使用 local state 或 useMemo，不写入全局 store
+4. 每个状态字段必须能回答"谁是唯一写入方"——不能多方写入
+
+---
+
+## 规则 26：新增 CSS 动画必须加 `prefers-reduced-motion` 回退
+
+**模式：** 新增 `@keyframes` 动画或 `transition` 时，未提供 `@media (prefers-reduced-motion: reduce)` 回退。用户开启系统级"减少动态效果"后，所有动画仍全量播放。
+
+**真实案例（2026-06-05）：** 气泡 `bubbleIn`、zzz `companionZzzFloat`、钓鱼 `bobberBounce`、rarity `companionRarityIn` 四个动画均无 reduced-motion 支持。修复：每个动画新增 `@media (prefers-reduced-motion: reduce) { ... animation: none }`。
+
+**规则：**
+1. 每新增一个 `@keyframes` → 对应加一条 `@media (prefers-reduced-motion: reduce)` 规则
+2. transition 同理 —— 在 reduced-motion 中设 `transition: none`
+3. 不要求移除动画，只要求提供"不动"的选项
+
+---
+
+## 规则 27：大幅重构前用 `git diff` 确认当前文件状态
+
+**模式：** 用户手动修改了多个文件后，agent 基于旧版本进行全量重写，覆盖了用户的手动修改。用户的改动（新增组件、调整布局、抽离 API 层）被静默丢弃。
+
+**真实案例（2026-06-06）：** 用户手动将 Header 改为 grid 2 列布局、MiniGameHost 改为 3 游戏切换、FishingGame 重构为 inline chip 风格、新增 CatchGame/TapGame/game-api/types。agent 基于 git 中旧版本重写 MiniGameHost 为 inline dock，覆盖了所有这些改动 → 用户要求回退。
+
+**规则：**
+1. 大幅重构前，先 `git diff --stat` 查看用户手动修改了哪些文件
+2. 对已修改的文件，先 `Read` 确认当前内容再改
+3. 如果用户改动了架构（新增文件/拆分模块），重构必须基于当前架构而非旧版本
+4. 不确定时用 `git stash` 暂存，在新基础上写，再对比合并
+
+---
+
+## 规则 28：JS 动画库与 CSS transform 定位互斥 —— 必须用 transformTemplate 合并
+
+**模式：** 引入 Motion/Framer Motion 等 JS 动画库后，动画组件通过内联 `style.transform` 写入 `translateY()`/`scaleY()` 等值。如果目标元素的 CSS 类中已有 `transform: translateX()` 用于定位，JS 的 transform 会完全覆盖 CSS 的 transform — 定位崩塌 + 动画失效。
+
+**真实案例（2026-06-08）：** 伴侣气泡 `.companion-bubble-speech` 有 `transform: translateX(-24%)` 用于居中偏移，停靠面板 `.minigame-dock-host` 有 `transform: translateX(-50%)` 用于居中对齐。Motion 组件的 `animate: { y: 4 }` → 写入 `style="transform: translateY(4px)"` → CSS 定位 transform 被覆盖 → 气泡和面板位置错误且无动画效果。
+
+**修复：** 用 Motion 的 `transformTemplate` 将静态定位 transform 与 Motion 生成的动画 transform 拼接为单个 transform 字符串，或从 CSS 中移除 `transform` 属性将定位逻辑交给 Motion：
+```tsx
+<motion.span
+  animate={{ y: 0 }}
+  transformTemplate={(_, generated) => `translateX(-24%) ${generated}`}
+/>
+```
+
+**规则：**
+1. 引入 JS 动画库后，第一步：`grep -rn "transform:" src/ --include="*.css"` 列出所有使用 transform 的 CSS 类
+2. 对每个会被 motion 组件使用的 CSS 类，检查是否有定位类 transform（`translateX`/`translateY`/`rotate`）
+3. 如果有 → 必须通过 `transformTemplate` 合并，或将定位逻辑从 CSS transform 迁移到其他属性（`left`/`margin`/`bottom`）
+4. 修改后在浏览器 DevTools Elements 面板中验证：选中目标元素 → 确认 `style` 属性中的 transform 值同时包含定位 + 动画
+
+---
+
+## 规则 29：动画变更必须在浏览器中验证渲染效果，不能仅靠构建成功
+
+**模式：** 引入动画库或修改 CSS `@keyframes` 后 `tsc && vite build` 均通过（因为没有类型错误或语法错误），但浏览器中动画不渲染。TypeScript 编译器不检查运行时 DOM 属性是否生效 — CSS `transform` 冲突、`AnimatePresence` 的 key 不匹配、`motion` 组件的 animate props 格式错误都不会在编译时捕获。
+
+**真实案例（2026-06-08）：** Motion 集成构建通过，但用户打开浏览器后发现气泡和停靠面板的动画完全不可见。原因是 CSS transform 与 Motion transform 冲突（见规则 28）— 这类运行时行为 TypeScript 无法检测。
+
+**规则：**
+1. 引入 JS 动画库或修改 `@keyframes` 后，必须启动服务在浏览器中验证：
+   - 打开 DevTools → Elements 面板 → 选中目标元素
+   - 确认 `style` 属性中有 Motion/JS 写入的 transform/opacity 值
+   - 确认动画在实际播放（不是静态、不是卡在第一帧）
+2. 验证清单：入场动画可见、退场动画可见（元素消失前有过渡）、持续循环动画在播放
+3. 如果动画不渲染 → 优先检查 CSS transform 冲突（规则 28）、AnimatePresence key 是否匹配、motion props 格式是否正确
+
+---
+
+## 规则 30：删除组件后必须追踪并清理其间接依赖
+
+**模式：** 删除一个组件（如 MiniGameHost），只清理了直接引用（import + JSX），但未追踪该组件写入的 CSS 变量、传入的 refs、注册的事件监听等间接依赖。残留代码成为死代码，增加维护负担。
+
+**真实案例（2026-06-08）：** 删除 MiniGameHost 后，HeaderCompanion.tsx 中的 `useLayoutEffect` + `ResizeObserver` 块的唯一功能就是为 MiniGameHost 计算 `--minigame-chip-left` CSS 变量值。MiniGameHost 已删除，但 ResizeObserver 逻辑仍保留 → 每帧执行无效的 `getBoundingClientRect()` 调用。同时 `shellRef` 和 `bubbleRef` 也变为未使用的 ref → ESLint 警告。
+
+**规则：**
+1. 删除组件后，按以下顺序检查残留：
+   - `grep` 被删组件名，确认无其他文件引用
+   - 检查被删组件的父组件：组件传入的 props/refs 是否仍被使用？写入的 CSS 变量（`style.setProperty`）是否有消费者？
+   - 检查 CSS：被删组件专用的 CSS 类/变量是否应同时清理
+   - 检查 hooks：只为被删组件服务的 `useLayoutEffect`/`useEffect`/event listener 是否应移除
+2. 每清理一处 → 检查关联的 import 是否需要修剪（如 `useLayoutEffect` 移除后 import 中只剩 `useEffect`）
+3. 最后 `npm run build` 确认零 warning

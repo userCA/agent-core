@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { MotionConfig } from 'motion/react';
 import { BridgeProvider } from './bridge/BridgeContext';
 import { useSSE } from './hooks/useSSE';
 import { useSessionStore } from './stores/session-store';
@@ -55,7 +56,8 @@ export default function App() {
 
   return (
     <BridgeProvider>
-      <div className="app-layout">
+      <MotionConfig reducedMotion="user">
+        <div className="app-layout">
         <a className="skip-link" href="#main-content">跳到主要内容</a>
         <Sidebar />
         <div id="main-content" className="app-main" onClick={() => {
@@ -83,6 +85,7 @@ export default function App() {
       {authModalOpen && <AuthModal />}
       <ToastContainer />
       <ConfirmDialog />
+      </MotionConfig>
     </BridgeProvider>
   );
 }

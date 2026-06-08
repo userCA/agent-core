@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { motion } from 'motion/react';
 import type { ChatMessage } from '../../stores/chat-store';
 import Markdown from '../shared/Markdown';
 import BlocksRenderer from './BlocksRenderer';
@@ -28,38 +29,62 @@ export default function MessageBubble({ message }: Props) {
 
   if (role === 'user') {
     return (
-      <div className="msg-wrapper msg-user">
+      <motion.div
+        className="msg-wrapper msg-user"
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+      >
         <span className="msg-label">&gt; 你</span>
         <div className="bubble bubble-user">
           <pre className="user-text">{content}</pre>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   if (role === 'error') {
     return (
-      <div className="msg-wrapper msg-error">
+      <motion.div
+        className="msg-wrapper msg-error"
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+      >
         <span className="msg-label"><Icon name="alert" size={ICON_SIZES.sm} /> 错误</span>
         <div className="bubble bubble-error">{content}</div>
-      </div>
+      </motion.div>
     );
   }
 
   if (role === 'tool') {
     return (
-      <div className="msg-wrapper msg-tool">
+      <motion.div
+        className="msg-wrapper msg-tool"
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+      >
         <span className="msg-label"><Icon name="tool" size={ICON_SIZES.sm} /> 工具</span>
         <div className="bubble bubble-tool">
           <pre className="tool-text">{content}</pre>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   // assistant
   return (
-    <div className="msg-wrapper msg-assistant">
+    <motion.div
+      className="msg-wrapper msg-assistant"
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+    >
       <span className="msg-label">助手</span>
       <div className="bubble bubble-assistant">
         <div className="msg-content">
@@ -87,6 +112,6 @@ export default function MessageBubble({ message }: Props) {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }

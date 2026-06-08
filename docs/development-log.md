@@ -51,3 +51,4 @@
 | `time.time()` 精度 | 设计债 | 消息时间戳用 float，`datetime.now(timezone.utc).isoformat()` 更利于持久化 |
 
 | 2026-06-06 | 68. Header 三栏重构 + MiniGameHost 多游戏 dock  69. UX 审查 + focus-visible 修复 | [2026-06-06.md](development-log/2026-06-06.md) |
+| 2026-06-08 | 70. Motion 动画库集成  71. 小游戏系统完整移除  72. UX 审计修复 | [2026-06-08.md](development-log/2026-06-08.md) |

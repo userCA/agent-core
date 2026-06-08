@@ -144,6 +144,7 @@ body {
     font-weight: 500;
     cursor: pointer;
     font-family: var(--font-sans);
+    min-height: 44px;
     transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
     touch-action: manipulation;
 }

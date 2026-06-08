@@ -50,12 +50,6 @@
     100% { opacity: 0; transform: translate(26px, -28px) scale(1.9); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .companion-zzz-z {
-        animation: none;
-        opacity: 0.5;
-    }
-}
 
 /* ---- Rarity reveal ---- */
 
@@ -88,6 +82,3 @@
     to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .companion-rarity { animation: none; }
-}

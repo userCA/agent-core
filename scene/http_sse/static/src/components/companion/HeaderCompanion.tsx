@@ -1,14 +1,9 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useCompanionStore } from '../../stores/companion-store';
 import CompanionSprite from './CompanionSprite';
 import type { BreedId } from './breed-sprites';
 
-/**
- * HeaderCompanion — thin renderer for the chat header.
- *
- * Mood / emotion / bubble come from backend via useCompanionStore.
- * No local mood logic — the backend FSM drives all state.
- */
 export default function HeaderCompanion() {
   const mood = useCompanionStore((s) => s.mood);
   const bones = useCompanionStore((s) => s.bones);
@@ -16,8 +11,6 @@ export default function HeaderCompanion() {
   const bubble = useCompanionStore((s) => s.bubble);
   const setBubble = useCompanionStore((s) => s.setBubble);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shellRef = useRef<HTMLSpanElement | null>(null);
-  const bubbleRef = useRef<HTMLSpanElement | null>(null);
 
   // Auto-dismiss bubble after ttl_ms
   useEffect(() => {
@@ -26,41 +19,9 @@ export default function HeaderCompanion() {
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [bubble, setBubble]);
 
-  useLayoutEffect(() => {
-    const shell = shellRef.current;
-    const host = shell?.closest('.header-left') as HTMLElement | null;
-    if (!shell || !host) return;
-
-    const updateChipAnchor = () => {
-      const hostRect = host.getBoundingClientRect();
-      const shellRect = shell.getBoundingClientRect();
-      const bubbleRect = bubbleRef.current?.getBoundingClientRect() ?? null;
-      const anchorRight = Math.max(shellRect.right, bubbleRect?.right ?? 0);
-      const nextLeft = Math.min(
-        Math.max(anchorRight - hostRect.left + 10, shellRect.right - hostRect.left + 10),
-        Math.max(hostRect.width - 96, 72),
-      );
-
-      host.style.setProperty('--minigame-chip-left', `${Math.round(nextLeft)}px`);
-    };
-
-    updateChipAnchor();
-    const observer = new ResizeObserver(updateChipAnchor);
-    observer.observe(shell);
-    observer.observe(host);
-    if (bubbleRef.current) observer.observe(bubbleRef.current);
-    window.addEventListener('resize', updateChipAnchor);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', updateChipAnchor);
-      host.style.removeProperty('--minigame-chip-left');
-    };
-  }, [bubble?.text]);
-
   return (
     <span className="header-companion">
-      <span className="header-companion-shell" ref={shellRef}>
+      <span className="header-companion-shell">
         <CompanionSprite
           mood={mood}
           breed={bones?.breed as BreedId | undefined}
@@ -69,11 +30,22 @@ export default function HeaderCompanion() {
           variant="header"
           className="header-companion-art"
         />
-        {bubble && (
-          <span className="companion-bubble-speech" aria-live="polite" ref={bubbleRef}>
-            {bubble.text}
-          </span>
-        )}
+        <AnimatePresence>
+          {bubble && (
+            <motion.span
+              key="bubble"
+              className="companion-bubble-speech"
+              aria-live="polite"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              transformTemplate={(_, generated) => `translateX(-24%) ${generated}`}
+            >
+              {bubble.text}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </span>
     </span>
   );

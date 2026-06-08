@@ -8,7 +8,6 @@
  * Backend is the sole source of truth for:
  *   - emotion state (via SSE companion events)
  *   - deterministic bones (via GET /api/companion/{uid})
- *   - game config (via POST /api/minigame/config, /feed)
  */
 import { create } from 'zustand';
 import type { CompanionMood, BreedId } from '../components/companion/CompanionSprite';

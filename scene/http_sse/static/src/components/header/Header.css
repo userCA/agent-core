@@ -31,7 +31,6 @@
     position: relative;
     overflow: visible;
     z-index: 3;
-    --minigame-chip-left: 74px;
 }
 
 .logo-art,
@@ -89,12 +88,6 @@
 .header-companion-art {
     white-space: pre;
     transform-origin: left bottom;
-    animation: headerCompanionFloat 3.8s ease-in-out infinite;
-}
-
-@keyframes headerCompanionFloat {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-1px); }
 }
 
 /* Companion speech bubble — floats above the sprite so it never shifts the dock */
@@ -106,7 +99,7 @@
     pointer-events: none;
     font-family: var(--font-mono);
     font-size: 10px;
-    color: var(--mute);
+    color: var(--body);
     background: var(--surface-soft);
     border: 1px solid var(--hairline);
     border-radius: var(--radius-sm);
@@ -116,9 +109,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.3;
-    animation: bubbleIn 0.25s ease-out;
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.04);
-    transform: translateX(-24%);
 }
 
 /* Tail pointing back toward the sprite */
@@ -142,15 +133,7 @@
     border-bottom: 0;
 }
 
-@keyframes bubbleIn {
-    from { opacity: 0; transform: translate(-24%, 4px); }
-    to   { opacity: 1; transform: translate(-24%, 0); }
-}
 
-@media (prefers-reduced-motion: reduce) {
-    .companion-bubble-speech,
-    .header-companion-art { animation: none; }
-}
 
 .header-actions {
     display: flex;
@@ -214,7 +197,6 @@
 
     .companion-bubble-speech {
         max-width: min(148px, calc(100vw - 72px));
-        transform: translateX(-16%);
     }
 
     .companion-bubble-speech::before {

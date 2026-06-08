@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, useAnimate } from 'motion/react';
 import { BREED_SPRITES, DEFAULT_BREED } from './breed-sprites';
 import type { BreedId, CompanionMood } from './breed-sprites';
 
@@ -69,11 +70,15 @@ export default function CompanionSprite({ mood, breed, eyeOverride, stage, shiny
     };
   }, [shiny]);
 
-  // Reset seq on mood change
+  // Emotion transition pulse
+  const [scope, animate] = useAnimate();
+
+  // Reset seq on mood change + trigger pulse
   useEffect(() => {
     setSeqIdx(0);
     setFrame(0);
-  }, [mood]);
+    animate(scope.current, { scale: [1, 0.96, 1], opacity: [0.85, 0.65, 0.85] }, { duration: 0.35, ease: 'easeOut' });
+  }, [mood]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const lines = frames[frame];
   if (!lines) return null;
@@ -93,14 +98,27 @@ export default function CompanionSprite({ mood, breed, eyeOverride, stage, shiny
     display = ['  ＊  ＊  ＊', ...display];
   }
 
-  const kittenScale = stage === 'kitten' ? { transform: 'scale(0.8)', transformOrigin: 'left bottom' } : {};
+  const kittenScale = stage === 'kitten' ? 0.8 : 1;
 
   const renderedLines = variant === 'header' ? display.slice(0, 3) : display;
 
   return (
-    <pre className={className} aria-hidden="true" style={{ ...kittenScale, ...style }}>
+    <motion.pre
+      ref={scope}
+      className={className}
+      aria-hidden="true"
+      style={{
+        transformOrigin: 'left bottom',
+        scale: kittenScale,
+        ...style,
+      }}
+      animate={{ y: variant === 'header' ? [0, -1, 0] : 0 }}
+      transition={variant === 'header'
+        ? { y: { repeat: Infinity, duration: 3.8, ease: 'easeInOut' } }
+        : {}}
+    >
       {renderedLines.join('\n')}
-    </pre>
+    </motion.pre>
   );
 }
 
