@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { MotionConfig } from 'motion/react';
+import { MotionConfig, AnimatePresence, motion } from 'motion/react';
 import { BridgeProvider } from './bridge/BridgeContext';
 import { useSSE } from './hooks/useSSE';
 import { useSessionStore } from './stores/session-store';
@@ -29,7 +29,6 @@ export default function App() {
   const hasAuth = useSessionStore((s) => s.hasAuth);
   const loadAuth = useSessionStore((s) => s.loadAuth);
   const loadModels = useModelStore((s) => s.loadModels);
-  const authModalOpen = useUIStore((s) => s.authModalOpen);
   const activePage = useUIStore((s) => s.activePage);
   const setActivePage = useUIStore((s) => s.setActivePage);
 
@@ -68,21 +67,57 @@ export default function App() {
           }
         }}>
           <Header onAbort={abort} />
-          {activePage === 'chat' && (
-            <>
-              <ChatContainer onExampleClick={sendMessage} />
-              <PendingBubbles />
-              <ChatInput onSend={sendMessage} />
-            </>
-          )}
-          {activePage === 'skills' && <SkillsPage key="skills" />}
-          {activePage === 'connectors' && <ConnectorsPage key="connectors" />}
-          {activePage === 'experts' && <ExpertsPage key="experts" />}
-          {activePage === 'knowledge' && <KnowledgePage key="knowledge" />}
-          {activePage === 'channels' && <ChannelsPage key="channels" />}
+          <AnimatePresence mode="wait">
+            {activePage === 'chat' && (
+              <motion.div
+                key="chat"
+                className="page-wrapper"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.12 }}
+              >
+                <ChatContainer onExampleClick={sendMessage} />
+                <PendingBubbles />
+                <ChatInput onSend={sendMessage} />
+              </motion.div>
+            )}
+            {activePage === 'skills' && (
+              <motion.div
+                key="skills"
+                className="page-wrapper"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+              >
+                <SkillsPage />
+              </motion.div>
+            )}
+            {activePage === 'connectors' && (
+              <motion.div key="connectors" className="page-wrapper" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}>
+                <ConnectorsPage />
+              </motion.div>
+            )}
+            {activePage === 'experts' && (
+              <motion.div key="experts" className="page-wrapper" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}>
+                <ExpertsPage />
+              </motion.div>
+            )}
+            {activePage === 'knowledge' && (
+              <motion.div key="knowledge" className="page-wrapper" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}>
+                <KnowledgePage />
+              </motion.div>
+            )}
+            {activePage === 'channels' && (
+              <motion.div key="channels" className="page-wrapper" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}>
+                <ChannelsPage />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
-      {authModalOpen && <AuthModal />}
+      <AuthModal />
       <ToastContainer />
       <ConfirmDialog />
       </MotionConfig>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useSessionStore } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
 import { AUTH_KEYS } from '../../config';
@@ -6,6 +7,7 @@ import './AuthModal.css';
 
 export default function AuthModal() {
   const { authHeaders, saveAuth } = useSessionStore();
+  const authModalOpen = useUIStore((s) => s.authModalOpen);
   const setAuthModalOpen = useUIStore((s) => s.setAuthModalOpen);
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -16,6 +18,7 @@ export default function AuthModal() {
   });
 
   useEffect(() => {
+    if (!authModalOpen) return;
     // Remember previously focused element
     previousFocusRef.current = document.activeElement as HTMLElement;
     // Move focus into the modal (first input)
@@ -50,7 +53,7 @@ export default function AuthModal() {
       // Restore focus when closing
       previousFocusRef.current?.focus();
     };
-  }, [setAuthModalOpen]);
+  }, [authModalOpen, setAuthModalOpen]);
 
   const handleSave = () => {
     saveAuth(values);
@@ -66,31 +69,46 @@ export default function AuthModal() {
   const set = (k: string, v: string) => setValues((p) => ({ ...p, [k]: v }));
 
   return (
-    <div className="auth-backdrop" onClick={handleBackdrop}>
-      <div
-        ref={modalRef}
-        className="auth-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="认证信息"
-      >
-        <h3>[key] 认证信息</h3>
-        {AUTH_KEYS.map((k) => (
-          <label key={k} className="auth-field">
-            <span>{k}</span>
-            <input
-              type="password"
-              value={values[k] || ''}
-              onChange={(e) => set(k, e.target.value)}
-              placeholder={`请输入 ${k}`}
-            />
-          </label>
-        ))}
-        <div className="auth-actions">
-          <button className="btn btn-primary" onClick={handleSave}>保存</button>
-          <button className="btn" onClick={() => setAuthModalOpen(false)}>取消</button>
-        </div>
-      </div>
-    </div>
+    <AnimatePresence>
+      {authModalOpen && (
+        <motion.div
+          className="auth-backdrop"
+          onClick={handleBackdrop}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          <motion.div
+            ref={modalRef}
+            className="auth-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="认证信息"
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ type: 'spring', duration: 0.35, bounce: 0.2 }}
+          >
+            <h3>[key] 认证信息</h3>
+            {AUTH_KEYS.map((k) => (
+              <label key={k} className="auth-field">
+                <span>{k}</span>
+                <input
+                  type="password"
+                  value={values[k] || ''}
+                  onChange={(e) => set(k, e.target.value)}
+                  placeholder={`请输入 ${k}`}
+                />
+              </label>
+            ))}
+            <div className="auth-actions">
+              <button className="btn btn-primary" onClick={handleSave}>保存</button>
+              <button className="btn" onClick={() => setAuthModalOpen(false)}>取消</button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

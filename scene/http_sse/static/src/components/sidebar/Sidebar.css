@@ -12,6 +12,14 @@
   transition: width 0.25s ease, min-width 0.25s ease;
 }
 
+.sidebar-expanded-inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .sidebar-collapsed {
   width: 52px;
   min-width: 52px;

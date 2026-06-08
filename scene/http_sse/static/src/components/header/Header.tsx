@@ -1,5 +1,6 @@
 import { useChatStore } from '../../stores/chat-store';
 import { useThemeStore } from '../../stores/theme-store';
+import { AnimatePresence, motion } from 'motion/react';
 import Icon, { ICON_SIZES } from '../shared/Icon';
 import HeaderCompanion from '../companion/HeaderCompanion';
 import './Header.css';
@@ -25,7 +26,18 @@ export default function Header({ onAbort }: Props) {
           aria-label={theme === 'light' ? '切换到暗色模式' : '切换到亮色模式'}
           title={theme === 'light' ? '暗色模式' : '亮色模式'}
         >
-          <Icon name={theme === 'light' ? 'moon' : 'sun'} size={ICON_SIZES.md} />
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={theme}
+              initial={{ rotate: -120, opacity: 0, scale: 0.5 }}
+              animate={{ rotate: 0, opacity: 1, scale: 1 }}
+              exit={{ rotate: 120, opacity: 0, scale: 0.5 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              style={{ display: 'inline-flex' }}
+            >
+              <Icon name={theme === 'light' ? 'moon' : 'sun'} size={ICON_SIZES.md} />
+            </motion.span>
+          </AnimatePresence>
         </button>
         <span className="status-badge">
           <span className={`status-dot ${isStreaming ? 'pulse' : ''}`} />

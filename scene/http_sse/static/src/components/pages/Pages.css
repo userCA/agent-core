@@ -1,24 +1,17 @@
+.page-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
 .page {
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     min-width: 0;
-    animation: pageIn 0.2s ease;
-}
-
-.page.exit {
-    animation: pageOut 0.15s ease forwards;
-}
-
-@keyframes pageIn {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pageOut {
-    from { opacity: 1; transform: translateY(0); }
-    to   { opacity: 0; transform: translateY(6px); }
 }
 
 .page-header {

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useConfirmStore } from '../../stores/confirm-store';
 import Icon from '../shared/Icon';
 import './ConfirmDialog.css';
@@ -36,38 +37,52 @@ export default function ConfirmDialog() {
     return () => document.removeEventListener('keydown', handleKey);
   }, [open, close]);
 
-  if (!open) return null;
-
   return (
-    <div className="confirm-overlay" onClick={close} role="presentation">
-      <div
-        className="confirm-dialog"
-        onClick={(e) => e.stopPropagation()}
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirm-title"
-        aria-describedby="confirm-message"
-      >
-        <h3 id="confirm-title" className="confirm-title">
-          <span className={`confirm-icon ${type}`}>
-            <Icon name={type === 'danger' ? 'alert' : 'check'} size={18} />
-          </span>
-          {title}
-        </h3>
-        <p id="confirm-message" className="confirm-message">{message}</p>
-        <div className="confirm-actions">
-          <button className="confirm-btn cancel" onClick={close}>
-            {cancelText}
-          </button>
-          <button
-            ref={confirmRef}
-            className={`confirm-btn ${danger ? 'danger' : 'primary'}`}
-            onClick={confirm}
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="confirm-overlay"
+          onClick={close}
+          role="presentation"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          <motion.div
+            className="confirm-dialog"
+            onClick={(e) => e.stopPropagation()}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="confirm-title"
+            aria-describedby="confirm-message"
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ type: 'spring', duration: 0.35, bounce: 0.2 }}
           >
-            {confirmText}
-          </button>
-        </div>
-      </div>
-    </div>
+            <h3 id="confirm-title" className="confirm-title">
+              <span className={`confirm-icon ${type}`}>
+                <Icon name={type === 'danger' ? 'alert' : 'check'} size={18} />
+              </span>
+              {title}
+            </h3>
+            <p id="confirm-message" className="confirm-message">{message}</p>
+            <div className="confirm-actions">
+              <button className="confirm-btn cancel" onClick={close}>
+                {cancelText}
+              </button>
+              <button
+                ref={confirmRef}
+                className={`confirm-btn ${danger ? 'danger' : 'primary'}`}
+                onClick={confirm}
+              >
+                {confirmText}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
