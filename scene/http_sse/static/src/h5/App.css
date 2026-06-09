@@ -8,6 +8,7 @@ html.h5-html body {
   align-items: center;
   justify-content: center;
   background: var(--surface-soft);
+  width: 100%;
 }
 
 html.h5-html body {
