@@ -5,6 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    host: true,
+    hmr: {
+      overlay: true,
+    },
     proxy: {
       '/chat': 'http://localhost:8001',
       '/human-input': 'http://localhost:8001',

@@ -20,11 +20,11 @@
 }
 
 .h5-app-layout .bubble-user {
-    max-width: 78%;
+    max-width: 72%;
 }
 
 .h5-app-layout .bubble-assistant {
-    max-width: 100%;
+    max-width: 92%;
     background: transparent;
     border: none;
     padding: 6px 2px;
@@ -279,14 +279,49 @@
 
 /* ── Page header (skills/settings) ── */
 .h5-app-layout .page-header {
-    padding: 8px 12px;
+    padding: 8px 10px;
     min-height: 40px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 6px;
+}
+
+.h5-app-layout .page-back {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    flex-shrink: 0;
 }
 
 .h5-app-layout .page-title {
     font-size: 14px;
+    flex-shrink: 0;
+}
+
+.h5-app-layout .page-header-right {
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-end;
+}
+
+.h5-app-layout .page-header-right .btn {
+    padding: 4px 8px;
+    font-size: 11px;
+    min-height: 32px;
+    flex-shrink: 0;
+}
+
+/* Hide button text on very small screens, show icons only */
+@media (max-width: 380px) {
+    .h5-app-layout .page-header-right .btn {
+        padding: 4px;
+        min-width: 32px;
+    }
+    .h5-app-layout .page-header-right .btn span,
+    .h5-app-layout .page-header-right .btn svg + span {
+        display: none;
+    }
 }
 
 .h5-app-layout .page-body {
@@ -303,6 +338,7 @@
 
 .h5-app-layout .page-search input {
     font-size: 14px;
+    min-width: 0;
 }
 
 .h5-app-layout .page-filter-row {

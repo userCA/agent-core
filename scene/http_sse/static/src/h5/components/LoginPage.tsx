@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { useSessionStore } from '../../stores/session-store';
 import { AUTH_KEYS, AUTH_STORAGE_KEY } from '../../config';
 import LoginCompanion from '../../components/companion/LoginCompanion';
@@ -44,15 +45,44 @@ export default function LoginPage() {
 
   return (
     <div className="h5-login">
-      <div className="h5-login-inner">
-        <div className="h5-login-art">
+      <motion.div
+        className="h5-login-inner"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.1 }}
+      >
+        <motion.div
+          className="h5-login-art"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.2 }}
+        >
           <LoginCompanion uid={uid} isNewUser={isNewUser} isReturning={isReturning} hasInput={isValid} loading={loading} />
-        </div>
+        </motion.div>
 
-        <h1 className="h5-login-brand">咪兔</h1>
-        <p className="h5-login-tagline">你的 AI 伙伴</p>
+        <motion.h1
+          className="h5-login-brand"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.3 }}
+        >
+          咪兔
+        </motion.h1>
+        <motion.p
+          className="h5-login-tagline"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.35 }}
+        >
+          你的 AI 伙伴
+        </motion.p>
 
-        <div className="h5-login-form">
+        <motion.div
+          className="h5-login-form"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.4 }}
+        >
           <input
             className="h5-login-input"
             type="text"
@@ -68,26 +98,35 @@ export default function LoginPage() {
           >
             {loading ? '连接中...' : '开始对话'}
           </button>
-        </div>
+        </motion.div>
 
         {knownUids.length > 0 && (
-          <div className="h5-login-recent">
+          <motion.div
+            className="h5-login-recent"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+          >
             <p className="h5-login-recent-title">最近使用</p>
             <div className="h5-login-recent-list">
-              {knownUids.map((u) => (
-                <button
+              {knownUids.map((u, i) => (
+                <motion.button
                   key={u}
                   className="h5-login-recent-item"
                   onClick={() => handleLogin(u)}
                   disabled={loading}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.55 + i * 0.05 }}
+                  whileTap={{ scale: 0.96 }}
                 >
                   {u}
-                </button>
+                </motion.button>
               ))}
             </div>
-          </div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

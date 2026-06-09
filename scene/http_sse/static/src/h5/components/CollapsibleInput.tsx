@@ -33,13 +33,19 @@ export default function CollapsibleInput({ onSend }: Props) {
             exit={{ opacity: 0, scale: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 22 }}
           >
-            <span className={`h5-fab-avatar h5-fab-avatar--${mood}`}>
+            <motion.span
+              className={`h5-fab-avatar h5-fab-avatar--${mood}`}
+              key={mood}
+              initial={{ rotate: -10, scale: 0.8 }}
+              animate={{ rotate: 0, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+            >
               <span className="h5-fab-ear h5-fab-ear--l" />
               <span className="h5-fab-ear h5-fab-ear--r" />
               <span className="h5-fab-eye h5-fab-eye--l" />
               <span className="h5-fab-eye h5-fab-eye--r" />
               <span className="h5-fab-nose" />
-            </span>
+            </motion.span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -63,13 +69,19 @@ export default function CollapsibleInput({ onSend }: Props) {
               transition={{ type: 'spring', stiffness: 300, damping: 30, mass: 0.9 }}
             >
               <div className="h5-input-expanded-header">
-                <span className={`h5-fab-avatar h5-fab-avatar--sm h5-fab-avatar--${mood}`}>
+                <motion.span
+                  className={`h5-fab-avatar h5-fab-avatar--sm h5-fab-avatar--${mood}`}
+                  key={`sm-${mood}`}
+                  initial={{ rotate: -10, scale: 0.8 }}
+                  animate={{ rotate: 0, scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                >
                   <span className="h5-fab-ear h5-fab-ear--l" />
                   <span className="h5-fab-ear h5-fab-ear--r" />
                   <span className="h5-fab-eye h5-fab-eye--l" />
                   <span className="h5-fab-eye h5-fab-eye--r" />
                   <span className="h5-fab-nose" />
-                </span>
+                </motion.span>
                 <span className="h5-input-expanded-title">和咪兔聊聊</span>
                 <button className="h5-input-dismiss" onClick={() => setExpanded(false)}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>

@@ -45,10 +45,18 @@ html.h5-html body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.h5-page::-webkit-scrollbar {
+  display: none;
 }
 
 /* H5 chat-container handles its own scroll */
@@ -61,4 +69,19 @@ html.h5-html body {
 /* ChatInput pinned to bottom of .h5-page */
 .h5-app-layout .chat-input-area {
   flex-shrink: 0;
+}
+
+/* Settings page: force full width */
+.h5-page--settings {
+  width: 100% !important;
+  min-width: 100% !important;
+  align-self: stretch !important;
+  align-items: stretch !important;
+}
+
+.h5-page--settings > * {
+  width: 100% !important;
+  min-width: 100% !important;
+  align-self: stretch !important;
+  flex-shrink: 0 !important;
 }

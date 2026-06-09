@@ -16,6 +16,7 @@ import CompactHeader from './components/CompactHeader';
 import AuthPanel from './components/AuthPanel';
 import LoginPage from './components/LoginPage';
 import SettingsPage from './components/SettingsPage';
+import HistoryPage from './components/HistoryPage';
 import './App.css';
 import './theme/h5.css';
 
@@ -47,10 +48,10 @@ export default function H5App() {
                 <motion.div
                   key="chat"
                   className="h5-page"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.12 }}
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 12 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
                 >
                   <ChatContainer onExampleClick={sendMessage} />
                   <PendingBubbles />
@@ -61,10 +62,10 @@ export default function H5App() {
                 <motion.div
                   key="skills"
                   className="h5-page"
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -12 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
                 >
                   <SkillsPage onBack={() => setH5ActiveTab('chat')} />
                 </motion.div>
@@ -72,13 +73,25 @@ export default function H5App() {
               {h5ActiveTab === 'settings' && (
                 <motion.div
                   key="settings"
-                  className="h5-page"
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
+                  className="h5-page h5-page--settings"
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -12 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
                 >
                   <SettingsPage />
+                </motion.div>
+              )}
+              {h5ActiveTab === 'history' && (
+                <motion.div
+                  key="history"
+                  className="h5-page"
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -12 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                >
+                  <HistoryPage onBack={() => setH5ActiveTab('chat')} />
                 </motion.div>
               )}
             </AnimatePresence>

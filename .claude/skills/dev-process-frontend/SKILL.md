@@ -576,5 +576,45 @@ for (let i = blocks.length - 1; i >= 0; i--) {
 **检查：** 新增动画时问自己：
 - 这个动画会一直循环吗？→ CSS `@keyframes`
 - 这个动画只播放一次或响应交互？→ Motion
-- 如果 Motion 目标元素和 CSS animation 目标元素是同一个 → 必须拆分`
+- 如果 Motion 目标元素和 CSS animation 目标元素是同一个 → 必须拆分
+
+---
+
+## 规则 32：移动端 flex 全宽布局 —— 必须显式消除滚动条挤占 + 强制 stretch
+
+**模式：** 移动端页面使用 `overflow-y: auto` 实现滚动时，浏览器滚动条会占用 12–17px 内容宽度。若同时依赖 flex `align-self: stretch` 让子元素占满容器，滚动条挤占 + `transform` 动画干扰会导致子元素实际宽度小于容器，视觉上"内容没占满"。反复调整 margin/padding/width 均无效。
+
+**真实案例（2026-06-09）：** H5 SettingsPage 被反复反馈"太窄"、"没有自适应占满"。排查过程：
+1. 检查 `width: 100%` — 已设置，无效
+2. 检查 flex 布局链 — `.h5-page` → `.h5-content` → `#root` 均正确
+3. 最终发现：`.h5-page` 的 `overflow-y: auto` 在部分浏览器中显示滚动条，挤占内容宽度；同时 framer-motion `motion.div` 的 `x` 动画使用 `transform`，干扰 flex 子元素的 `align-self: stretch`
+
+**修复：**
+```css
+.h5-page {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* IE/Edge */
+}
+.h5-page::-webkit-scrollbar {
+  display: none;                  /* Chrome/Safari */
+}
+
+.h5-page--settings {
+  align-self: stretch !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  min-width: 100% !important;
+}
+.h5-page--settings > * {
+  align-self: stretch !important;
+  width: 100% !important;
+  min-width: 100% !important;
+}
+```
+
+**规则：**
+1. 移动端 `overflow-y: auto` 容器必须同时隐藏滚动条（`scrollbar-width: none` + `::-webkit-scrollbar { display: none }`）
+2. flex 子元素需要全宽时，不要依赖默认 `align-self: stretch` — 显式设置 `align-self: stretch` + `width: 100%` + `min-width: 100%`
+3. 如果子元素是 framer-motion `motion.div` 且有 `x`/`y` 动画，外层容器必须用 `!important` 强制拉伸，防止 `transform` 干扰
+4. 视觉上"没占满"的问题，优先检查滚动条宽度 + flex stretch，而不是反复调整 margin/padding
 

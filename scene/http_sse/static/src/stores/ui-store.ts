@@ -11,7 +11,7 @@ function getInitialCollapsed(): boolean {
 }
 
 export type Page = 'chat' | 'skills' | 'connectors' | 'experts' | 'knowledge' | 'channels';
-export type H5Tab = 'chat' | 'skills' | 'settings';
+export type H5Tab = 'chat' | 'skills' | 'settings' | 'history';
 
 interface UIState {
   activePage: Page;

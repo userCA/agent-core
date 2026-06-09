@@ -1,7 +1,7 @@
 .h5-header {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 2px 8px;
   padding-top: calc(2px + env(safe-area-inset-top, 0px));
   background: var(--canvas);
@@ -10,10 +10,29 @@
   min-height: 36px;
 }
 
-.h5-header-actions {
+.h5-header-left {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.h5-header-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.h5-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .h5-header-actions .btn {

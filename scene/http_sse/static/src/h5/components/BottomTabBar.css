@@ -8,6 +8,7 @@
   border-top: 1px solid var(--hairline);
   flex-shrink: 0;
   z-index: var(--z-sticky);
+  position: relative;
 }
 
 .h5-tab {
@@ -25,6 +26,7 @@
   font-family: var(--font-sans);
   transition: color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
 }
 
 .h5-tab--active {
@@ -35,4 +37,16 @@
   font-size: 11px;
   font-family: var(--font-mono);
   letter-spacing: 0.03em;
+}
+
+/* Active indicator pill — uses motion layoutId for sliding animation */
+.h5-tab-indicator {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
 }
