@@ -91,7 +91,7 @@
   height: 28px;
 }
 
-.container-upload-files .upload-file:hover {
+.container-upload-files .upload-file:active {
   color: var(--ink);
   scale: 1.1;
 }
@@ -196,7 +196,7 @@
 }
 
 .label-files:focus-visible,
-.label-files:hover {
+.label-files:active {
   color: var(--ink);
 }
 
@@ -253,7 +253,7 @@
   overflow: hidden;
 }
 
-.label-voice:hover,
+.label-voice:active,
 .label-voice:focus-visible {
   color: var(--ink);
 }
@@ -327,7 +327,7 @@
   border-radius: 50px;
 }
 
-.label-text:hover,
+.label-text:active,
 .label-text:focus-visible {
   transform-origin: top center;
   box-shadow: inset 0 0 6px rgba(255, 255, 255, 1);

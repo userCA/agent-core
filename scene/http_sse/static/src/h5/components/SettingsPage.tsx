@@ -5,6 +5,7 @@ import { useThemeStore } from '../../stores/theme-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useToastStore } from '../../stores/toast-store';
 import Icon from '../../components/shared/Icon';
+import './SettingsPage.css';
 
 const listVariants = {
   hidden: { opacity: 0 },
@@ -34,38 +35,16 @@ interface RowProps {
 
 const SettingRow = ({ icon, label, value, onClick, danger }: RowProps) => (
   <motion.button
-    className="h5-setting-row"
+    className={`h5-settings-row ${danger ? 'h5-settings-row--danger' : ''}`}
     onClick={onClick}
     variants={itemVariants}
     whileTap={{ scale: 0.98 }}
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '10px 16px',
-      background: 'var(--canvas)',
-      border: 'none',
-      borderBottom: '1px solid var(--hairline)',
-      color: danger ? 'var(--danger)' : 'var(--ink)',
-      fontSize: '14px',
-      fontFamily: 'var(--font-sans)',
-      cursor: 'pointer',
-      width: '100%',
-      textAlign: 'left',
-      WebkitTapHighlightColor: 'transparent',
-    }}
   >
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
       <div
+        className="h5-settings-row__icon"
         style={{
-          width: '28px',
-          height: '28px',
-          borderRadius: '8px',
           background: danger ? 'var(--danger-bg-subtle)' : 'var(--surface-card)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
         }}
       >
         <Icon
@@ -74,11 +53,11 @@ const SettingRow = ({ icon, label, value, onClick, danger }: RowProps) => (
           style={{ color: danger ? 'var(--danger)' : 'var(--mute)' }}
         />
       </div>
-      <span style={{ fontWeight: 500 }}>{label}</span>
+      <span className="h5-settings-row__label">{label}</span>
     </div>
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
       {value && (
-        <span style={{ color: 'var(--mute)', fontSize: '13px' }}>{value}</span>
+        <span className="h5-settings-row__value">{value}</span>
       )}
       {!danger && (
         <Icon name="chevron-right" size={16} style={{ color: 'var(--ash)' }} />
@@ -107,45 +86,15 @@ export default function SettingsPage() {
   };
 
   return (
-    <div
-      style={{
-        width: '100%',
-        minWidth: '100%',
-        minHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--surface-soft)',
-        paddingBottom: '80px',
-      }}
-    >
-      {/* Profile Header */}
+    <div className="h5-settings-page">
+      {/* Profile Card */}
       <motion.div
+        className="h5-settings-card h5-settings-card--profile"
         variants={headerVariants}
         initial="hidden"
         animate="show"
-        style={{
-          width: '100%',
-          padding: '32px 20px 24px',
-          background: 'var(--canvas)',
-          borderBottom: '1px solid var(--hairline)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '12px',
-        }}
       >
-        <div
-          style={{
-            width: '72px',
-            height: '72px',
-            borderRadius: '50%',
-            background: 'var(--pastel-blue-bg)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-          }}
-        >
+        <div className="h5-settings-avatar">
           <svg width="48" height="48" viewBox="0 0 100 100" fill="none">
             {/* Cat face circle */}
             <circle cx="50" cy="52" r="34" fill="var(--pastel-blue-text)" opacity="0.15" />
@@ -179,128 +128,60 @@ export default function SettingsPage() {
           </svg>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div
-            style={{
-              fontSize: '20px',
-              fontWeight: 600,
-              color: 'var(--ink)',
-              fontFamily: 'var(--font-sans)',
-            }}
-          >
+          <div className="h5-settings-username">
             {currentPersona?.name ?? '访客'}
           </div>
           {currentSession && (
-            <div
-              style={{
-                fontSize: '13px',
-                color: 'var(--mute)',
-                fontFamily: 'var(--font-mono)',
-                marginTop: '4px',
-              }}
-            >
+            <div className="h5-settings-session-title">
               {currentSession.title}
             </div>
           )}
         </div>
       </motion.div>
 
-      {/* General Section */}
-      <div style={{ padding: '20px 16px 8px', width: '100%' }}>
-        <span
-          style={{
-            fontSize: '13px',
-            fontWeight: 600,
-            color: 'var(--mute)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-          }}
-        >
-          通用
-        </span>
-      </div>
+      {/* General Card */}
       <motion.div
+        className="h5-settings-card"
         variants={listVariants}
         initial="hidden"
         animate="show"
-        style={{
-          width: '100%',
-          background: 'var(--canvas)',
-          borderTop: '1px solid var(--hairline)',
-          borderBottom: '1px solid var(--hairline)',
-        }}
       >
-        <SettingRow
-          icon="key"
-          label="认证设置"
-          onClick={() => setAuthModalOpen(true)}
-        />
+        <div className="h5-settings-card__title">通用</div>
+        <div className="h5-settings-card__body">
+          <SettingRow
+            icon="key"
+            label="认证设置"
+            onClick={() => setAuthModalOpen(true)}
+          />
+        </div>
       </motion.div>
 
-      {/* Personas Section */}
+      {/* Personas Card */}
       {personas.length > 0 && (
-        <>
-          <div style={{ padding: '24px 16px 8px', width: '100%' }}>
-            <span
-              style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: 'var(--mute)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}
-            >
-              专家
-            </span>
-          </div>
-          <motion.div
-            variants={listVariants}
-            initial="hidden"
-            animate="show"
-            style={{
-              width: '100%',
-              background: 'var(--canvas)',
-              borderTop: '1px solid var(--hairline)',
-              borderBottom: '1px solid var(--hairline)',
-            }}
-          >
+        <motion.div
+          className="h5-settings-card"
+          variants={listVariants}
+          initial="hidden"
+          animate="show"
+        >
+          <div className="h5-settings-card__title">专家</div>
+          <div className="h5-settings-card__body">
             {personas.map((p, idx) => (
               <motion.button
                 key={p.id}
-                className="h5-setting-row"
+                className={`h5-settings-row ${personaId === p.id ? 'h5-settings-row--active' : ''}`}
                 onClick={() => {
                   setPersonaId(p.id);
                   addToast(`已切换到「${p.name}」`, 'success');
                 }}
                 variants={itemVariants}
                 whileTap={{ scale: 0.98 }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 16px',
-                  background: personaId === p.id ? 'var(--pastel-blue-bg)' : 'var(--canvas)',
-                  border: 'none',
-                  borderBottom: idx < personas.length - 1 ? '1px solid var(--hairline)' : 'none',
-                  color: personaId === p.id ? 'var(--pastel-blue-text)' : 'var(--ink)',
-                  fontSize: '14px',
-                  fontFamily: 'var(--font-sans)',
-                  cursor: 'pointer',
-                  width: '100%',
-                  textAlign: 'left',
-                  WebkitTapHighlightColor: 'transparent',
-                }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div
+                    className="h5-settings-row__icon"
                     style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '8px',
                       background: personaId === p.id ? 'rgba(255,255,255,0.5)' : 'var(--surface-card)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
                     }}
                   >
                     <Icon
@@ -309,7 +190,7 @@ export default function SettingsPage() {
                       style={{ color: personaId === p.id ? 'var(--pastel-blue-text)' : 'var(--mute)' }}
                     />
                   </div>
-                  <span style={{ fontWeight: 500 }}>{p.name}</span>
+                  <span className="h5-settings-row__label">{p.name}</span>
                 </div>
                 {personaId === p.id && (
                   <motion.div
@@ -317,60 +198,35 @@ export default function SettingsPage() {
                     animate={{ scale: 1 }}
                     transition={{ type: 'spring' as const, stiffness: 500, damping: 25 }}
                   >
-                    <Icon name="check" size={16} style={{ color: 'var(--accent)' }} />
+                    <Icon name="check" size={16} className="h5-settings-check" />
                   </motion.div>
                 )}
               </motion.button>
             ))}
-          </motion.div>
-        </>
+          </div>
+        </motion.div>
       )}
 
-      {/* Account Section */}
-      <div style={{ padding: '24px 16px 8px', width: '100%' }}>
-        <span
-          style={{
-            fontSize: '13px',
-            fontWeight: 600,
-            color: 'var(--mute)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-          }}
-        >
-          账户
-        </span>
-      </div>
+      {/* Account Card */}
       <motion.div
+        className="h5-settings-card"
         variants={listVariants}
         initial="hidden"
         animate="show"
-        style={{
-          width: '100%',
-          background: 'var(--canvas)',
-          borderTop: '1px solid var(--hairline)',
-          borderBottom: '1px solid var(--hairline)',
-        }}
       >
-        <SettingRow
-          icon="cancel"
-          label="退出登录"
-          onClick={handleLogout}
-          danger
-        />
+        <div className="h5-settings-card__title">账户</div>
+        <div className="h5-settings-card__body">
+          <SettingRow
+            icon="cancel"
+            label="退出登录"
+            onClick={handleLogout}
+            danger
+          />
+        </div>
       </motion.div>
 
       {/* Footer */}
-      <div
-        style={{
-          width: '100%',
-          textAlign: 'center',
-          padding: '40px 20px',
-          color: 'var(--ash)',
-          fontSize: '12px',
-          fontFamily: 'var(--font-mono)',
-          marginTop: 'auto',
-        }}
-      >
+      <div className="h5-settings-footer">
         咪兔
       </div>
     </div>

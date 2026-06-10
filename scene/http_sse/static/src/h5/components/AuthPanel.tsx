@@ -45,7 +45,14 @@ export default function AuthPanel() {
           >
             <div className="h5-auth-header">
               <h2 className="h5-auth-title">认证设置</h2>
-              <button className="btn" onClick={handleSave}>保存</button>
+              <motion.button
+                className="btn"
+                onClick={handleSave}
+                whileTap={{ scale: 0.96 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              >
+                保存
+              </motion.button>
             </div>
             <div className="h5-auth-body">
               {AUTH_KEYS.map((key) => (

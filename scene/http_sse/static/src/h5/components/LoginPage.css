@@ -115,8 +115,9 @@
   min-height: 44px;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.h5-login-recent-item:hover {
-  border-color: var(--hairline-strong);
+.h5-login-recent-item:active {
+  border-color: var(--accent);
+  background: var(--surface-card);
 }
 .h5-login-recent-item:disabled {
   opacity: 0.5;

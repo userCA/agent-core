@@ -16,6 +16,7 @@ const TAB_LABELS: Record<string, string> = {
   skills: '技能',
   settings: '设置',
   history: '历史记录',
+  companion: '宠物资料',
 };
 
 interface MenuItem {
@@ -32,6 +33,10 @@ export default function CompactHeader({ onAbort }: Props) {
   const setH5ActiveTab = useUIStore((s) => s.setH5ActiveTab);
   const sessionId = useSessionStore((s) => s.sessionId);
   const sessions = useSessionStore((s) => s.sessions);
+  const createSession = useSessionStore((s) => s.createSession);
+  const setWelcomeVisible = useUIStore((s) => s.setWelcomeVisible);
+  const setInputValue = useUIStore((s) => s.setInputValue);
+  const resetChat = useChatStore((s) => s.reset);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +52,7 @@ export default function CompactHeader({ onAbort }: Props) {
       icon: 'user',
       label: '宠物资料',
       action: () => {
-        setH5ActiveTab('settings');
+        setH5ActiveTab('companion');
         setMenuOpen(false);
       },
     },
@@ -125,9 +130,31 @@ export default function CompactHeader({ onAbort }: Props) {
 
         <div className="h5-header-actions">
           {isStreaming && (
-            <button className="btn" onClick={onAbort} aria-label="停止">
+            <motion.button
+              className="btn"
+              onClick={onAbort}
+              aria-label="停止"
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+            >
               <Icon name="cancel" size={16} />
-            </button>
+            </motion.button>
+          )}
+          {h5ActiveTab === 'chat' && sessionId && (
+            <motion.button
+              className="btn"
+              onClick={() => {
+                createSession();
+                resetChat();
+                setInputValue('');
+                setWelcomeVisible(true);
+              }}
+              aria-label="新建会话"
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+            >
+              <Icon name="plus" size={16} />
+            </motion.button>
           )}
           <motion.button
             className="btn"
@@ -206,5 +233,5 @@ export default function CompactHeader({ onAbort }: Props) {
 }
 
 function isH5ActivePage(tab: string): boolean {
-  return tab === 'settings' || tab === 'history';
+  return tab === 'settings' || tab === 'history' || tab === 'companion';
 }

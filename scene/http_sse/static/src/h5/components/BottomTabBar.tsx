@@ -21,11 +21,13 @@ export default function BottomTabBar() {
   return (
     <nav className="h5-tab-bar">
       {TABS.map((tab) => (
-        <button
+        <motion.button
           key={tab.key}
           className={`h5-tab ${activeTab === tab.key ? 'h5-tab--active' : ''}`}
           onClick={() => setActiveTab(tab.key)}
           aria-label={tab.label}
+          whileTap={{ scale: 0.92 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
         >
           <Icon name={tab.icon} size={24} />
           <span className="h5-tab-label">{tab.label}</span>
@@ -36,7 +38,7 @@ export default function BottomTabBar() {
               transition={{ type: 'spring', stiffness: 500, damping: 35 }}
             />
           )}
-        </button>
+        </motion.button>
       ))}
     </nav>
   );

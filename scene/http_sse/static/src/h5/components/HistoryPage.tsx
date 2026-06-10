@@ -42,13 +42,27 @@ const listVariants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
-    transition: { staggerChildren: 0.04 },
+    transition: { staggerChildren: 0.06, delayChildren: 0.05 },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0 },
+  hidden: { opacity: 0, x: -20, scale: 0.95 },
+  show: {
+    opacity: 1,
+    x: 0,
+    scale: 1,
+    transition: { type: 'spring' as const, stiffness: 400, damping: 32 },
+  },
+};
+
+const dateLabelVariants = {
+  hidden: { opacity: 0, y: -8 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.25, ease: 'easeOut' as const },
+  },
 };
 
 export default function HistoryPage({ onBack }: Props) {
@@ -61,12 +75,19 @@ export default function HistoryPage({ onBack }: Props) {
   const setH5ActiveTab = useUIStore((s) => s.setH5ActiveTab);
   const addToast = useToastStore((s) => s.addToast);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
 
-  const groups = useMemo(() => groupByDate(sessions), [sessions]);
+  const filteredSessions = useMemo(() => {
+    if (!searchQuery.trim()) return sessions;
+    const q = searchQuery.trim().toLowerCase();
+    return sessions.filter((s) => (s.title || '').toLowerCase().includes(q));
+  }, [sessions, searchQuery]);
+
+  const groups = useMemo(() => groupByDate(filteredSessions), [filteredSessions]);
 
   const handleSwitch = (id: string) => {
     switchSession(id);
@@ -97,6 +118,26 @@ export default function HistoryPage({ onBack }: Props) {
       transition={{ type: 'spring', stiffness: 400, damping: 32 }}
     >
       <div className="h5-history-body">
+        <div className="h5-history-search">
+          <Icon name="search" size={14} />
+          <input
+            type="text"
+            placeholder="搜索会话..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="搜索会话"
+          />
+          {searchQuery && (
+            <button
+              className="h5-history-search-clear"
+              onClick={() => setSearchQuery('')}
+              aria-label="清除搜索"
+            >
+              <Icon name="x" size={14} />
+            </button>
+          )}
+        </div>
+
         {sessionsLoading && (
           <div className="h5-history-loading">
             <motion.div
@@ -109,7 +150,7 @@ export default function HistoryPage({ onBack }: Props) {
           </div>
         )}
 
-        {!sessionsLoading && sessions.length === 0 && (
+        {!sessionsLoading && sessions.length === 0 && !searchQuery && (
           <motion.div
             className="h5-history-empty"
             initial={{ opacity: 0, y: 10 }}
@@ -118,6 +159,18 @@ export default function HistoryPage({ onBack }: Props) {
           >
             <Icon name="message" size={32} aria-label="暂无消息" />
             <p>暂无历史记录</p>
+          </motion.div>
+        )}
+
+        {!sessionsLoading && searchQuery && filteredSessions.length === 0 && (
+          <motion.div
+            className="h5-history-empty"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Icon name="search" size={32} aria-label="无搜索结果" />
+            <p>未找到匹配的会话</p>
           </motion.div>
         )}
 
@@ -131,7 +184,12 @@ export default function HistoryPage({ onBack }: Props) {
               animate="show"
               exit={{ opacity: 0, height: 0 }}
             >
-              <h3 className="h5-history-date">{dateLabel}</h3>
+              <motion.h3
+                className="h5-history-date"
+                variants={dateLabelVariants}
+              >
+                {dateLabel}
+              </motion.h3>
               <div className="h5-history-list">
                 {items.map((s) => {
                   const isActive = s.session_id === currentSessionId;
@@ -142,8 +200,8 @@ export default function HistoryPage({ onBack }: Props) {
                       className={`h5-history-item ${isActive ? 'h5-history-item--active' : ''}`}
                       variants={itemVariants}
                       layout
-                      exit={{ opacity: 0, x: -40, transition: { duration: 0.2 } }}
-                      whileTap={{ scale: 0.98 }}
+                      exit={{ opacity: 0, x: -40, scale: 0.9, transition: { duration: 0.25, ease: 'easeInOut' } }}
+                      whileTap={{ scale: 0.97 }}
                     >
                       <button
                         className="h5-history-item-main"
