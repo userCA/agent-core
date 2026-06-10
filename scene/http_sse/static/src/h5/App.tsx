@@ -6,12 +6,12 @@ import { useSessionStore } from '../stores/session-store';
 import { useUIStore } from '../stores/ui-store';
 import ChatContainer from '../components/chat/ChatContainer';
 import PendingBubbles from '../components/input/PendingBubbles';
-import CollapsibleInput from './components/CollapsibleInput';
+import H5ChatInput from './components/H5ChatInput';
 import SkillsPage from '../components/pages/SkillsPage';
 import ToastContainer from '../components/shared/Toast';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
 import { useModelStore } from '../stores/model-store';
-import BottomTabBar from './components/BottomTabBar';
+
 import CompactHeader from './components/CompactHeader';
 import AuthPanel from './components/AuthPanel';
 import LoginPage from './components/LoginPage';
@@ -51,11 +51,11 @@ export default function H5App() {
                   initial={{ opacity: 0, x: -12 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 12 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 >
                   <ChatContainer onExampleClick={sendMessage} />
                   <PendingBubbles />
-                  <CollapsibleInput onSend={sendMessage} />
+                  <H5ChatInput onSend={sendMessage} />
                 </motion.div>
               )}
               {h5ActiveTab === 'skills' && (
@@ -65,7 +65,7 @@ export default function H5App() {
                   initial={{ opacity: 0, x: 12 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -12 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 >
                   <SkillsPage onBack={() => setH5ActiveTab('chat')} />
                 </motion.div>
@@ -77,7 +77,7 @@ export default function H5App() {
                   initial={{ opacity: 0, x: 12 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -12 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 >
                   <SettingsPage />
                 </motion.div>
@@ -89,14 +89,13 @@ export default function H5App() {
                   initial={{ opacity: 0, x: 12 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -12 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 >
                   <HistoryPage onBack={() => setH5ActiveTab('chat')} />
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
-          <BottomTabBar />
         </div>
         <AuthPanel />
         <ToastContainer />

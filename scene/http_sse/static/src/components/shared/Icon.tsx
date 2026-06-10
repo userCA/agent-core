@@ -42,7 +42,10 @@ type IconName =
   | 'moon'
   | 'clock'
   | 'trash'
-  | 'settings';
+  | 'settings'
+  | 'menu'
+  | 'user'
+  | 'close';
 
 export const ICON_SIZES = {
   sm: 12,
@@ -55,6 +58,7 @@ interface Props {
   size?: number;
   className?: string;
   style?: React.CSSProperties;
+  'aria-label'?: string;
 }
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -298,9 +302,28 @@ const ICONS: Record<string, React.ReactNode> = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  menu: (
+    <>
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="18" x2="20" y2="18" />
+    </>
+  ),
+  user: (
+    <>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </>
+  ),
+  close: (
+    <>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </>
+  ),
 };
 
-export default function Icon({ name, size = 16, className = '', style }: Props) {
+export default function Icon({ name, size = 16, className = '', style, 'aria-label': ariaLabel }: Props) {
   const content = ICONS[name] ?? null;
   return (
     <svg
@@ -314,7 +337,9 @@ export default function Icon({ name, size = 16, className = '', style }: Props) 
       strokeLinejoin="round"
       className={className}
       style={style}
-      aria-hidden="true"
+      aria-hidden={ariaLabel ? undefined : 'true'}
+      aria-label={ariaLabel}
+      role={ariaLabel ? 'img' : undefined}
       focusable="false"
     >
       {content}

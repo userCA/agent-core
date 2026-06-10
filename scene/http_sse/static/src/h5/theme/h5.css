@@ -88,19 +88,6 @@
     min-height: 32px;
 }
 
-/* Send button */
-.h5-app-layout .send-btn {
-    min-width: 34px;
-    min-height: 34px;
-    padding: 0;
-    border-radius: 50%;
-}
-
-.h5-app-layout .send-btn svg {
-    width: 14px;
-    height: 14px;
-}
-
 /* Clear button */
 .h5-app-layout .input-clear-btn {
     top: 5px;
@@ -175,9 +162,9 @@
     line-height: 1;
 }
 
-/* ── Scroll button: positioned above tab bar ── */
+/* ── Scroll button ── */
 .h5-app-layout .scroll-to-bottom {
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     right: 14px;
     width: 38px;
     height: 38px;
@@ -234,9 +221,9 @@
     border-radius: var(--radius-sm);
 }
 
-/* ── Toast: above tab bar ── */
+/* ── Toast ── */
 .h5-app-layout .toast-container {
-    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Touch targets ── */
@@ -508,4 +495,25 @@
     padding: 10px 12px;
 }
 
+/* ── H5ChatInput gradient container overrides ── */
+.h5-chat-options .chat-input-area {
+    padding: 0;
+    border-top: none;
+    background: transparent;
+}
 
+.h5-chat-options .input-box {
+    border: none;
+    background: transparent;
+    border-radius: 0;
+}
+
+.h5-chat-options .input-box:focus-within {
+    box-shadow: none;
+}
+
+.h5-chat-options .chat-textarea {
+    padding: 10px 34px 10px 10px;
+    font-size: 14px;
+    min-height: 44px;
+}

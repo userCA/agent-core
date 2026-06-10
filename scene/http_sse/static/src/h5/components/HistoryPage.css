@@ -52,7 +52,7 @@
 }
 
 .h5-history-date {
-  font-size: 11px;
+  font-size: 12px;
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--ash);
@@ -102,6 +102,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.h5-history-item-main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .h5-history-item-title {
   font-size: 14px;
   color: var(--ink);
@@ -112,7 +117,7 @@
 }
 
 .h5-history-item-meta {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ash);
   font-family: var(--font-mono);
 }
@@ -121,15 +126,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   border: none;
   background: transparent;
   color: var(--ash);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: color 0.15s ease;
+}
+
+.h5-history-item-delete:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .h5-history-item-delete:active {

@@ -116,7 +116,7 @@ export default function HistoryPage({ onBack }: Props) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <Icon name="message" size={32} />
+            <Icon name="message" size={32} aria-label="暂无消息" />
             <p>暂无历史记录</p>
           </motion.div>
         )}

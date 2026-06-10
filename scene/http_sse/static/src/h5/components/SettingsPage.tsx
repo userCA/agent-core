@@ -34,6 +34,7 @@ interface RowProps {
 
 const SettingRow = ({ icon, label, value, onClick, danger }: RowProps) => (
   <motion.button
+    className="h5-setting-row"
     onClick={onClick}
     variants={itemVariants}
     whileTap={{ scale: 0.98 }}
@@ -41,12 +42,12 @@ const SettingRow = ({ icon, label, value, onClick, danger }: RowProps) => (
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: '18px 20px',
+      padding: '10px 16px',
       background: 'var(--canvas)',
       border: 'none',
       borderBottom: '1px solid var(--hairline)',
       color: danger ? 'var(--danger)' : 'var(--ink)',
-      fontSize: '17px',
+      fontSize: '14px',
       fontFamily: 'var(--font-sans)',
       cursor: 'pointer',
       width: '100%',
@@ -54,13 +55,13 @@ const SettingRow = ({ icon, label, value, onClick, danger }: RowProps) => (
       WebkitTapHighlightColor: 'transparent',
     }}
   >
-    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
       <div
         style={{
-          width: '36px',
-          height: '36px',
-          borderRadius: '10px',
-          background: danger ? 'var(--danger-bg-subtle)' : 'var(--pastel-blue-bg)',
+          width: '28px',
+          height: '28px',
+          borderRadius: '8px',
+          background: danger ? 'var(--danger-bg-subtle)' : 'var(--surface-card)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -69,18 +70,18 @@ const SettingRow = ({ icon, label, value, onClick, danger }: RowProps) => (
       >
         <Icon
           name={icon}
-          size={20}
-          style={{ color: danger ? 'var(--danger)' : 'var(--pastel-blue-text)' }}
+          size={16}
+          style={{ color: danger ? 'var(--danger)' : 'var(--mute)' }}
         />
       </div>
       <span style={{ fontWeight: 500 }}>{label}</span>
     </div>
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
       {value && (
-        <span style={{ color: 'var(--mute)', fontSize: '15px' }}>{value}</span>
+        <span style={{ color: 'var(--mute)', fontSize: '13px' }}>{value}</span>
       )}
       {!danger && (
-        <Icon name="chevron-right" size={18} style={{ color: 'var(--ash)' }} />
+        <Icon name="chevron-right" size={16} style={{ color: 'var(--ash)' }} />
       )}
     </div>
   </motion.button>
@@ -142,9 +143,40 @@ export default function SettingsPage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            overflow: 'hidden',
           }}
         >
-          <Icon name="user" size={36} style={{ color: 'var(--pastel-blue-text)' }} />
+          <svg width="48" height="48" viewBox="0 0 100 100" fill="none">
+            {/* Cat face circle */}
+            <circle cx="50" cy="52" r="34" fill="var(--pastel-blue-text)" opacity="0.15" />
+            {/* Left ear */}
+            <path d="M22 38 L28 20 L42 32 Z" fill="var(--pastel-blue-text)" opacity="0.25" />
+            <path d="M24 36 L29 23 L40 33 Z" fill="var(--pastel-blue-text)" opacity="0.15" />
+            {/* Right ear */}
+            <path d="M78 38 L72 20 L58 32 Z" fill="var(--pastel-blue-text)" opacity="0.25" />
+            <path d="M76 36 L71 23 L60 33 Z" fill="var(--pastel-blue-text)" opacity="0.15" />
+            {/* Head */}
+            <ellipse cx="50" cy="55" rx="30" ry="26" fill="var(--pastel-blue-text)" opacity="0.2" />
+            {/* Left eye */}
+            <ellipse cx="40" cy="52" rx="4" ry="5" fill="var(--pastel-blue-text)" />
+            <circle cx="41" cy="50.5" r="1.5" fill="white" opacity="0.8" />
+            {/* Right eye */}
+            <ellipse cx="60" cy="52" rx="4" ry="5" fill="var(--pastel-blue-text)" />
+            <circle cx="61" cy="50.5" r="1.5" fill="white" opacity="0.8" />
+            {/* Nose */}
+            <ellipse cx="50" cy="60" rx="3" ry="2" fill="var(--pastel-blue-text)" opacity="0.6" />
+            {/* Mouth */}
+            <path d="M46 64 Q50 67 54 64" stroke="var(--pastel-blue-text)" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+            {/* Whiskers left */}
+            <line x1="18" y1="55" x2="32" y2="57" stroke="var(--pastel-blue-text)" strokeWidth="1.2" strokeLinecap="round" opacity="0.4" />
+            <line x1="18" y1="60" x2="32" y2="59" stroke="var(--pastel-blue-text)" strokeWidth="1.2" strokeLinecap="round" opacity="0.4" />
+            {/* Whiskers right */}
+            <line x1="82" y1="55" x2="68" y2="57" stroke="var(--pastel-blue-text)" strokeWidth="1.2" strokeLinecap="round" opacity="0.4" />
+            <line x1="82" y1="60" x2="68" y2="59" stroke="var(--pastel-blue-text)" strokeWidth="1.2" strokeLinecap="round" opacity="0.4" />
+            {/* Paws at bottom */}
+            <ellipse cx="38" cy="80" rx="5" ry="3" fill="var(--pastel-blue-text)" opacity="0.15" />
+            <ellipse cx="62" cy="80" rx="5" ry="3" fill="var(--pastel-blue-text)" opacity="0.15" />
+          </svg>
         </div>
         <div style={{ textAlign: 'center' }}>
           <div
@@ -198,12 +230,6 @@ export default function SettingsPage() {
         }}
       >
         <SettingRow
-          icon="palette"
-          label="主题"
-          value={theme === 'light' ? '亮色' : '暗色'}
-          onClick={toggleTheme}
-        />
-        <SettingRow
           icon="key"
           label="认证设置"
           onClick={() => setAuthModalOpen(true)}
@@ -240,6 +266,7 @@ export default function SettingsPage() {
             {personas.map((p, idx) => (
               <motion.button
                 key={p.id}
+                className="h5-setting-row"
                 onClick={() => {
                   setPersonaId(p.id);
                   addToast(`已切换到「${p.name}」`, 'success');
@@ -250,12 +277,12 @@ export default function SettingsPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '18px 20px',
+                  padding: '10px 16px',
                   background: personaId === p.id ? 'var(--pastel-blue-bg)' : 'var(--canvas)',
                   border: 'none',
                   borderBottom: idx < personas.length - 1 ? '1px solid var(--hairline)' : 'none',
                   color: personaId === p.id ? 'var(--pastel-blue-text)' : 'var(--ink)',
-                  fontSize: '17px',
+                  fontSize: '14px',
                   fontFamily: 'var(--font-sans)',
                   cursor: 'pointer',
                   width: '100%',
@@ -263,13 +290,13 @@ export default function SettingsPage() {
                   WebkitTapHighlightColor: 'transparent',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div
                     style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      background: personaId === p.id ? 'rgba(255,255,255,0.5)' : 'var(--surface-soft)',
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '8px',
+                      background: personaId === p.id ? 'rgba(255,255,255,0.5)' : 'var(--surface-card)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -278,7 +305,7 @@ export default function SettingsPage() {
                   >
                     <Icon
                       name="briefcase"
-                      size={20}
+                      size={16}
                       style={{ color: personaId === p.id ? 'var(--pastel-blue-text)' : 'var(--mute)' }}
                     />
                   </div>
@@ -290,7 +317,7 @@ export default function SettingsPage() {
                     animate={{ scale: 1 }}
                     transition={{ type: 'spring' as const, stiffness: 500, damping: 25 }}
                   >
-                    <Icon name="check" size={20} style={{ color: 'var(--accent)' }} />
+                    <Icon name="check" size={16} style={{ color: 'var(--accent)' }} />
                   </motion.div>
                 )}
               </motion.button>

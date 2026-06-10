@@ -100,6 +100,19 @@
     position: relative;
 }
 
+/* Inline toolbar: show action buttons directly instead of popover */
+.inline-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.inline-toolbar .action-btn {
+    min-width: 32px;
+    min-height: 32px;
+    color: var(--ash);
+}
+
 .action-btn {
     display: flex;
     align-items: center;

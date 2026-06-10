@@ -11,9 +11,10 @@ import './ChatInput.css';
 interface Props {
   onSend: (text: string) => void;
   compact?: boolean;
+  inlineToolbar?: boolean;
 }
 
-export default function ChatInput({ onSend, compact }: Props) {
+export default function ChatInput({ onSend, compact, inlineToolbar }: Props) {
   const isStreaming = useChatStore((s) => s.isStreaming);
   const pendingQueue = useChatStore((s) => s.pendingQueue);
   const inputValue = useUIStore((s) => s.inputValue);
@@ -188,65 +189,96 @@ export default function ChatInput({ onSend, compact }: Props) {
         <div className={`input-actions${compact ? ' input-actions--compact' : ''}`}>
           {compact ? (
             <>
-              <button
-                className={`action-btn${showMore ? ' active' : ''}`}
-                onClick={() => setShowMore((v) => !v)}
-                title="更多"
-                aria-label="更多"
-              >
-                <Icon name="plus" size={18} />
-              </button>
-              {showMore && (
+              {inlineToolbar ? (
+                <div className="actions-left inline-toolbar">
+                  <button
+                    className="action-btn"
+                    onClick={() => fileRef.current?.click()}
+                    title="上传文件"
+                    aria-label="上传文件"
+                  >
+                    <Icon name="upload" size={14} />
+                  </button>
+                  <button
+                    className="action-btn"
+                    onClick={() => imageRef.current?.click()}
+                    title="上传图片"
+                    aria-label="上传图片"
+                  >
+                    <Icon name="image" size={14} />
+                  </button>
+                  <button
+                    className="action-btn"
+                    onClick={() => setShowModels(!showModels)}
+                    title="选择模型"
+                    aria-label="选择模型"
+                  >
+                    <Icon name="chevron-down" size={14} />
+                  </button>
+                </div>
+              ) : (
                 <>
-                  <div className="more-backdrop" onClick={() => setShowMore(false)} />
-                  <div className="more-popover">
-                    <button onClick={() => { setShowSkills((v) => !v); setShowMore(false); }}>
-                      <Icon name="code" size={14} /> 技能
-                    </button>
-                    <button onClick={() => { fileRef.current?.click(); setShowMore(false); }}>
-                      <Icon name="upload" size={14} /> 文件
-                    </button>
-                    <button onClick={() => { imageRef.current?.click(); setShowMore(false); }}>
-                      <Icon name="image" size={14} /> 图片
-                    </button>
-                    <button onClick={() => { toggleRecording(); setShowMore(false); }}>
-                      <Icon name="recording" size={14} /> 语音
-                    </button>
-                    <button onClick={() => { setShowModels(!showModels); setShowMore(false); }}>
-                      <Icon name="chevron-down" size={14} /> 模型
-                    </button>
-                  </div>
-                  {showModels && (
+                  <button
+                    className={`action-btn${showMore ? ' active' : ''}`}
+                    onClick={() => setShowMore((v) => !v)}
+                    title="更多"
+                    aria-label="更多"
+                  >
+                    <Icon name="plus" size={18} />
+                  </button>
+                  {showMore && (
                     <>
-                      <div className="more-backdrop" onClick={() => setShowModels(false)} />
-                      <div className="more-popover model-popover" style={{ bottom: '100%', top: 'auto', marginBottom: 6 }}>
-                        {models.length > 6 && (
-                          <div className="model-filter">
-                            <Icon name="search" size={12} />
-                            <input
-                              type="text"
-                              placeholder="搜索模型..."
-                              value={modelFilter}
-                              onChange={(e) => setModelFilter(e.target.value)}
-                              autoFocus
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-                        )}
-                        {filteredModels.map((m) => (
-                          <button key={`${m.provider}/${m.model}`}
-                            className={currentProvider === m.provider && currentModel === m.model ? 'active' : ''}
-                            onClick={() => { selectModel(m.provider, m.model); setShowModels(false); setModelFilter(''); }}>
-                            <span style={{ fontWeight: 600 }}>{m.label}</span>
-                            <span style={{ fontSize: 10, color: 'var(--ash)', marginLeft: 8 }}>{m.desc}</span>
-                          </button>
-                        ))}
-                        {filteredModels.length === 0 && (
-                          <div className="model-empty">无匹配模型</div>
-                        )}
+                      <div className="more-backdrop" onClick={() => setShowMore(false)} />
+                      <div className="more-popover">
+                        <button onClick={() => { setShowSkills((v) => !v); setShowMore(false); }}>
+                          <Icon name="code" size={14} /> 技能
+                        </button>
+                        <button onClick={() => { fileRef.current?.click(); setShowMore(false); }}>
+                          <Icon name="upload" size={14} /> 文件
+                        </button>
+                        <button onClick={() => { imageRef.current?.click(); setShowMore(false); }}>
+                          <Icon name="image" size={14} /> 图片
+                        </button>
+                        <button onClick={() => { toggleRecording(); setShowMore(false); }}>
+                          <Icon name="recording" size={14} /> 语音
+                        </button>
+                        <button onClick={() => { setShowModels(!showModels); setShowMore(false); }}>
+                          <Icon name="chevron-down" size={14} /> 模型
+                        </button>
                       </div>
                     </>
                   )}
+                </>
+              )}
+              {showModels && (
+                <>
+                  <div className="more-backdrop" onClick={() => setShowModels(false)} />
+                  <div className="more-popover model-popover" style={{ bottom: '100%', top: 'auto', marginBottom: 6 }}>
+                    {models.length > 6 && (
+                      <div className="model-filter">
+                        <Icon name="search" size={12} />
+                        <input
+                          type="text"
+                          placeholder="搜索模型..."
+                          value={modelFilter}
+                          onChange={(e) => setModelFilter(e.target.value)}
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    )}
+                    {filteredModels.map((m) => (
+                      <button key={`${m.provider}/${m.model}`}
+                        className={currentProvider === m.provider && currentModel === m.model ? 'active' : ''}
+                        onClick={() => { selectModel(m.provider, m.model); setShowModels(false); setModelFilter(''); }}>
+                        <span style={{ fontWeight: 600 }}>{m.label}</span>
+                        <span style={{ fontSize: 10, color: 'var(--ash)', marginLeft: 8 }}>{m.desc}</span>
+                      </button>
+                    ))}
+                    {filteredModels.length === 0 && (
+                      <div className="model-empty">无匹配模型</div>
+                    )}
+                  </div>
                 </>
               )}
               {showSkills && visibleSkills.length > 0 && (

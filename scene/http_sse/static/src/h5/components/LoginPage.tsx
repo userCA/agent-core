@@ -49,13 +49,13 @@ export default function LoginPage() {
         className="h5-login-inner"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.1 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 30, delay: 0.1 }}
       >
         <motion.div
           className="h5-login-art"
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.2 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 25, delay: 0.2 }}
         >
           <LoginCompanion uid={uid} isNewUser={isNewUser} isReturning={isReturning} hasInput={isValid} loading={loading} />
         </motion.div>
@@ -64,7 +64,7 @@ export default function LoginPage() {
           className="h5-login-brand"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.3 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30, delay: 0.3 }}
         >
           咪兔
         </motion.h1>
@@ -72,7 +72,7 @@ export default function LoginPage() {
           className="h5-login-tagline"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.35 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30, delay: 0.35 }}
         >
           你的 AI 伙伴
         </motion.p>
@@ -81,7 +81,7 @@ export default function LoginPage() {
           className="h5-login-form"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.4 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30, delay: 0.4 }}
         >
           <input
             className="h5-login-input"
