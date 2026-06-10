@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from collections.abc import Callable
 from pathlib import PurePosixPath
 from typing import Any
 
 from agent_core.memory.base import MemoryRecord
-
-logger = logging.getLogger(__name__)
 
 
 class OpenVikingMemoryStore:
@@ -23,7 +20,7 @@ class OpenVikingMemoryStore:
         agent_id: str = "",
     ) -> None:
         self._client = client
-        self._url = url
+        self._url = url.removesuffix("/api/v1").removesuffix("/api/v1/").rstrip("/")
         self._api_key = api_key
         self._api_keys = api_keys or {}
         self._resolve_api_key_fn = resolve_api_key
@@ -35,9 +32,10 @@ class OpenVikingMemoryStore:
             return self._resolve_api_key_fn(session_id)
         if session_id in self._api_keys:
             return self._api_keys[session_id]
-        user_id = PurePosixPath(session_id).parts[0]
-        if user_id in self._api_keys:
-            return self._api_keys[user_id]
+        if "/" in session_id:
+            user_id = PurePosixPath(session_id).parts[0]
+            if user_id in self._api_keys:
+                return self._api_keys[user_id]
         return self._api_key
 
     def _get_client(self, session_id: str) -> Any:
@@ -59,52 +57,42 @@ class OpenVikingMemoryStore:
         return client
 
     async def remember(self, *, session_id: str, text: str, metadata: dict[str, Any] | None = None) -> None:
-        try:
-            client = self._get_client(session_id)
-            payload = text
-            if metadata:
-                payload = f"{text}\n[metadata: {metadata}]"
-            await asyncio.to_thread(
-                client.add_message,
-                session_id=session_id,
-                role="user",
-                content=payload,
-            )
-            await asyncio.to_thread(client.commit_session, session_id=session_id)
-        except Exception:
-            logger.warning("openviking remember failed for session %s", session_id, exc_info=True)
+        client = self._get_client(session_id)
+        payload = text
+        if metadata:
+            payload = f"{text}\n[metadata: {metadata}]"
+        await asyncio.to_thread(
+            client.add_message,
+            session_id=session_id,
+            role="user",
+            content=payload,
+        )
+        await asyncio.to_thread(client.commit_session, session_id=session_id)
 
     async def recall(self, *, session_id: str, query: str, limit: int = 10) -> list[MemoryRecord]:
-        try:
-            client = self._get_client(session_id)
-            result = await asyncio.to_thread(
-                client.find,
-                query,
-                target_uri="viking://user/memories",
-                node_limit=limit,
-            )
-            records: list[MemoryRecord] = []
-            for ctx in result.memories:
-                records.append(
-                    MemoryRecord(
-                        text=ctx.abstract or "",
-                        session_id=session_id,
-                        metadata={
-                            "uri": ctx.uri,
-                            "score": ctx.score,
-                            "context_type": str(ctx.context_type) if ctx.context_type else "",
-                            "level": ctx.level,
-                        },
-                    )
+        client = self._get_client(session_id)
+        result = await asyncio.to_thread(
+            client.find,
+            query,
+            target_uri="viking://user/memories",
+            node_limit=limit,
+        )
+        records: list[MemoryRecord] = []
+        for ctx in result.memories:
+            records.append(
+                MemoryRecord(
+                    text=ctx.abstract or "",
+                    session_id=session_id,
+                    metadata={
+                        "uri": ctx.uri,
+                        "score": ctx.score,
+                        "context_type": str(ctx.context_type) if ctx.context_type else "",
+                        "level": ctx.level,
+                    },
                 )
-            return records
-        except Exception:
-            logger.warning("openviking recall failed for session %s", session_id, exc_info=True)
-            return []
+            )
+        return records
 
     async def forget(self, *, session_id: str) -> None:
-        try:
-            client = self._get_client(session_id)
-            await asyncio.to_thread(client.delete_session, session_id=session_id)
-        except Exception:
-            logger.warning("openviking forget failed for session %s", session_id, exc_info=True)
+        client = self._get_client(session_id)
+        await asyncio.to_thread(client.delete_session, session_id=session_id)

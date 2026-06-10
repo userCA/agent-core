@@ -63,10 +63,10 @@ async def test_recall_passes_query_params(store, mock_client):
     assert call_kwargs["node_limit"] == 3
 
 
-async def test_recall_returns_empty_on_error(store, mock_client):
+async def test_recall_propagates_error(store, mock_client):
     mock_client.find.side_effect = RuntimeError("server down")
-    records = await store.recall(session_id="s1", query="q", limit=5)
-    assert records == []
+    with pytest.raises(RuntimeError, match="server down"):
+        await store.recall(session_id="s1", query="q", limit=5)
 
 
 async def test_forget_deletes_session(store, mock_client):

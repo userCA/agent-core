@@ -49,10 +49,10 @@ async def test_recall_passes_filters_and_top_k(store, mock_memory):
     assert call_kwargs["top_k"] == 3
 
 
-async def test_recall_returns_empty_on_search_error(store, mock_memory):
+async def test_recall_propagates_error(store, mock_memory):
     mock_memory.search.side_effect = RuntimeError("network down")
-    records = await store.recall(session_id="s1", query="q", limit=5)
-    assert records == []
+    with pytest.raises(RuntimeError, match="network down"):
+        await store.recall(session_id="s1", query="q", limit=5)
 
 
 async def test_forget_calls_delete_all(store, mock_memory):

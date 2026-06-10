@@ -23,6 +23,7 @@
 | 2026-06-03 | 59-61. Bash 操作协议优化（流式+signal+截断+进程树） 62-64. 沙箱服务接入（Docker+策略+自愈） 65-66. 扩展系统增强（mutated_args+args_model+hook） 67-69. Agent 重构（loop 解耦+配置提取+provider 分离） 70. tool_name 漏传修复 | [2026-06-03.md](development-log/2026-06-03.md) |
 | 2026-06-05 | 60. 咪兔伴侣系统 Phase 1-5：多帧动画、确定性生成、Extension 集成、伴侣记忆+NPC、钓鱼小游戏 | [2026-06-05.md](development-log/2026-06-05.md) |
 | 2026-06-08 | Motion 动画 P0 优化：stagger/AnimatePresence/whileTap 增强，CSS 持续循环动画替代 Motion JS 防掉帧 | [2026-06-08.md](development-log/2026-06-08.md) |
+| 2026-06-10 | 74. OpenViking adapter live API 验证 + 3 bug 修复 + P0-P2 记忆系统优化（错误处理统一/Extension 增强/InMemory 异步安全） | [2026-06-10.md](development-log/2026-06-10.md) |
 
 ---
 
