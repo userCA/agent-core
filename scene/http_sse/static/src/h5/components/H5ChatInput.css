@@ -122,6 +122,11 @@
   color: var(--stone);
 }
 
+.input-text:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .input-text:focus-within,
 .input-text:valid {
   max-width: calc(100% - 50px);
