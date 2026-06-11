@@ -150,6 +150,7 @@
 .h5-settings-row--active {
   background: var(--pastel-blue-bg);
   color: var(--pastel-blue-text);
+  border-left: 3px solid var(--accent);
 }
 
 .h5-settings-row--active .h5-settings-row__icon {

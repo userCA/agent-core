@@ -98,6 +98,7 @@ body {
     font-size: 14px;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Screen-reader only text */

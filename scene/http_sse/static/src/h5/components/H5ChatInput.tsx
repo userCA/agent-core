@@ -71,7 +71,7 @@ export default function H5ChatInput({ onSend }: Props) {
           type="text"
           name="input-text"
           id="input-text"
-          placeholder="Ask Anything..."
+          placeholder="输入问题..."
           className="input-text"
           required
           value={inputValue}

@@ -67,3 +67,20 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
+
+/* Loading spinner animation */
+@keyframes h5-auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.h5-auth-saving {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.h5-auth-saving svg {
+  animation: h5-auth-spin 1s linear infinite;
+}

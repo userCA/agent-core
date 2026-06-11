@@ -55,7 +55,8 @@
 }
 .h5-login-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .h5-login-input::placeholder {
   color: var(--ash);

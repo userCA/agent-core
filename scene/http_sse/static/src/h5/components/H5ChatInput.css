@@ -15,6 +15,8 @@
   padding-bottom: 8px;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-mask-image: linear-gradient(to right, white 85%, transparent 100%);
+  mask-image: linear-gradient(to right, white 85%, transparent 100%);
 }
 
 .h5-quick-tags::-webkit-scrollbar {
@@ -369,8 +371,9 @@
   border-radius: 50%;
   border: 2px solid white;
   box-shadow: 0 0 30px rgba(234, 170, 255, 1);
-  filter: blur(5px);
+  filter: blur(2px);
   transform: translate(-50%, -50%);
+  will-change: transform, opacity;
   animation: wave 1.5s linear infinite;
 }
 
@@ -490,6 +493,7 @@
   width: 300px;
   aspect-ratio: 1;
   border-radius: 50%;
+  will-change: transform, opacity;
 }
 
 .c1 {
@@ -535,4 +539,16 @@
   height: 100%;
   border-radius: 50%;
   border: 1px solid rgba(234, 170, 255, 0.3);
+}
+
+/* Respect prefers-reduced-motion for voice animation */
+@media (prefers-reduced-motion: reduce) {
+  .ai::before,
+  .ai::after {
+    animation: none;
+    filter: none;
+  }
+  .c1, .c2, .c3, .c4 {
+    animation: none;
+  }
 }

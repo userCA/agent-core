@@ -4,6 +4,7 @@ import { useSessionStore } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useToastStore } from '../../stores/toast-store';
 import { AUTH_KEYS } from '../../config';
+import Icon from '../../components/shared/Icon';
 import './AuthPanel.css';
 
 export default function AuthPanel() {
@@ -17,11 +18,19 @@ export default function AuthPanel() {
     for (const k of AUTH_KEYS) init[k] = authHeaders[k] || '';
     return init;
   });
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    saveAuth(values);
-    setAuthModalOpen(false);
-    addToast('已保存', 'success');
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await saveAuth(values);
+      setAuthModalOpen(false);
+      addToast('已保存', 'success');
+    } catch {
+      addToast('保存失败', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -48,10 +57,18 @@ export default function AuthPanel() {
               <motion.button
                 className="btn"
                 onClick={handleSave}
-                whileTap={{ scale: 0.96 }}
+                whileTap={{ scale: saving ? 1 : 0.96 }}
+                disabled={saving}
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
               >
-                保存
+                {saving ? (
+                  <span className="h5-auth-saving">
+                    <Icon name="spinner" size={14} />
+                    保存中...
+                  </span>
+                ) : (
+                  '保存'
+                )}
               </motion.button>
             </div>
             <div className="h5-auth-body">
