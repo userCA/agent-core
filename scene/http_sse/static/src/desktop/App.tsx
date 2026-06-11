@@ -17,12 +17,13 @@ import ConnectorsPage from '../components/pages/ConnectorsPage';
 import ExpertsPage from '../components/pages/ExpertsPage';
 import KnowledgePage from '../components/pages/KnowledgePage';
 import ChannelsPage from '../components/pages/ChannelsPage';
+import CompanionProfilePage from '../components/pages/CompanionProfilePage';
 import ToastContainer from '../components/shared/Toast';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
 import { useModelStore } from '../stores/model-store';
 import './App.css';
 
-const VALID_PAGES = ['chat', 'skills', 'connectors', 'experts', 'knowledge', 'channels'];
+const VALID_PAGES = ['chat', 'skills', 'connectors', 'experts', 'knowledge', 'channels', 'companion'];
 
 export default function DesktopApp() {
   const { sendMessage, abort } = useSSE();
@@ -112,6 +113,11 @@ export default function DesktopApp() {
             {activePage === 'channels' && (
               <motion.div key="channels" className="page-wrapper" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}>
                 <ChannelsPage />
+              </motion.div>
+            )}
+            {activePage === 'companion' && (
+              <motion.div key="companion" className="page-wrapper" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}>
+                <CompanionProfilePage />
               </motion.div>
             )}
           </AnimatePresence>

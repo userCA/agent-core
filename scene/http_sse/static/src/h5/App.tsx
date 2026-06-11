@@ -17,6 +17,7 @@ import AuthPanel from './components/AuthPanel';
 import LoginPage from './components/LoginPage';
 import SettingsPage from './components/SettingsPage';
 import HistoryPage from './components/HistoryPage';
+import CompanionProfilePage from '../components/pages/CompanionProfilePage';
 import './App.css';
 import './theme/h5.css';
 
@@ -92,6 +93,18 @@ export default function H5App() {
                   transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 >
                   <HistoryPage onBack={() => setH5ActiveTab('chat')} />
+                </motion.div>
+              )}
+              {h5ActiveTab === 'companion' && (
+                <motion.div
+                  key="companion"
+                  className="h5-page"
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -12 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                >
+                  <CompanionProfilePage onBack={() => setH5ActiveTab('chat')} />
                 </motion.div>
               )}
             </AnimatePresence>

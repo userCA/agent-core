@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>咪兔 SVG 图层组合器 — v3-exact</title>
+<style>
+:root{--bg:#1a1a1a;--surface:#252525;--border:#333;--ink:#ccc;--mute:#888;--accent:#ff9f43;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:ui-monospace,monospace;display:flex;height:100vh;overflow:hidden}
+#sidebar{width:300px;min-width:300px;background:var(--surface);border-right:1px solid var(--border);padding:20px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+h2{font-size:13px;color:var(--accent);letter-spacing:1px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.panel{display:flex;flex-direction:column;gap:4px}
+.panel label{font-size:10px;color:var(--mute);letter-spacing:.5px;text-transform:uppercase}
+.panel select,.panel button{background:var(--bg);border:1px solid var(--border);color:var(--ink);padding:7px 10px;border-radius:4px;font-size:12px;font-family:inherit;cursor:pointer;outline:none}
+.panel select:focus{border-color:var(--accent)}
+.shiny-row{display:flex;align-items:center;gap:10px}
+.shiny-row input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+.actions{display:flex;gap:8px;margin-top:8px}
+.actions button{flex:1;padding:8px 12px;border-radius:4px;border:1px solid var(--border);cursor:pointer;font-size:11px;font-family:inherit}
+.btn-random{background:#2a2a3a;color:#aac}.btn-random:hover{background:#3a3a4a}
+.btn-export{background:#2a3a2a;color:#8c8}.btn-export:hover{background:#3a4a3a}
+.stats{font-size:10px;color:var(--mute);text-align:center;margin-top:auto;padding-top:10px;border-top:1px solid var(--border)}
+#main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:12px}
+#preview-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px 32px;image-rendering:pixelated}
+#preview-box svg{display:block}
+#svg-output{width:600px;max-width:90%;height:120px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--mute);font-family:monospace;font-size:10px;padding:10px;resize:none;outline:none}
+#svg-output:focus{border-color:var(--accent)}
+.copied{color:#8c8;font-size:11px;opacity:0;transition:opacity .2s}.copied.show{opacity:1}
+</style></head>
+<body>
+<div id="sidebar">
+<h2>◈ 咪兔图层组合器</h2>
+<div class="panel"><label>品种 Breed</label><select id="sel-breed">
+<option value="orange_tabby">橘猫 orange_tabby</option><option value="tuxedo">奶牛猫 tuxedo</option>
+<option value="calico">三花猫 calico</option><option value="siamese">暹罗猫 siamese</option>
+<option value="black_cat">黑猫 black_cat</option><option value="ragdoll">布偶猫 ragdoll</option>
+<option value="scottish_fold">折耳猫 scottish_fold</option></select></div>
+<div class="panel"><label>眼睛 Eye</label><select id="sel-eye">
+<option value="dot">· dot</option><option value="sparkle">✦ sparkle</option>
+<option value="big">◉ big</option><option value="round">o round</option>
+<option value="heart">♥ heart</option><option value="star">☆ star</option></select></div>
+<div class="panel"><label>耳朵 Ear</label><select id="sel-ear">
+<option value="cat">cat 猫耳</option><option value="rabbit">rabbit 兔耳</option><option value="mix">mix 混合</option></select></div>
+<div class="panel"><label>帽子 Hat</label><select id="sel-hat">
+<option value="none">无</option><option value="crown">👑 皇冠</option><option value="tophat">🎩 礼帽</option>
+<option value="propeller">🔄 竹蜻蜓</option><option value="halo">😇 光环</option>
+<option value="wizard">🧙 巫师帽</option><option value="beanie">🧶 毛线帽</option><option value="tinyduck">🦆 小鸭子</option></select></div>
+<div class="panel"><label>色板 Palette</label><select id="sel-palette">
+<option value="default">默认 (品种本色)</option><option value="warm">暖橘</option><option value="cool">冷灰</option>
+<option value="cream">奶油</option><option value="charcoal">炭黑</option><option value="snow">雪白</option></select></div>
+<div class="panel"><div class="shiny-row"><input type="checkbox" id="sel-shiny"><label style="margin:0">闪亮 ✦</label></div></div>
+<div class="actions"><button class="btn-random" onclick="randomize()">🎲 随机</button><button class="btn-export" onclick="copySVG()">📋 复制 SVG</button></div>
+<div class="stats">数据源: v3 精细像素 (100% 还原)</div></div>
+<div id="main">
+<div id="preview-box"></div><span class="copied" id="copied-msg">已复制!</span>
+<textarea id="svg-output" readonly placeholder="SVG 代码..."></textarea></div>
+
+<script>
+// ═══════════════ V3 EXACT RECT DATA (extracted from svg-avatar-all-breeds-v3.html) ═══════════════
+// Each breed: array of {x,y,w,h,fill} plus ear/eye index ranges
+
+const V3 = {
+orange_tabby: {rects:[{x:6,y:2,w:3,h:3,fill:"#FF9F43"},{x:7,y:1,w:2,h:1,fill:"#FF9F43"},{x:23,y:2,w:3,h:3,fill:"#FF9F43"},{x:23,y:1,w:2,h:1,fill:"#FF9F43"},{x:7,y:2,w:1,h:2,fill:"#CC6611"},{x:24,y:2,w:1,h:2,fill:"#CC6611"},{x:5,y:4,w:22,h:14,fill:"#FF9F43"},{x:4,y:5,w:24,h:12,fill:"#FF9F43"},{x:3,y:7,w:26,h:8,fill:"#FF9F43"},{x:8,y:5,w:1,h:3,fill:"#CC6611"},{x:9,y:5,w:1,h:2,fill:"#CC6611"},{x:23,y:5,w:1,h:3,fill:"#CC6611"},{x:22,y:5,w:1,h:2,fill:"#CC6611"},{x:10,y:6,w:1,h:1,fill:"#CC6611"},{x:21,y:6,w:1,h:1,fill:"#CC6611"},{x:5,y:10,w:2,h:1,fill:"#CC6611"},{x:25,y:10,w:2,h:1,fill:"#CC6611"},{x:4,y:12,w:2,h:1,fill:"#CC6611"},{x:26,y:12,w:2,h:1,fill:"#CC6611"},{x:9,y:10,w:4,h:3,fill:"#fff"},{x:19,y:10,w:4,h:3,fill:"#fff"},{x:10,y:11,w:2,h:2,fill:"#38B149"},{x:20,y:11,w:2,h:2,fill:"#38B149"},{x:11,y:11,w:1,h:2,fill:"#000"},{x:21,y:11,w:1,h:2,fill:"#000"},{x:10,y:10,w:1,h:1,fill:"#fff"},{x:20,y:10,w:1,h:1,fill:"#fff"},{x:15,y:14,w:2,h:1,fill:"#FF7777"},{x:14,y:15,w:1,h:1,fill:"#CC6611"},{x:17,y:15,w:1,h:1,fill:"#CC6611"},{x:15,y:16,w:2,h:1,fill:"#CC6611"},{x:7,y:17,w:18,h:10,fill:"#FF9F43"},{x:5,y:19,w:22,h:8,fill:"#FF9F43"},{x:4,y:21,w:24,h:6,fill:"#FF9F43"},{x:7,y:18,w:3,h:1,fill:"#CC6611"},{x:14,y:18,w:4,h:1,fill:"#CC6611"},{x:22,y:18,w:3,h:1,fill:"#CC6611"},{x:5,y:20,w:4,h:1,fill:"#CC6611"},{x:12,y:20,w:8,h:1,fill:"#CC6611"},{x:23,y:20,w:4,h:1,fill:"#CC6611"},{x:4,y:22,w:5,h:1,fill:"#CC6611"},{x:11,y:22,w:10,h:1,fill:"#CC6611"},{x:23,y:22,w:5,h:1,fill:"#CC6611"},{x:6,y:24,w:4,h:1,fill:"#CC6611"},{x:22,y:24,w:4,h:1,fill:"#CC6611"},{x:26,y:23,w:3,h:2,fill:"#FF9F43"},{x:28,y:21,w:2,h:2,fill:"#FF9F43"},{x:29,y:19,w:2,h:2,fill:"#FF9F43"},{x:27,y:23,w:1,h:1,fill:"#CC6611"},{x:29,y:21,w:1,h:1,fill:"#CC6611"},{x:7,y:26,w:3,h:2,fill:"#FF9F43"},{x:22,y:26,w:3,h:2,fill:"#FF9F43"},{x:8,y:28,w:2,h:1,fill:"#FF9F43"},{x:23,y:28,w:2,h:1,fill:"#FF9F43"}],
+  earIdx:[0,5], eyeIdx:[19,26], colors:{B:"#FF9F43",D:"#CC6611"}},
+tuxedo: {rects:[{x:6,y:2,w:3,h:3,fill:"#111"},{x:7,y:1,w:2,h:1,fill:"#111"},{x:23,y:3,w:3,h:3,fill:"#fff"},{x:23,y:2,w:2,h:1,fill:"#fff"},{x:7,y:2,w:1,h:2,fill:"#333"},{x:24,y:3,w:1,h:2,fill:"#ccc"},{x:5,y:4,w:22,h:14,fill:"#111"},{x:4,y:5,w:24,h:12,fill:"#111"},{x:3,y:7,w:26,h:8,fill:"#111"},{x:20,y:4,w:7,h:8,fill:"#fff"},{x:22,y:3,w:5,h:2,fill:"#fff"},{x:18,y:5,w:2,h:5,fill:"#fff"},{x:12,y:12,w:8,h:5,fill:"#fff"},{x:10,y:13,w:2,h:3,fill:"#fff"},{x:20,y:13,w:2,h:3,fill:"#fff"},{x:9,y:10,w:4,h:3,fill:"#fff"},{x:19,y:10,w:4,h:3,fill:"#fff"},{x:10,y:11,w:2,h:2,fill:"#44AAFF"},{x:20,y:11,w:2,h:2,fill:"#44AAFF"},{x:11,y:11,w:1,h:2,fill:"#000"},{x:21,y:11,w:1,h:2,fill:"#000"},{x:10,y:10,w:1,h:1,fill:"#fff"},{x:20,y:10,w:1,h:1,fill:"#fff"},{x:15,y:14,w:2,h:1,fill:"#FF9999"},{x:14,y:15,w:1,h:1,fill:"#111"},{x:17,y:15,w:1,h:1,fill:"#111"},{x:15,y:16,w:2,h:1,fill:"#111"},{x:14,y:16,w:1,h:1,fill:"#fff"},{x:17,y:16,w:1,h:1,fill:"#fff"},{x:7,y:17,w:18,h:10,fill:"#111"},{x:5,y:19,w:22,h:8,fill:"#111"},{x:4,y:21,w:24,h:6,fill:"#111"},{x:11,y:17,w:10,h:8,fill:"#fff"},{x:9,y:19,w:2,h:5,fill:"#fff"},{x:21,y:19,w:2,h:5,fill:"#fff"},{x:14,y:19,w:1,h:1,fill:"#111"},{x:17,y:19,w:1,h:1,fill:"#111"},{x:15,y:20,w:2,h:1,fill:"#111"},{x:14,y:21,w:1,h:1,fill:"#111"},{x:17,y:21,w:1,h:1,fill:"#111"},{x:7,y:26,w:3,h:2,fill:"#fff"},{x:22,y:26,w:3,h:2,fill:"#fff"},{x:8,y:28,w:2,h:1,fill:"#fff"},{x:23,y:28,w:2,h:1,fill:"#fff"},{x:26,y:23,w:3,h:2,fill:"#111"},{x:28,y:21,w:2,h:2,fill:"#fff"},{x:29,y:19,w:2,h:2,fill:"#111"}],
+  earIdx:[0,5], eyeIdx:[15,22], colors:{B:"#111",D:"#1a1a1a"}},
+calico: {rects:[{x:6,y:2,w:3,h:3,fill:"#FF9F43"},{x:7,y:1,w:2,h:1,fill:"#FF9F43"},{x:23,y:2,w:3,h:3,fill:"#111"},{x:23,y:1,w:2,h:1,fill:"#111"},{x:7,y:2,w:1,h:2,fill:"#CC6611"},{x:24,y:2,w:1,h:2,fill:"#333"},{x:5,y:4,w:22,h:14,fill:"#fff"},{x:4,y:5,w:24,h:12,fill:"#fff"},{x:3,y:7,w:26,h:8,fill:"#fff"},{x:4,y:5,w:8,h:8,fill:"#FF9F43"},{x:3,y:7,w:3,h:5,fill:"#FF9F43"},{x:20,y:4,w:7,h:9,fill:"#111"},{x:25,y:7,w:4,h:5,fill:"#111"},{x:10,y:6,w:3,h:3,fill:"#FF9F43"},{x:19,y:7,w:2,h:2,fill:"#111"},{x:9,y:10,w:4,h:3,fill:"#fff"},{x:19,y:10,w:4,h:3,fill:"#fff"},{x:10,y:11,w:2,h:2,fill:"#38B149"},{x:11,y:11,w:1,h:2,fill:"#000"},{x:10,y:10,w:1,h:1,fill:"#fff"},{x:20,y:11,w:2,h:2,fill:"#44AAFF"},{x:21,y:11,w:1,h:2,fill:"#000"},{x:20,y:10,w:1,h:1,fill:"#fff"},{x:15,y:14,w:2,h:1,fill:"#FF9999"},{x:14,y:15,w:1,h:1,fill:"#CC6611"},{x:17,y:15,w:1,h:1,fill:"#CC6611"},{x:15,y:16,w:2,h:1,fill:"#CC6611"},{x:7,y:17,w:18,h:10,fill:"#fff"},{x:5,y:19,w:22,h:8,fill:"#fff"},{x:4,y:21,w:24,h:6,fill:"#fff"},{x:7,y:18,w:6,h:6,fill:"#FF9F43"},{x:20,y:19,w:7,h:7,fill:"#111"},{x:5,y:21,w:4,h:4,fill:"#FF9F43"},{x:26,y:23,w:3,h:2,fill:"#111"},{x:28,y:21,w:2,h:2,fill:"#FF9F43"},{x:29,y:19,w:2,h:2,fill:"#111"},{x:7,y:26,w:3,h:2,fill:"#FF9F43"},{x:22,y:26,w:3,h:2,fill:"#111"},{x:8,y:28,w:2,h:1,fill:"#FF9F43"},{x:23,y:28,w:2,h:1,fill:"#111"}],
+  earIdx:[0,5], eyeIdx:[15,22], colors:{B:"#fff",D:"#111"}},
+siamese: {rects:[{x:6,y:2,w:3,h:3,fill:"#5a3a2a"},{x:7,y:1,w:2,h:1,fill:"#5a3a2a"},{x:23,y:2,w:3,h:3,fill:"#5a3a2a"},{x:23,y:1,w:2,h:1,fill:"#5a3a2a"},{x:7,y:2,w:1,h:2,fill:"#3a2a1a"},{x:24,y:2,w:1,h:2,fill:"#3a2a1a"},{x:5,y:4,w:22,h:14,fill:"#D4C0A8"},{x:4,y:5,w:24,h:12,fill:"#D4C0A8"},{x:3,y:7,w:26,h:8,fill:"#D4C0A8"},{x:6,y:4,w:20,h:6,fill:"#5a3a2a"},{x:5,y:5,w:22,h:4,fill:"#5a3a2a"},{x:7,y:3,w:18,h:2,fill:"#5a3a2a"},{x:8,y:8,w:16,h:1,fill:"#8a6a5a"},{x:9,y:9,w:14,h:1,fill:"#aa8a7a"},{x:9,y:10,w:4,h:2,fill:"#fff"},{x:19,y:10,w:4,h:2,fill:"#fff"},{x:10,y:10,w:2,h:2,fill:"#4080c0"},{x:20,y:10,w:2,h:2,fill:"#4080c0"},{x:11,y:10,w:1,h:2,fill:"#000"},{x:21,y:10,w:1,h:2,fill:"#000"},{x:10,y:10,w:1,h:1,fill:"#fff"},{x:20,y:10,w:1,h:1,fill:"#fff"},{x:5,y:11,w:2,h:3,fill:"#C4B098"},{x:25,y:11,w:2,h:3,fill:"#C4B098"},{x:15,y:13,w:2,h:1,fill:"#aa7a6a"},{x:14,y:14,w:1,h:1,fill:"#5a3a2a"},{x:17,y:14,w:1,h:1,fill:"#5a3a2a"},{x:15,y:15,w:2,h:1,fill:"#5a3a2a"},{x:7,y:17,w:18,h:10,fill:"#D4C0A8"},{x:5,y:19,w:22,h:8,fill:"#D4C0A8"},{x:4,y:21,w:24,h:6,fill:"#D4C0A8"},{x:7,y:18,w:18,h:1,fill:"#C4B098"},{x:5,y:20,w:22,h:1,fill:"#C4B098"},{x:4,y:22,w:24,h:1,fill:"#C4B098"},{x:7,y:26,w:3,h:2,fill:"#5a3a2a"},{x:22,y:26,w:3,h:2,fill:"#5a3a2a"},{x:8,y:28,w:2,h:1,fill:"#5a3a2a"},{x:23,y:28,w:2,h:1,fill:"#5a3a2a"},{x:26,y:23,w:3,h:2,fill:"#5a3a2a"},{x:28,y:21,w:2,h:2,fill:"#5a3a2a"},{x:29,y:19,w:2,h:2,fill:"#5a3a2a"}],
+  earIdx:[0,5], eyeIdx:[14,21], colors:{B:"#D4C0A8",D:"#5a3a2a"}},
+black_cat: {rects:[{x:6,y:2,w:3,h:3,fill:"#141414"},{x:7,y:1,w:2,h:1,fill:"#141414"},{x:23,y:2,w:3,h:3,fill:"#141414"},{x:23,y:1,w:2,h:1,fill:"#141414"},{x:7,y:2,w:1,h:2,fill:"#0a0a0a"},{x:24,y:2,w:1,h:2,fill:"#0a0a0a"},{x:5,y:4,w:22,h:14,fill:"#141414"},{x:4,y:5,w:24,h:12,fill:"#141414"},{x:3,y:7,w:26,h:8,fill:"#141414"},{x:8,y:6,w:16,h:6,fill:"#1c1c1c"},{x:10,y:5,w:12,h:2,fill:"#1c1c1c"},{x:9,y:10,w:4,h:3,fill:"#FFC840"},{x:19,y:10,w:4,h:3,fill:"#FFC840"},{x:8,y:10,w:1,h:3,fill:"#aa8800"},{x:13,y:10,w:1,h:3,fill:"#aa8800"},{x:18,y:10,w:1,h:3,fill:"#aa8800"},{x:23,y:10,w:1,h:3,fill:"#aa8800"},{x:11,y:10,w:1,h:3,fill:"#000"},{x:21,y:10,w:1,h:3,fill:"#000"},{x:10,y:10,w:1,h:1,fill:"#fff"},{x:20,y:10,w:1,h:1,fill:"#fff"},{x:15,y:14,w:2,h:1,fill:"#333"},{x:14,y:15,w:1,h:1,fill:"#222"},{x:17,y:15,w:1,h:1,fill:"#222"},{x:15,y:15,w:2,h:1,fill:"#1a1a1a"},{x:7,y:17,w:18,h:10,fill:"#141414"},{x:5,y:19,w:22,h:8,fill:"#141414"},{x:4,y:21,w:24,h:6,fill:"#141414"},{x:7,y:18,w:18,h:1,fill:"#1c1c1c"},{x:5,y:20,w:22,h:1,fill:"#1c1c1c"},{x:4,y:22,w:24,h:1,fill:"#1c1c1c"},{x:26,y:23,w:3,h:2,fill:"#141414"},{x:28,y:21,w:2,h:2,fill:"#141414"},{x:29,y:19,w:2,h:2,fill:"#141414"},{x:7,y:26,w:3,h:2,fill:"#141414"},{x:22,y:26,w:3,h:2,fill:"#141414"},{x:8,y:28,w:2,h:1,fill:"#0a0a0a"},{x:23,y:28,w:2,h:1,fill:"#0a0a0a"}],
+  earIdx:[0,5], eyeIdx:[11,20], colors:{B:"#141414",D:"#0a0a0a"}},
+ragdoll: {rects:[{x:5,y:2,w:4,h:4,fill:"#E8DDD0"},{x:6,y:1,w:3,h:1,fill:"#E8DDD0"},{x:23,y:2,w:4,h:4,fill:"#E8DDD0"},{x:23,y:1,w:3,h:1,fill:"#E8DDD0"},{x:4,y:3,w:1,h:3,fill:"#D8CDC0"},{x:27,y:3,w:1,h:3,fill:"#D8CDC0"},{x:5,y:1,w:2,h:1,fill:"#D8CDC0"},{x:25,y:1,w:2,h:1,fill:"#D8CDC0"},{x:6,y:3,w:2,h:2,fill:"#C0A890"},{x:24,y:3,w:2,h:2,fill:"#C0A890"},{x:5,y:5,w:22,h:14,fill:"#E8DDD0"},{x:4,y:6,w:24,h:12,fill:"#E8DDD0"},{x:3,y:8,w:26,h:8,fill:"#E8DDD0"},{x:7,y:5,w:18,h:7,fill:"#C0A890"},{x:6,y:6,w:20,h:5,fill:"#C0A890"},{x:8,y:4,w:16,h:2,fill:"#C0A890"},{x:8,y:9,w:16,h:1,fill:"#D0C0A8"},{x:9,y:10,w:14,h:1,fill:"#D8C8B0"},{x:9,y:11,w:4,h:3,fill:"#fff"},{x:19,y:11,w:4,h:3,fill:"#fff"},{x:10,y:12,w:2,h:2,fill:"#6090D0"},{x:20,y:12,w:2,h:2,fill:"#6090D0"},{x:11,y:12,w:1,h:2,fill:"#000"},{x:21,y:12,w:1,h:2,fill:"#000"},{x:10,y:11,w:1,h:1,fill:"#fff"},{x:20,y:11,w:1,h:1,fill:"#fff"},{x:12,y:14,w:8,h:3,fill:"#fff"},{x:10,y:15,w:2,h:2,fill:"#fff"},{x:20,y:15,w:2,h:2,fill:"#fff"},{x:15,y:14,w:2,h:1,fill:"#FFAAAA"},{x:14,y:16,w:1,h:1,fill:"#C0A890"},{x:17,y:16,w:1,h:1,fill:"#C0A890"},{x:15,y:17,w:2,h:1,fill:"#C0A890"},{x:6,y:18,w:20,h:10,fill:"#E8DDD0"},{x:4,y:20,w:24,h:8,fill:"#E8DDD0"},{x:3,y:22,w:26,h:6,fill:"#E8DDD0"},{x:6,y:19,w:20,h:1,fill:"#D8CDC0"},{x:4,y:21,w:24,h:1,fill:"#D8CDC0"},{x:3,y:23,w:26,h:1,fill:"#D8CDC0"},{x:3,y:20,w:1,h:4,fill:"#D8CDC0"},{x:28,y:20,w:1,h:4,fill:"#D8CDC0"},{x:11,y:19,w:10,h:7,fill:"#fff"},{x:9,y:21,w:2,h:4,fill:"#fff"},{x:21,y:21,w:2,h:4,fill:"#fff"},{x:6,y:27,w:4,h:2,fill:"#fff"},{x:22,y:27,w:4,h:2,fill:"#fff"},{x:7,y:29,w:2,h:1,fill:"#fff"},{x:23,y:29,w:2,h:1,fill:"#fff"},{x:27,y:24,w:3,h:3,fill:"#E8DDD0"},{x:29,y:22,w:2,h:2,fill:"#D8CDC0"},{x:30,y:20,w:1,h:2,fill:"#E8DDD0"}],
+  earIdx:[0,9], eyeIdx:[18,25], colors:{B:"#E8DDD0",D:"#C0A890"}},
+scottish_fold: {rects:[{x:5,y:4,w:5,h:2,fill:"#D4B896"},{x:6,y:3,w:4,h:1,fill:"#D4B896"},{x:22,y:4,w:5,h:2,fill:"#D4B896"},{x:22,y:3,w:4,h:1,fill:"#D4B896"},{x:5,y:4,w:5,h:1,fill:"#C4A886"},{x:22,y:4,w:5,h:1,fill:"#C4A886"},{x:6,y:4,w:3,h:1,fill:"#C4A886"},{x:23,y:4,w:3,h:1,fill:"#C4A886"},{x:5,y:5,w:22,h:14,fill:"#D4B896"},{x:4,y:6,w:24,h:12,fill:"#D4B896"},{x:3,y:8,w:26,h:8,fill:"#D4B896"},{x:3,y:10,w:2,h:4,fill:"#D4B896"},{x:27,y:10,w:2,h:4,fill:"#D4B896"},{x:2,y:11,w:1,h:2,fill:"#D4B896"},{x:29,y:11,w:1,h:2,fill:"#D4B896"},{x:8,y:7,w:16,h:5,fill:"#E4C8A6"},{x:10,y:6,w:12,h:2,fill:"#E4C8A6"},{x:9,y:11,w:4,h:4,fill:"#fff"},{x:19,y:11,w:4,h:4,fill:"#fff"},{x:10,y:12,w:2,h:2,fill:"#88CC44"},{x:20,y:12,w:2,h:2,fill:"#88CC44"},{x:11,y:12,w:1,h:2,fill:"#000"},{x:21,y:12,w:1,h:2,fill:"#000"},{x:10,y:11,w:1,h:1,fill:"#fff"},{x:20,y:11,w:1,h:1,fill:"#fff"},{x:6,y:13,w:2,h:2,fill:"#E8A090"},{x:24,y:13,w:2,h:2,fill:"#E8A090"},{x:15,y:15,w:2,h:1,fill:"#FFAAAA"},{x:14,y:16,w:1,h:1,fill:"#C4A886"},{x:17,y:16,w:1,h:1,fill:"#C4A886"},{x:15,y:17,w:2,h:1,fill:"#C4A886"},{x:7,y:18,w:18,h:10,fill:"#D4B896"},{x:5,y:20,w:22,h:8,fill:"#D4B896"},{x:4,y:22,w:24,h:6,fill:"#D4B896"},{x:7,y:19,w:18,h:1,fill:"#C4A886"},{x:5,y:21,w:22,h:1,fill:"#C4A886"},{x:4,y:23,w:24,h:1,fill:"#C4A886"},{x:3,y:21,w:1,h:4,fill:"#D4B896"},{x:28,y:21,w:1,h:4,fill:"#D4B896"},{x:26,y:24,w:3,h:2,fill:"#D4B896"},{x:28,y:22,w:2,h:2,fill:"#C4A886"},{x:7,y:27,w:3,h:2,fill:"#E4C8A6"},{x:22,y:27,w:3,h:2,fill:"#E4C8A6"},{x:8,y:29,w:2,h:1,fill:"#E4C8A6"},{x:23,y:29,w:2,h:1,fill:"#E4C8A6"}],
+  earIdx:[0,7], eyeIdx:[17,24], colors:{B:"#D4B896",D:"#C4A886"}},
+};
+
+// ═══════════════ PALETTE REMAP ═══════════════
+const PAL = {
+  default: ()=>null, // no remap
+  warm: ()=>({B:"#FF9F43",D:"#CC6611"}),
+  cool: ()=>({B:"#9BA4B5",D:"#6B7B8D"}),
+  cream: ()=>({B:"#D4C0A8",D:"#B0A090"}),
+  charcoal: ()=>({B:"#3a3a3a",D:"#1a1a1a"}),
+  snow: ()=>({B:"#F5F0EB",D:"#D0C8C0"}),
+};
+
+// ═══════════════ EYE OVERLAYS ═══════════════
+// Eye types — v3 style: whites fill → 2×2 iris → 1×2 pupil → single highlight
+// Each takes box {x,y,w,h} + base color (may be non-white for black_cat)
+const EYE = {
+  dot:(b,bg)=>{ // v3 natural eye — 2×2 iris + pupil right + 1 highlight top
+    const iy=b.h<=2?b.y:b.y+1, ih=2;
+    return [
+    {x:b.x,y:b.y,w:b.w,h:b.h,fill:bg||'#fff'},
+    {x:b.x+1,y:iy,w:2,h:ih,fill:'#38B149'},
+    {x:b.x+2,y:iy,w:1,h:ih,fill:'#000'},
+    {x:b.x+1,y:b.y,w:1,h:1,fill:'#fff'},
+  ];},
+  sparkle:(b,bg)=>{ // golden shimmer
+    const iy=b.h<=2?b.y:b.y+1, ih=2;
+    return [
+    {x:b.x,y:b.y,w:b.w,h:b.h,fill:bg||'#fff'},
+    {x:b.x+1,y:iy,w:2,h:ih,fill:'#FFC840'},
+    {x:b.x+2,y:iy,w:1,h:ih,fill:'#aa7700'},
+    {x:b.x+1,y:b.y,w:1,h:1,fill:'#fff'},
+    {x:b.x,y:b.y,w:1,h:1,fill:'#FFF8A0'},
+    {x:b.x+b.w-1,y:b.y+b.h-1,w:1,h:1,fill:'#FFF8A0'},
+  ];},
+  big:(b,bg)=>[ // expressive — larger dark iris with 3 catchlights
+    {x:b.x,y:b.y,w:b.w,h:b.h,fill:bg||'#fff'},
+    {x:b.x+1,y:b.y+1,w:b.w-1,h:b.h-1,fill:'#2a2a2a'},    // dark iris fills more
+    {x:b.x+1,y:b.y,w:1,h:1,fill:'#fff'},                  // catchlight top
+    {x:b.x+3,y:b.y+1,w:1,h:1,fill:'#fff'},                // catchlight right
+    {x:b.x+2,y:b.y+2,w:1,h:1,fill:'#fff'},                // catchlight bottom
+  ],
+  round:(b,bg)=>[ // ring iris — hollow center
+    {x:b.x,y:b.y,w:b.w,h:b.h,fill:bg||'#fff'},
+    {x:b.x+1,y:b.y+1,w:2,h:b.h-1,fill:'#44AAFF'},         // blue iris ring
+    {x:b.x+2,y:b.y+1,w:1,h:b.h-1,fill:'#000'},            // pupil
+    {x:b.x+1,y:b.y+1,w:1,h:1,fill:bg||'#fff'},            // hollow center pixel
+    {x:b.x+1,y:b.y,w:1,h:1,fill:'#fff'},                  // highlight
+  ],
+  heart:(b,bg)=>[ // pink heart iris
+    {x:b.x,y:b.y,w:b.w,h:b.h,fill:bg||'#fff'},
+    {x:b.x+1,y:b.y+1,w:2,h:2,fill:'#FF69B4'},             // heart center
+    {x:b.x,y:b.y+2,w:1,h:1,fill:'#FF69B4'},               // left lobe
+    {x:b.x+3,y:b.y+2,w:1,h:1,fill:'#FF69B4'},             // right lobe
+    {x:b.x+2,y:b.y+2,w:1,h:1,fill:'#111'},                // tiny pupil
+    {x:b.x+1,y:b.y,w:1,h:1,fill:'#fff'},                  // highlight
+  ],
+  star:(b,bg)=>[ // golden star/cross iris
+    {x:b.x,y:b.y,w:b.w,h:b.h,fill:bg||'#fff'},
+    {x:b.x+1,y:b.y+1,w:2,h:2,fill:'#FFD700'},             // gold center
+    {x:b.x,y:b.y+1,w:1,h:1,fill:'#FFD700'},               // left point
+    {x:b.x+3,y:b.y+1,w:1,h:1,fill:'#FFD700'},             // right point
+    {x:b.x+2,y:b.y,w:1,h:1,fill:'#FFD700'},               // top point
+    {x:b.x+1,y:b.y+2,w:1,h:1,fill:'#FFD700'},             // bottom point
+    {x:b.x+2,y:b.y+1,w:1,h:1,fill:'#000'},                // center pupil
+    {x:b.x+1,y:b.y,w:1,h:1,fill:'#fff'},                  // highlight
+  ],
+};
+
+// ═══════════════ EAR OVERLAYS ═══════════════
+const EAR = {
+  cat:(b,d)=>[
+    {x:6,y:2,w:3,h:3,fill:b},{x:7,y:1,w:2,h:1,fill:b},{x:23,y:2,w:3,h:3,fill:b},{x:23,y:1,w:2,h:1,fill:b},
+    {x:7,y:2,w:1,h:2,fill:d},{x:24,y:2,w:1,h:2,fill:d},
+  ],
+  rabbit:(b,d,l)=>[
+    {x:7,y:0,w:2,h:4,fill:b},{x:8,y:0,w:1,h:4,fill:l},{x:23,y:0,w:2,h:4,fill:b},{x:23,y:0,w:1,h:4,fill:l},
+    {x:8,y:3,w:1,h:1,fill:d},{x:23,y:3,w:1,h:1,fill:d},
+  ],
+  mix:(b,d,l)=>[
+    {x:6,y:2,w:3,h:3,fill:b},{x:7,y:1,w:2,h:1,fill:b},{x:7,y:2,w:1,h:2,fill:d},
+    {x:23,y:0,w:2,h:4,fill:b},{x:23,y:0,w:1,h:4,fill:l},{x:23,y:3,w:1,h:1,fill:d},
+  ],
+};
+
+// ═══════════════ HAT OVERLAYS ═══════════════
+const HAT = {
+  none:()=>[],
+  crown:()=>[
+    {x:9,y:0,w:14,h:2,fill:"#FFD700"},{x:10,y:-1,w:12,h:1,fill:"#FFD700"},
+    {x:10,y:-4,w:3,h:4,fill:"#FFD700"},{x:13,y:-5,w:6,h:5,fill:"#FFD700"},{x:19,y:-4,w:3,h:4,fill:"#FFD700"},
+    {x:11,y:-4,w:1,h:1,fill:"#FF4444"},{x:15,y:-5,w:2,h:1,fill:"#FF4444"},{x:19,y:-4,w:1,h:1,fill:"#FF4444"},
+    {x:11,y:0,w:1,h:2,fill:"#FFA500"},{x:19,y:0,w:1,h:2,fill:"#FFA500"},
+  ],
+  tophat:()=>[
+    {x:7,y:-2,w:18,h:2,fill:"#111"},{x:8,y:-1,w:16,h:1,fill:"#222"},
+    {x:10,y:-8,w:12,h:6,fill:"#111"},{x:11,y:-8,w:10,h:3,fill:"#2a2a2a"},
+    {x:10,y:-3,w:12,h:1,fill:"#cc4444"},{x:12,y:-8,w:8,h:1,fill:"#3a3a3a"},
+  ],
+  propeller:()=>[
+    {x:11,y:-2,w:10,h:3,fill:"#ff9f43"},{x:12,y:-3,w:8,h:1,fill:"#cc6611"},
+    {x:15,y:-6,w:2,h:4,fill:"#888"},{x:10,y:-7,w:12,h:1,fill:"#ddd"},
+    {x:9,y:-8,w:14,h:1,fill:"#ccc"},{x:15,y:-7,w:2,h:2,fill:"#ff4444"},
+    {x:10,y:-8,w:1,h:1,fill:"#aaa"},{x:21,y:-8,w:1,h:1,fill:"#aaa"},
+  ],
+  halo:()=>[
+    {x:8,y:-5,w:2,h:1,fill:"#FFD700"},{x:6,y:-4,w:2,h:1,fill:"#FFD700"},{x:5,y:-3,w:1,h:2,fill:"#FFD700"},
+    {x:22,y:-5,w:2,h:1,fill:"#FFD700"},{x:24,y:-4,w:2,h:1,fill:"#FFD700"},{x:26,y:-3,w:1,h:2,fill:"#FFD700"},
+    {x:10,y:-6,w:4,h:1,fill:"#FFD700"},{x:14,y:-7,w:4,h:1,fill:"#FFD700"},{x:18,y:-6,w:4,h:1,fill:"#FFD700"},
+    {x:14,y:-8,w:1,h:1,fill:"#FFF8A0"},{x:17,y:-8,w:1,h:1,fill:"#FFF8A0"},
+    {x:4,y:-2,w:1,h:1,fill:"#FFF8A0"},{x:27,y:-2,w:1,h:1,fill:"#FFF8A0"},
+  ],
+  wizard:()=>[
+    {x:7,y:-2,w:18,h:2,fill:"#2a2a6a"},{x:8,y:-1,w:16,h:1,fill:"#3a3a8a"},
+    {x:11,y:-10,w:10,h:8,fill:"#2a2a6a"},{x:12,y:-10,w:8,h:4,fill:"#3a3a8a"},
+    {x:14,y:-12,w:4,h:2,fill:"#2a2a6a"},{x:15,y:-13,w:2,h:1,fill:"#3a3a8a"},
+    {x:11,y:-3,w:10,h:1,fill:"#FFD700"},
+    {x:13,y:-7,w:1,h:1,fill:"#FFD700"},{x:18,y:-8,w:1,h:1,fill:"#FFD700"},{x:14,y:-5,w:1,h:1,fill:"#FFD700"},
+  ],
+  beanie:()=>[
+    {x:9,y:-4,w:14,h:5,fill:"#cc4444"},{x:10,y:-5,w:12,h:1,fill:"#cc4444"},
+    {x:9,y:-3,w:14,h:1,fill:"#eee"},{x:9,y:-1,w:14,h:1,fill:"#eee"},
+    {x:8,y:1,w:16,h:2,fill:"#aa3333"},{x:9,y:0,w:14,h:1,fill:"#cc4444"},
+    {x:13,y:-6,w:2,h:2,fill:"#eee"},{x:14,y:-5,w:2,h:1,fill:"#eee"},
+    {x:14,y:-7,w:2,h:1,fill:"#eee"},{x:15,y:-6,w:1,h:1,fill:"#eee"},
+  ],
+  tinyduck:()=>[
+    {x:13,y:-2,w:6,h:4,fill:"#FFD700"},{x:12,y:-4,w:4,h:3,fill:"#FFD700"},
+    {x:13,y:-5,w:2,h:1,fill:"#FFD700"},{x:15,y:-3,w:3,h:1,fill:"#FF8C00"},
+    {x:16,y:-2,w:2,h:1,fill:"#FF8C00"},{x:13,y:-4,w:1,h:1,fill:"#000"},
+    {x:17,y:-1,w:1,h:2,fill:"#eec800"},{x:14,y:2,w:2,h:1,fill:"#FF8C00"},{x:17,y:2,w:2,h:1,fill:"#FF8C00"},
+  ],
+};
+
+// ═══════════════ RENDER ═══════════════
+function R(g,x,y,w,h,fill){return{g:g||'',x,y,w,h,fill};}
+const NS='http://www.w3.org/2000/svg';
+function el(t,a){const e=document.createElementNS(NS,t);for(const[k,v]of Object.entries(a))e.setAttribute(k,v);return e;}
+
+function build(breed,eyeType,earType,hatName,palKey,shiny){
+  const svg=el('svg',{width:'240',height:'272',viewBox:'0 -14 32 46','shape-rendering':'crispEdges'});
+  const data=V3[breed];
+  const rects=data.rects;
+  const[es,ee]=data.earIdx; const[is,ie]=data.eyeIdx;
+
+  // palette
+  let bC=data.colors.B, dC=data.colors.D;
+  if(palKey!=='default'){const p=PAL[palKey](); bC=p.B; dC=p.D;}
+
+  // Render body (skip ear + eye ranges)
+  for(let i=0;i<rects.length;i++){
+    if(i>=es&&i<=ee)continue; // skip ears
+    if(i>=is&&i<=ie)continue; // skip eyes
+    const r=rects[i]; let f=r.fill;
+    // remap main breed colors
+    if(f===data.colors.B)f=bC; else if(f===data.colors.D)f=dC;
+    svg.appendChild(el('rect',{x:r.x,y:r.y,width:r.w,height:r.h,fill:f}));
+  }
+
+  // Ear overlay
+  const earG=el('g',{});
+  const earRects=EAR[earType](bC,dC,bC+'80'); // light = body + alpha-ish (use body for simplicity)
+  earRects.forEach(r=>earG.appendChild(el('rect',{x:r.x,y:r.y,width:r.w,height:r.h,fill:r.fill===(bC+'80')?bC:r.fill})));
+  svg.appendChild(earG);
+
+  // Eye overlay: use BOTH eye boxes from v3 data
+  const leftBox = rects[is];
+  const rightBox = rects[is+1] || {x:leftBox.x+10,y:leftBox.y,w:leftBox.w,h:leftBox.h,fill:leftBox.fill};
+  const eyeBG = leftBox.fill; // black_cat has yellow (#FFC840), others white
+  const eyeG=el('g',{});
+  [leftBox, rightBox].forEach(box=>{
+    EYE[eyeType](box, eyeBG).forEach(r=>eyeG.appendChild(el('rect',{x:r.x,y:r.y,width:r.w,height:r.h,fill:r.fill})));
+  });
+  svg.appendChild(eyeG);
+
+  // Hat
+  const hatG=el('g',{});
+  HAT[hatName]().forEach(r=>hatG.appendChild(el('rect',{x:r.x,y:r.y,width:r.w,height:r.h,fill:r.fill})));
+  svg.appendChild(hatG);
+
+  // Shiny
+  if(shiny){const sg=el('g',{});[{x:-1,y:3},{x:31,y:5},{x:-1,y:12},{x:31,y:16},{x:1,y:22},{x:30,y:25}].forEach(({x,y})=>sg.appendChild(el('rect',{x,y,width:'1',height:'1',fill:'#FFD700',opacity:'0.7'})));svg.appendChild(sg);}
+
+  return svg;
+}
+
+function svgStr(svg){return new XMLSerializer().serializeToString(svg.cloneNode(true));}
+
+// ═══════════════ UI ═══════════════
+const box=document.getElementById('preview-box'),out=document.getElementById('svg-output'),msg=document.getElementById('copied-msg');
+const sel=id=>document.getElementById('sel-'+id).value;
+function update(){
+  box.innerHTML='';
+  box.appendChild(build(sel('breed'),sel('eye'),sel('ear'),sel('hat'),sel('palette'),document.getElementById('sel-shiny').checked));
+  out.value=svgStr(box.firstChild);
+}
+['breed','eye','ear','hat','palette'].forEach(id=>document.getElementById('sel-'+id).addEventListener('change',update));
+document.getElementById('sel-shiny').addEventListener('change',update);
+
+function randomize(){
+  const pk=a=>a[Math.floor(Math.random()*a.length)];
+  document.getElementById('sel-breed').value=pk(['orange_tabby','tuxedo','calico','siamese','black_cat','ragdoll','scottish_fold']);
+  document.getElementById('sel-eye').value=pk(['dot','sparkle','big','round','heart','star']);
+  document.getElementById('sel-ear').value=pk(['cat','rabbit','mix']);
+  document.getElementById('sel-hat').value=pk(['none','crown','tophat','propeller','halo','wizard','beanie','tinyduck']);
+  document.getElementById('sel-palette').value=pk(['default','warm','cool','cream','charcoal','snow']);
+  document.getElementById('sel-shiny').checked=Math.random()<0.1; update();
+}
+function copySVG(){navigator.clipboard.writeText(out.value).then(()=>{msg.classList.add('show');setTimeout(()=>msg.classList.remove('show'),2000);});}
+
+update();
+</script>
+</body>
+</html>

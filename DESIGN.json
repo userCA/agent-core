@@ -1,0 +1,337 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-08T00:00:00+08:00",
+  "title": "Design System: 咪兔 MiTu",
+  "extensions": {
+    "colorMeta": {
+      "warm-paper": {
+        "role": "neutral",
+        "displayName": "Warm Paper White",
+        "canonical": "oklch(98% 0.005 15)",
+        "tonalRamp": [
+          "oklch(15% 0.003 15)",
+          "oklch(25% 0.003 15)",
+          "oklch(40% 0.003 15)",
+          "oklch(60% 0.003 15)",
+          "oklch(80% 0.003 15)",
+          "oklch(90% 0.004 15)",
+          "oklch(95% 0.004 15)",
+          "oklch(98% 0.005 15)"
+        ]
+      },
+      "warm-charcoal": {
+        "role": "neutral",
+        "displayName": "Warm Charcoal",
+        "canonical": "oklch(13% 0.003 15)",
+        "tonalRamp": [
+          "oklch(8% 0.002 15)",
+          "oklch(13% 0.003 15)",
+          "oklch(20% 0.003 15)",
+          "oklch(30% 0.003 15)",
+          "oklch(45% 0.003 15)",
+          "oklch(65% 0.003 15)",
+          "oklch(85% 0.004 15)",
+          "oklch(95% 0.004 15)"
+        ]
+      },
+      "soft-cloud": {
+        "role": "neutral",
+        "displayName": "Soft Cloud",
+        "canonical": "oklch(95% 0.003 15)",
+        "tonalRamp": [
+          "oklch(15% 0.003 15)",
+          "oklch(30% 0.003 15)",
+          "oklch(50% 0.003 15)",
+          "oklch(70% 0.003 15)",
+          "oklch(85% 0.003 15)",
+          "oklch(90% 0.003 15)",
+          "oklch(95% 0.003 15)",
+          "oklch(98% 0.005 15)"
+        ]
+      },
+      "warm-porcelain": {
+        "role": "neutral",
+        "displayName": "Warm Porcelain",
+        "canonical": "oklch(92% 0.003 15)",
+        "tonalRamp": [
+          "oklch(15% 0.003 15)",
+          "oklch(30% 0.003 15)",
+          "oklch(50% 0.003 15)",
+          "oklch(70% 0.003 15)",
+          "oklch(82% 0.003 15)",
+          "oklch(88% 0.003 15)",
+          "oklch(92% 0.003 15)",
+          "oklch(98% 0.005 15)"
+        ]
+      },
+      "companion-blue": {
+        "role": "primary",
+        "displayName": "Companion Blue",
+        "canonical": "oklch(55% 0.26 260)",
+        "tonalRamp": [
+          "oklch(15% 0.18 260)",
+          "oklch(25% 0.22 260)",
+          "oklch(35% 0.25 260)",
+          "oklch(45% 0.26 260)",
+          "oklch(55% 0.26 260)",
+          "oklch(70% 0.22 260)",
+          "oklch(85% 0.12 260)",
+          "oklch(95% 0.04 260)"
+        ]
+      },
+      "rose": {
+        "role": "semantic",
+        "displayName": "Rose",
+        "canonical": "oklch(55% 0.24 25)",
+        "tonalRamp": [
+          "oklch(15% 0.12 25)",
+          "oklch(25% 0.18 25)",
+          "oklch(35% 0.22 25)",
+          "oklch(45% 0.24 25)",
+          "oklch(55% 0.24 25)",
+          "oklch(70% 0.18 25)",
+          "oklch(85% 0.08 25)",
+          "oklch(95% 0.03 25)"
+        ]
+      },
+      "sage": {
+        "role": "semantic",
+        "displayName": "Sage",
+        "canonical": "oklch(65% 0.18 145)",
+        "tonalRamp": [
+          "oklch(15% 0.10 145)",
+          "oklch(25% 0.14 145)",
+          "oklch(35% 0.17 145)",
+          "oklch(50% 0.19 145)",
+          "oklch(65% 0.18 145)",
+          "oklch(80% 0.12 145)",
+          "oklch(90% 0.06 145)",
+          "oklch(96% 0.03 145)"
+        ]
+      },
+      "honey": {
+        "role": "semantic",
+        "displayName": "Honey",
+        "canonical": "oklch(70% 0.18 75)",
+        "tonalRamp": [
+          "oklch(15% 0.12 75)",
+          "oklch(25% 0.16 75)",
+          "oklch(40% 0.18 75)",
+          "oklch(55% 0.19 75)",
+          "oklch(70% 0.18 75)",
+          "oklch(82% 0.14 75)",
+          "oklch(90% 0.08 75)",
+          "oklch(96% 0.04 75)"
+        ]
+      },
+      "pastel-sky-bg": {
+        "role": "accent",
+        "displayName": "Pastel Sky",
+        "canonical": "oklch(94% 0.025 245)",
+        "tonalRamp": [
+          "oklch(20% 0.08 245)",
+          "oklch(35% 0.12 245)",
+          "oklch(50% 0.14 245)",
+          "oklch(65% 0.10 245)",
+          "oklch(80% 0.06 245)",
+          "oklch(88% 0.04 245)",
+          "oklch(94% 0.025 245)",
+          "oklch(97% 0.01 245)"
+        ]
+      },
+      "pastel-rose-bg": {
+        "role": "accent",
+        "displayName": "Pastel Rose",
+        "canonical": "oklch(94% 0.025 15)",
+        "tonalRamp": [
+          "oklch(20% 0.08 15)",
+          "oklch(35% 0.12 15)",
+          "oklch(50% 0.14 15)",
+          "oklch(65% 0.10 15)",
+          "oklch(80% 0.06 15)",
+          "oklch(88% 0.04 15)",
+          "oklch(94% 0.025 15)",
+          "oklch(97% 0.01 15)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "登录页品牌名「咪兔」— 仅欢迎屏幕。Serif 编辑感手作温度。"
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "所有正文、消息气泡、设置描述。14px system sans 优化中文渲染。最大行长 72ch。"
+      },
+      "label": {
+        "displayName": "Label / Mono",
+        "purpose": "标签、时间戳、分类、状态徽章、代码。11px mono 贯穿 UI 的标志性纹理。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "hover-subtle",
+        "value": "0 2px 8px rgba(0,0,0,0.04)",
+        "purpose": "Hover 状态极轻阴影 — 可选，用于卡片/可点击面的微反馈。"
+      },
+      {
+        "name": "modal-backdrop",
+        "value": "0 0 0 9999px rgba(0,0,0,0.35)",
+        "purpose": "Modal/Dialog 背景遮罩。唯一的重阴影 — 切断与下方内容的视觉连接。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "默认状态过渡 — border-color, background, color 变化。150ms。"
+      },
+      {
+        "name": "ease-press",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "按钮按压反馈 — transform scale(0.98)。100ms。"
+      },
+      {
+        "name": "spring-enter",
+        "value": "spring (motion/react default, stiffness 500, damping 35)",
+        "purpose": "Modal/Toast/Dialog 进入动画。自然弹簧感。"
+      },
+      {
+        "name": "fade-page",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "页面切换 — opacity fade。120-180ms。AnimatePresence mode=wait。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "768px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "主行动按钮。深色填充，hover 时惊喜性变色。",
+      "html": "<button class=\"ds-btn-primary\">发送消息</button>",
+      "css": ".ds-btn-primary { background: #201d1d; color: #fdfcfc; padding: 6px 14px; border: 1px solid #201d1d; border-radius: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; min-height: 44px; transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease; } .ds-btn-primary:hover { background: #007aff; border-color: #007aff; } .ds-btn-primary:active { transform: scale(0.98); } .ds-btn-primary:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "次要行动按钮。透明背景 + 细边框，hover 时边框加深。",
+      "html": "<button class=\"ds-btn-default\">取消</button>",
+      "css": ".ds-btn-default { background: #fdfcfc; color: #201d1d; padding: 6px 14px; border: 1px solid rgba(15,0,0,0.10); border-radius: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; min-height: 44px; transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease; } .ds-btn-default:hover { border-color: #646262; } .ds-btn-default:active { background: #f1eeee; transform: scale(0.98); } .ds-btn-default:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "破坏性操作按钮。Rose 边框+文字，hover 时出现淡红背景。",
+      "html": "<button class=\"ds-btn-danger\">删除会话</button>",
+      "css": ".ds-btn-danger { background: #fdfcfc; color: #ff3b30; padding: 6px 14px; border: 1px solid #ff3b30; border-radius: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; min-height: 44px; transition: background 0.15s ease, transform 0.1s ease; } .ds-btn-danger:hover { background: rgba(255,59,48,0.06); } .ds-btn-danger:active { transform: scale(0.98); } .ds-btn-danger:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Pastel Chip",
+      "kind": "chip",
+      "refersTo": "chip-pastel",
+      "description": "柔和粉彩分类标签。用于技能类型、连接器类别、筛选条件。4 色系可扩展。",
+      "html": "<span class=\"ds-chip-pastel\">代码</span>",
+      "css": ".ds-chip-pastel { display: inline-flex; align-items: center; background: #E1F3FE; color: #1F6C9F; padding: 2px 10px; border-radius: 8px; font-family: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.04em; line-height: 1.6; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "单行/多行文本输入。细边框，focus 时蓝色光环。",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"输入消息...\" />",
+      "css": ".ds-input { background: #fdfcfc; color: #201d1d; padding: 8px 12px; border: 1px solid rgba(15,0,0,0.10); border-radius: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 14px; line-height: 1.6; min-height: 44px; width: 100%; box-sizing: border-box; transition: border-color 0.15s ease; } .ds-input::placeholder { color: #595959; } .ds-input:hover { border-color: #646262; } .ds-input:focus { outline: 2px solid #007aff; outline-offset: 2px; border-color: #007aff; } .ds-input:disabled { opacity: 0.4; cursor: not-allowed; }"
+    },
+    {
+      "name": "User Message Bubble",
+      "kind": "custom",
+      "refersTo": "message-bubble-user",
+      "description": "用户消息气泡 — 深色填充块，右对齐。扁平无阴影。",
+      "html": "<div class=\"ds-msg-user\">帮我写一段代码</div>",
+      "css": ".ds-msg-user { background: #201d1d; color: #fdfcfc; padding: 10px 14px; border-radius: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 14px; line-height: 1.6; max-width: 72ch; word-break: break-word; }"
+    },
+    {
+      "name": "Assistant Message",
+      "kind": "custom",
+      "refersTo": "message-bubble-assistant",
+      "description": "AI 助手回复 — 无背景，仅文字。扁平极简，让内容成为焦点。",
+      "html": "<div class=\"ds-msg-assistant\"><p>好的，我来帮你写这段代码。</p><pre><code>print('hello')</code></pre></div>",
+      "css": ".ds-msg-assistant { color: #424245; padding: 8px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 14px; line-height: 1.6; max-width: 72ch; word-break: break-word; } .ds-msg-assistant code { background: #f1eeee; padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace; font-size: 12px; } .ds-msg-assistant pre { background: #f1eeee; border: 1px solid rgba(15,0,0,0.10); border-radius: 4px; padding: 12px 16px; overflow-x: auto; margin: 8px 0; } .ds-msg-assistant pre code { background: none; padding: 0; }"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "sidebar-nav-item",
+      "description": "侧边栏导航项 — 图标 + 文字，hover/active 通过色调明度变化而非阴影。",
+      "html": "<div class=\"ds-nav-item ds-nav-item--active\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z\"/></svg><span>聊天</span></div>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 14px; color: #646262; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; min-height: 36px; } .ds-nav-item:hover { background: #f1eeee; color: #201d1d; } .ds-nav-item--active { background: #f1eeee; color: #201d1d; } .ds-nav-item svg { flex-shrink: 0; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Handmade Digital",
+    "overview": "咪兔的视觉系统建立在一个张力之上：ASCII 终端美学的克制精准与陪伴关系的温暖触感之间的平衡。每一帧精灵是手写 ASCII art；每一个交互反馈是刻意的手工感。这不是 machine aesthetic 的冷峻极简，也不是 consumer app 的甜美圆润——而是像素级的手工关怀，像一本精心排版的代码诗集。系统拒绝将 AI 产品包装成冰冷的高效工具，也不滑向可爱的卡通风格。温暖来自细节：暖色调的中性色（红底灰而非纯灰）、单色精灵以外的柔和粉彩标记、按压时有缩放反馈的按钮。",
+    "keyCharacteristics": [
+      "ASCII craft over vector polish",
+      "Warm-tinted neutrals over cold grays",
+      "Pastel accents used as category markers, not decoration",
+      "Soft tactile feedback — buttons press, pages fade, 精灵眨眼",
+      "Monospace as warmth, not coldness — the terminal as a handmade object"
+    ],
+    "rules": [
+      {
+        "name": "The One Blue Rule",
+        "body": "Companion Blue 是唯一的函数式强调色。不在同一界面引入第二个功能蓝（不用 teal/indigo/purple accent）。粉彩色系仅用于非交互的分类标记，不参与功能层级。",
+        "section": "colors"
+      },
+      {
+        "name": "The Warm Neutral Rule",
+        "body": "所有灰色必须带暖调底色（hue 15-30°，chroma ≥ 0.003）。纯灰（chroma 0）禁止。这是手作感的色彩基础。",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Thread Rule",
+        "body": "等宽字体是系统的触觉线索。所有非正文短文本（标签、时间、分类、技术标识）必须使用 font-mono。它让终端美学穿透每个 UI 元素，而非仅停留在精灵和代码块。",
+        "section": "typography"
+      },
+      {
+        "name": "No Pure Hierarchy Rule",
+        "body": "不在同一页面使用超过 3 种字号。层级通过 weight + color 对比传达，而非字号膨胀。正文 14px，标题 15-16px，品牌 28-36px — 中间不加步阶。",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal First Rule",
+        "body": "在添加阴影前，先用色调明度差表达层级。如果表面与画布的明度差 ≥3%，不需要阴影。阴影仅在无法用明度区分时引入。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "使用暖调中性色。每个灰色必须带暖底（hue ~15-30°），chroma ≥ 0.003",
+      "用 Mono 字体标注所有短文本—标签、时间戳、分类、状态。等宽是手作感的纹理",
+      "优先用色调明度差（≥3%）表达层级，阴影是辅助手段",
+      "用柔和粉彩 bg+text 配对标记分类/状态，保证 4.5:1 对比度",
+      "在交互元素上保留 transform: scale(0.98) 按压反馈",
+      "保持 Companion Blue ≤10% 的屏幕像素占比",
+      "默认 4px 圆角，标签类 8px。不混合多种圆角值",
+      "精灵是视觉锚点，不是装饰。每个页面至少保留一个精灵存在点"
+    ],
+    "donts": [
+      "使用纯黑（#000）或纯白（#fff）。违反 Warm Neutral Rule",
+      "引入第二个功能强调色（teal/purple/indigo accent）。粉彩 ≠ 功能色",
+      "在页面布局中使用阴影卡片。色调分层面板，不要卡片堆叠",
+      "将 modal 作为第一反应。优先考虑 inline 展开、tooltip、页面内切换",
+      "使用渐变文字（background-clip: text）",
+      "使用侧边条纹边框（border-left > 1px 作为彩色强调）",
+      "用超过 3 种字号在同一页面",
+      "把产品做成冷冰冰的开发者工具面板"
+    ]
+  }
+}

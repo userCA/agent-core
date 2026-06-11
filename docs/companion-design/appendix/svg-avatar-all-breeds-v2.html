@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>咪兔 7 Breed — ASCII vs SVG Pixel Avatar (全品种配对预览 v2)</title>
+<style>
+  :root {
+    --bg: #1a1a1a; --surface: #222;
+    --border: #333; --ink: #ccc; --mute: #666;
+    --accent: #ff9f43;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: ui-monospace, 'Courier New', monospace; padding: 32px 24px 64px; }
+
+  h1 { font-size: 16px; font-weight: normal; text-align: center; margin-bottom: 6px; }
+  h1 .dot { color: var(--accent); }
+  .subtitle { text-align: center; color: var(--mute); font-size: 11px; margin-bottom: 32px; }
+
+  /* grid */
+  .breed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
+
+  /* card */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 20px; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .breed-name { font-size: 14px; }
+  .breed-id { color: var(--mute); font-size: 10px; }
+  .rarity-badge { font-size: 9px; padding: 2px 6px; border-radius: 3px; border: 1px solid; }
+  .rarity-common { color: #8e8e93; border-color: #8e8e93; }
+  .rarity-uncommon { color: #30d158; border-color: #30d158; }
+  .rarity-rare { color: #409cff; border-color: #409cff; }
+  .rarity-epic { color: #bf5af2; border-color: #bf5af2; }
+  .rarity-legendary { color: #ff9f0a; border-color: #ff9f0a; }
+
+  /* pair row */
+  .pair-row { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; }
+  /* ascii */
+  .ascii-box { flex: 0 0 120px; }
+  .ascii-label { font-size: 8px; color: var(--mute); margin-bottom: 4px; letter-spacing: 1px; }
+  .ascii-canvas { background: var(--bg); border: 1px solid var(--border); padding: 8px 6px; border-radius: 4px; font-size: 11px; line-height: 14px; white-space: pre; min-width: 120px; overflow: hidden; }
+  /* svg */
+  .svg-box { flex: 0 0 120px; }
+  .svg-label { font-size: 8px; color: var(--mute); margin-bottom: 4px; letter-spacing: 1px; }
+  .svg-canvas { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 8px; display: flex; align-items: center; justify-content: center; min-height: 88px; }
+
+  /* traits bar */
+  .traits { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 9px; color: var(--mute); }
+  .traits b { color: var(--ink); }
+
+  /* legend */
+  .legend { max-width: 1200px; margin: 32px auto 0; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+  .legend h3 { font-size: 11px; margin-bottom: 8px; }
+  .legend-grid { display: flex; flex-wrap: wrap; gap: 16px; font-size: 9px; color: var(--mute); }
+  .legend-grid .chip { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 3px; }
+</style>
+</head>
+<body>
+
+<h1><span class="dot">◈</span> 咪兔像素头像 — ASCII 精灵图 vs SVG 像素画全配对</h1>
+<p class="subtitle">7 品种 × 32×32 紧凑像素风格 / preview only / 后端 trait 数据驱动</p>
+
+<div class="breed-grid">
+
+<!-- ================================ 1. orange_tabby =============================== -->
+<div class="card">
+  <div class="card-header">
+    <span class="breed-name">🥕 橘猫</span>
+    <span class="breed-id">orange_tabby</span>
+    <span class="rarity-badge rarity-common">common</span>
+  </div>
+  <div class="pair-row">
+    <div class="ascii-box">
+      <div class="ascii-label">ASCII 精灵图</div>
+      <div class="ascii-canvas">  /\_/\
+ ( o o )
+ (  ω  )
+  \____/</div>
+    </div>
+    <div class="svg-box">
+      <div class="svg-label">SVG 像素头像</div>
+      <div class="svg-canvas">
+        <svg width="48" height="48" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+  <!-- 耳朵 -->
+  <rect x="11" y="6" width="2" height="2" fill="#FF9F43"/>
+  <rect x="19" y="6" width="2" height="2" fill="#FF9F43"/>
+  <rect x="12" y="7" width="1" height="1" fill="#CC6611"/>
+  <rect x="20" y="7" width="1" height="1" fill="#CC6611"/>
+  <!-- 头部主体 -->
+  <rect x="10" y="8" width="12" height="6" fill="#FF9F43"/>
+  <!-- 面部斑纹 -->
+  <rect x="11" y="10" width="1" height="1" fill="#CC6611"/>
+  <rect x="20" y="10" width="1" height="1" fill="#CC6611"/>
+  <!-- 眼睛（绿色） -->
+  <rect x="12" y="12" width="2" height="2" fill="#38B149"/>
+  <rect x="18" y="12" width="2" height="2" fill="#38B149"/>
+  <rect x="13" y="13" width="1" height="1" fill="#FFFFFF"/>
+  <rect x="19" y="13" width="1" height="1" fill="#FFFFFF"/>
+  <!-- 鼻子 -->
+  <rect x="15" y="14" width="2" height="1" fill="#FF6B6B"/>
+  <!-- ω 嘴巴 -->
+  <rect x="15" y="15" width="2" height="1" fill="#7B3F1F"/>
+  <!-- 身体 -->
+  <rect x="8" y="12" width="16" height="10" fill="#FF9F43"/>
+  <!-- 身体阴影 -->
+  <rect x="20" y="10" width="2" height="12" fill="#CC6611"/>
+  <!-- 尾巴 -->
+  <rect x="22" y="14" width="4" height="3" fill="#FF9F43"/>
+  <rect x="24" y="15" width="1" height="1" fill="#CC6611"/>
+  <!-- 四肢 -->
+  <rect x="10" y="20" width="3" height="2" fill="#FF9F43"/>
+  <rect x="19" y="20" width="3" height="2" fill="#FF9F43"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <div class="traits">
+    <span>👁 eye: <b>·</b> (green)</span>
+    <span>👂 ear: <b>cat</b></span>
+    <span>🎨 color: <b>warm_gray</b></span>
+    <span>🐟 rarity gate: <b>none</b></span>
+  </div>
+</div>
+
+<!-- ================================ 2. tuxedo =============================== -->
+<div class="card">
+  <div class="card-header">
+    <span class="breed-name">🐄 奶牛猫</span>
+    <span class="breed-id">tuxedo</span>
+    <span class="rarity-badge rarity-common">common</span>
+  </div>
+  <div class="pair-row">
+    <div class="ascii-box">
+      <div class="ascii-label">ASCII 精灵图</div>
+      <div class="ascii-canvas">  /\_/\
+ ( o o )
+ ( ◇ ◇ )
+  \____/</div>
+    </div>
+    <div class="svg-box">
+      <div class="svg-label">SVG 像素头像</div>
+      <div class="svg-canvas">
+        <svg width="48" height="48" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+  <!-- 耳朵（黑白混） -->
+  <rect x="11" y="6" width="2" height="2" fill="#1a1a1a"/>
+  <rect x="19" y="6" width="2" height="2" fill="#fff"/>
+  <rect x="12" y="7" width="1" height="1" fill="#333"/>
+  <rect x="20" y="7" width="1" height="1" fill="#ddd"/>
+  <!-- 头部（左黑右白） -->
+  <rect x="10" y="8" width="6" height="6" fill="#1a1a1a"/>
+  <rect x="16" y="8" width="6" height="6" fill="#fff"/>
+  <!-- ◇ 胸口标记 -->
+  <rect x="15" y="14" width="2" height="1" fill="#1a1a1a"/>
+  <rect x="14" y="13" width="1" height="1" fill="#1a1a1a"/>
+  <rect x="17" y="13" width="1" height="1" fill="#1a1a1a"/>
+  <rect x="15" y="12" width="2" height="1" fill="#1a1a1a"/>
+  <!-- 眼睛（黑白配） -->
+  <rect x="12" y="12" width="2" height="2" fill="#2a2a2a"/>
+  <rect x="18" y="12" width="2" height="2" fill="#1a1a1a"/>
+  <rect x="13" y="13" width="1" height="1" fill="#fff"/>
+  <rect x="19" y="13" width="1" height="1" fill="#fff"/>
+  <!-- 鼻子 -->
+  <rect x="15" y="14" width="2" height="1" fill="#FF6B6B"/>
+  <!-- 嘴巴 -->
+  <rect x="15" y="15" width="2" height="1" fill="#7B3F1F"/>
+  <!-- 身体（黑白） -->
+  <rect x="8" y="12" width="8" height="10" fill="#1a1a1a"/>
+  <rect x="16" y="12" width="8" height="10" fill="#fff"/>
+  <!-- 身体阴影 -->
+  <rect x="20" y="10" width="2" height="12" fill="#ddd"/>
+  <!-- 尾巴 -->
+  <rect x="22" y="14" width="4" height="3" fill="#1a1a1a"/>
+  <rect x="24" y="15" width="1" height="1" fill="#333"/>
+  <!-- 四肢 -->
+  <rect x="10" y="20" width="3" height="2" fill="#1a1a1a"/>
+  <rect x="19" y="20" width="3" height="2" fill="#fff"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <div class="traits">
+    <span>👁 eye: <b>·</b></span>
+    <span>👂 ear: <b>cat</b></span>
+    <span>🎨 color: <b>warm_gray</b></span>
+    <span>◇ chest marking</span>
+  </div>
+</div>
+
+<!-- ================================ 3. calico =============================== -->
+<div class="card">
+  <div class="card-header">
+    <span class="breed-name">🎨 三花猫</span>
+    <span class="breed-id">calico</span>
+    <span class="rarity-badge rarity-uncommon">uncommon</span>
+  </div>
+  <div class="pair-row">
+    <div class="ascii-box">
+      <div class="ascii-label">ASCII 精灵图</div>
+      <div class="ascii-canvas">  /\/\/\
+ ( o ● )
+ (  ω  )
+  \____/</div>
+    </div>
+    <div class="svg-box">
+      <div class="svg-label">SVG 像素头像</div>
+      <div class="svg-canvas">
+        <svg width="48" height="48" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+  <!-- 不对称耳朵（左白右黑） -->
+  <rect x="11" y="6" width="2" height="2" fill="#fff"/>
+  <rect x="19" y="6" width="2" height="2" fill="#1a1a1a"/>
+  <rect x="12" y="7" width="1" height="1" fill="#ddd"/>
+  <rect x="20" y="7" width="1" height="1" fill="#333"/>
+  <!-- 头部（三色拼接） -->
+  <rect x="10" y="8" width="4" height="6" fill="#fff"/>
+  <rect x="14" y="8" width="4" height="6" fill="#FF9F43"/>
+  <rect x="18" y="8" width="4" height="6" fill="#1a1a1a"/>
+  <!-- 面部斑纹 -->
+  <rect x="11" y="10" width="1" height="1" fill="#FF9F43"/>
+  <rect x="20" y="10" width="1" height="1" fill="#fff"/>
+  <!-- 异色瞳（右绿左蓝） -->
+  <rect x="12" y="12" width="2" height="2" fill="#38B149"/>
+  <rect x="18" y="12" width="2" height="2" fill="#4080c0"/>
+  <rect x="13" y="13" width="1" height="1" fill="#FFFFFF"/>
+  <rect x="19" y="13" width="1" height="1" fill="#FFFFFF"/>
+  <!-- 鼻子 -->
+  <rect x="15" y="14" width="2" height="1" fill="#FF6B6B"/>
+  <!-- ω 嘴巴 -->
+  <rect x="15" y="15" width="2" height="1" fill="#7B3F1F"/>
+  <!-- 身体（三色） -->
+  <rect x="8" y="12" width="5" height="10" fill="#fff"/>
+  <rect x="13" y="12" width="6" height="10" fill="#FF9F43"/>
+  <rect x="19" y="12" width="5" height="10" fill="#1a1a1a"/>
+  <!-- 身体阴影 -->
+  <rect x="20" y="10" width="2" height="12" fill="#CC6611"/>
+  <!-- 尾巴 -->
+  <rect x="22" y="14" width="4" height="3" fill="#FF9F43"/>
+  <rect x="24" y="15" width="1" height="1" fill="#1a1a1a"/>
+  <!-- 四肢 -->
+  <rect x="10" y="20" width="3" height="2" fill="#fff"/>
+  <rect x="19" y="20" width="3" height="2" fill="#1a1a1a"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <div class="traits">
+    <span>👁 eye: <b>● (heterochromia)</b></span>
+    <span>👂 ear: <b>mix (asymmetric)</b></span>
+    <span>🎨 color: <b>cream</b></span>
+    <span>🐟 rarity gate: <b>uncommon</b></span>
+  </div>
+</div>
+
+<!-- ================================ 4. siamese =============================== -->
+<div class="card">
+  <div class="card-header">
+    <span class="breed-name">🐱 暹罗猫</span>
+    <span class="breed-id">siamese</span>
+    <span class="rarity-badge rarity-common">common</span>
+  </div>
+  <div class="pair-row">
+    <div class="ascii-box">
+      <div class="ascii-label">ASCII 精灵图</div>
+      <div class="ascii-canvas">  /\_/\
+ ( ´ ´ )
+ (  ▽  )
+  \____/</div>
+    </div>
+    <div class="svg-box">
+      <div class="svg-label">SVG 像素头像</div>
+      <div class="svg-canvas">
+        <svg width="48" height="48" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+  <!-- 深色尖耳朵 -->
+  <rect x="11" y="6" width="2" height="2" fill="#5a3a2a"/>
+  <rect x="19" y="6" width="2" height="2" fill="#5a3a2a"/>
+  <rect x="12" y="7" width="1" height="1" fill="#7a5a4a"/>
+  <rect x="20" y="7" width="1" height="1" fill="#7a5a4a"/>
+  <!-- 头部（浅色奶油底） -->
+  <rect x="10" y="8" width="12" height="6" fill="#D4C0A8"/>
+  <!-- 深色脸部重点色 -->
+  <rect x="10" y="8" width="3" height="6" fill="#5a3a2a"/>
+  <rect x="19" y="8" width="3" height="6" fill="#5a3a2a"/>
+  <!-- 杏仁眼（蓝色） -->
+  <rect x="12" y="12" width="2" height="2" fill="#4080c0"/>
+  <rect x="18" y="12" width="2" height="2" fill="#4080c0"/>
+  <rect x="13" y="13" width="1" height="1" fill="#FFFFFF"/>
+  <rect x="19" y="13" width="1" height="1" fill="#FFFFFF"/>
+  <!-- 鼻子（深色） -->
+  <rect x="15" y="14" width="2" height="1" fill="#8a6040"/>
+  <!-- ▽ 嘴巴 -->
+  <rect x="15" y="15" width="2" height="1" fill="#5a3a2a"/>
+  <!-- 身体（浅色） -->
+  <rect x="8" y="12" width="16" height="10" fill="#D4C0A8"/>
+  <!-- 身体阴影 -->
+  <rect x="20" y="10" width="2" height="12" fill="#C8B090"/>
+  <!-- 尾巴（深色） -->
+  <rect x="22" y="14" width="4" height="3" fill="#5a3a2a"/>
+  <rect x="24" y="15" width="1" height="1" fill="#7a5a4a"/>
+  <!-- 深色四肢 -->
+  <rect x="10" y="20" width="3" height="2" fill="#5a3a2a"/>
+  <rect x="19" y="20" width="3" height="2" fill="#5a3a2a"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <div class="traits">
+    <span>👁 eye: <b>´ (almond blue)</b></span>
+    <span>👂 ear: <b>cat (pointed)</b></span>
+    <span>🎨 color: <b>cream</b></span>
+    <span>▽ mouth shape</span>
+  </div>
+</div>
+
+<!-- ================================ 5. black_cat =============================== -->
+<div class="card">
+  <div class="card-header">
+    <span class="breed-name">🐈‍⬛ 黑猫</span>
+    <span class="breed-id">black_cat</span>
+    <span class="rarity-badge rarity-common">common</span>
+  </div>
+  <div class="pair-row">
+    <div class="ascii-box">
+      <div class="ascii-label">ASCII 精灵图</div>
+      <div class="ascii-canvas">  /\_/\
+ ( ◉ ◉ )
+ (  ~  )
+  \____/</div>
+    </div>
+    <div class="svg-box">
+      <div class="svg-label">SVG 像素头像</div>
+      <div class="svg-canvas">
+        <svg width="48" height="48" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+  <!-- 深色耳朵 -->
+  <rect x="11" y="6" width="2" height="2" fill="#141414"/>
+  <rect x="19" y="6" width="2" height="2" fill="#141414"/>
+  <rect x="12" y="7" width="1" height="1" fill="#2a2a2a"/>
+  <rect x="20" y="7" width="1" height="1" fill="#2a2a2a"/>
+  <!-- 头部 -->
+  <rect x="10" y="8" width="12" height="6" fill="#141414"/>
+  <!-- 发光金眼 -->
+  <rect x="12" y="12" width="2" height="2" fill="#FFC840"/>
+  <rect x="18" y="12" width="2" height="2" fill="#FFC840"/>
+  <rect x="13" y="13" width="1" height="1" fill="#1a1a1a"/>
+  <rect x="19" y="13" width="1" height="1" fill="#1a1a1a"/>
+  <!-- 眼睛下方发光 -->
+  <rect x="12" y="14" width="2" height="1" fill="#FFC840"/>
+  <rect x="18" y="14" width="2" height="1" fill="#FFC840"/>
+  <!-- 小鼻子 -->
+  <rect x="15" y="14" width="2" height="1" fill="#2a2a2a"/>
+  <!-- ~ 神秘微笑 -->
+  <rect x="14" y="15" width="1" height="1" fill="#2a2a2a"/>
+  <rect x="17" y="15" width="1" height="1" fill="#2a2a2a"/>
+  <rect x="15" y="15" width="2" height="1" fill="#141414"/>
+  <!-- 身体 -->
+  <rect x="8" y="12" width="16" height="10" fill="#141414"/>
+  <!-- 身体阴影 -->
+  <rect x="20" y="10" width="2" height="12" fill="#0a0a0a"/>
+  <!-- 尾巴 -->
+  <rect x="22" y="14" width="4" height="3" fill="#141414"/>
+  <rect x="24" y="15" width="1" height="1" fill="#2a2a2a"/>
+  <!-- 四肢 -->
+  <rect x="10" y="20" width="3" height="2" fill="#141414"/>
+  <rect x="19" y="20" width="3" height="2" fill="#141414"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <div class="traits">
+    <span>👁 eye: <b>◉ (glowing gold)</b></span>
+    <span>👂 ear: <b>cat</b></span>
+    <span>🎨 color: <b>charcoal</b></span>
+    <span>~ mysterious smile</span>
+  </div>
+</div>
+
+<!-- ================================ 6. ragdoll =============================== -->
+<div class="card">
+  <div class="card-header">
+    <span class="breed-name">☁️ 布偶猫</span>
+    <span class="breed-id">ragdoll</span>
+    <span class="rarity-badge rarity-rare">rare</span>
+  </div>
+  <div class="pair-row">
+    <div class="ascii-box">
+      <div class="ascii-label">ASCII 精灵图</div>
+      <div class="ascii-canvas"> ~/\_/\~
+ ( ◉ ◉ )
+ (  ω  )
+ (~__~)</div>
+    </div>
+    <div class="svg-box">
+      <div class="svg-label">SVG 像素头像</div>
+      <div class="svg-canvas">
+        <svg width="48" height="48" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+  <!-- 蓬松耳朵 -->
+  <rect x="9" y="6" width="4" height="2" fill="#D0C4B0"/>
+  <rect x="19" y="6" width="4" height="2" fill="#D0C4B0"/>
+  <rect x="10" y="7" width="2" height="1" fill="#E8DDD0"/>
+  <rect x="20" y="7" width="2" height="1" fill="#E8DDD0"/>
+  <!-- 宽头部 -->
+  <rect x="9" y="8" width="14" height="6" fill="#E8DDD0"/>
+  <!-- 深色脸部面具 -->
+  <rect x="10" y="8" width="3" height="4" fill="#C0A890"/>
+  <rect x="19" y="8" width="3" height="4" fill="#C0A890"/>
+  <rect x="10" y="12" width="2" height="2" fill="#C0A890"/>
+  <rect x="20" y="12" width="2" height="2" fill="#C0A890"/>
+  <!-- 深蓝眼睛 -->
+  <rect x="12" y="12" width="2" height="2" fill="#6090D0"/>
+  <rect x="18" y="12" width="2" height="2" fill="#6090D0"/>
+  <rect x="13" y="13" width="1" height="1" fill="#FFFFFF"/>
+  <rect x="19" y="13" width="1" height="1" fill="#FFFFFF"/>
+  <!-- 粉色鼻子 -->
+  <rect x="15" y="14" width="2" height="1" fill="#C09080"/>
+  <!-- ω 嘴巴 -->
+  <rect x="15" y="15" width="2" height="1" fill="#7B3F1F"/>
+  <!-- 身体（蓬松浅色） -->
+  <rect x="7" y="12" width="18" height="10" fill="#E8DDD0"/>
+  <!-- 身体阴影 -->
+  <rect x="21" y="10" width="2" height="12" fill="#D0C4B0"/>
+  <!-- 蓬松尾巴 -->
+  <rect x="23" y="14" width="4" height="3" fill="#E8DDD0"/>
+  <rect x="25" y="15" width="1" height="1" fill="#D0C4B0"/>
+  <!-- 四肢 -->
+  <rect x="9" y="20" width="3" height="2" fill="#E8DDD0"/>
+  <rect x="20" y="20" width="3" height="2" fill="#E8DDD0"/>
+  <!-- 前爪白色 -->
+  <rect x="9" y="21" width="3" height="1" fill="#FFF8F0"/>
+  <rect x="20" y="21" width="3" height="1" fill="#FFF8F0"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <div class="traits">
+    <span>👁 eye: <b>◉ (deep blue)</b></span>
+    <span>👂 ear: <b>cat (fluffy)</b></span>
+    <span>🎨 color: <b>cream</b></span>
+    <span>🐟 rarity gate: <b>rare</b></span>
+  </div>
+</div>
+
+<!-- ================================ 7. scottish_fold =============================== -->
+<div class="card">
+  <div class="card-header">
+    <span class="breed-name">🐑 折耳猫</span>
+    <span class="breed-id">scottish_fold</span>
+    <span class="rarity-badge rarity-epic">epic</span>
+  </div>
+  <div class="pair-row">
+    <div class="ascii-box">
+      <div class="ascii-label">ASCII 精灵图</div>
+      <div class="ascii-canvas">  __/\__
+ ( o o )
+ (  ω  )
+  \____/</div>
+    </div>
+    <div class="svg-box">
+      <div class="svg-label">SVG 像素头像</div>
+      <div class="svg-canvas">
+        <svg width="48" height="48" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+  <!-- 折耳（向前折叠，无尖耳） -->
+  <rect x="9" y="7" width="5" height="1" fill="#D4B896"/>
+  <rect x="18" y="7" width="5" height="1" fill="#D4B896"/>
+  <!-- 耳内 -->
+  <rect x="10" y="7" width="2" height="1" fill="#C0A880"/>
+  <rect x="20" y="7" width="2" height="1" fill="#C0A880"/>
+  <!-- 圆头部 -->
+  <rect x="10" y="8" width="12" height="6" fill="#D4B896"/>
+  <!-- 脸颊腮红 -->
+  <rect x="10" y="13" width="2" height="1" fill="#E8C4A0"/>
+  <rect x="20" y="13" width="2" height="1" fill="#E8C4A0"/>
+  <!-- 大圆眼 -->
+  <rect x="12" y="12" width="2" height="2" fill="#2a2a2a"/>
+  <rect x="18" y="12" width="2" height="2" fill="#2a2a2a"/>
+  <rect x="13" y="13" width="1" height="1" fill="#FFFFFF"/>
+  <rect x="19" y="13" width="1" height="1" fill="#FFFFFF"/>
+  <!-- 鼻子 -->
+  <rect x="15" y="14" width="2" height="1" fill="#C8A090"/>
+  <!-- ω 小嘴 -->
+  <rect x="15" y="15" width="2" height="1" fill="#7B3F1F"/>
+  <!-- 身体 -->
+  <rect x="8" y="12" width="16" height="10" fill="#D4B896"/>
+  <!-- 身体阴影 -->
+  <rect x="20" y="10" width="2" height="12" fill="#C0A880"/>
+  <!-- 小尾巴 -->
+  <rect x="22" y="14" width="4" height="3" fill="#D4B896"/>
+  <rect x="24" y="15" width="1" height="1" fill="#C0A880"/>
+  <!-- 四肢 -->
+  <rect x="10" y="20" width="3" height="2" fill="#D4B896"/>
+  <rect x="19" y="20" width="3" height="2" fill="#D4B896"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <div class="traits">
+    <span>👁 eye: <b>o (big round)</b></span>
+    <span>👂 ear: <b>folded (forward)</b></span>
+    <span>🎨 color: <b>warm_gray</b></span>
+    <span>🐟 rarity gate: <b>epic</b></span>
+  </div>
+</div>
+
+</div><!-- .breed-grid -->
+
+<!-- ═══ LEGEND ═══ -->
+<div class="legend">
+  <h3>后端 Trait → SVG 映射说明</h3>
+  <div class="legend-grid">
+    <div><b>品种 (breed)</b>: 决定体型模板 (7 种)</div>
+    <div><b>眼睛 (eye)</b>: 覆盖眼区颜色 · ✦ ◉ o ♥ ☆</div>
+    <div><b>帽子 (hat)</b>: 覆盖顶层装饰 (未在本页展示)</div>
+    <div><b>颜色 (color)</b>: 调色板替换颜色值</div>
+    <div><b>耳朵 (ear)</b>: cat / rabbit / mix 改变耳型</div>
+    <div><b>闪亮 (shiny)</b>: 叠加 ✦ 粒子效果</div>
+  </div>
+  <p style="margin-top:12px;font-size:9px;color:var(--mute);">
+    后端生成: <code style="color:var(--ink);">render_svg(bones: CompanionBones) → str</code> |
+    参数化图层: 体型模板 + 眼睛图层 + 耳朵图层 + 帽子图层 + 调色板 |
+    SVG 可缓存于内存, uid → svg_str
+  </p>
+</div>
+
+</body>
+</html>

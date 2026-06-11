@@ -55,15 +55,17 @@
   min-width: 28px;
   border: none;
   border-radius: 50%;
-  background: var(--canvas);
-  color: var(--ash);
+  background: var(--hairline);
+  color: var(--mute);
   cursor: pointer;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .h5-history-search-clear:active {
-  background: var(--hairline);
+  background: var(--ash);
+  color: var(--canvas);
 }
 
 /* ── Body ── */

@@ -136,6 +136,17 @@ export default function Sidebar() {
           <div className="sidebar-menu">
             <motion.button
               className="sidebar-menu-item"
+              onClick={() => setActivePage('companion')}
+              whileHover={{ x: 4 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              <span className="sidebar-menu-icon"><Icon name="cat" size={14} /></span>
+              <span className="sidebar-menu-label">宠物资料</span>
+              <span className="sidebar-menu-arrow"><Icon name="chevron-right" size={12} /></span>
+            </motion.button>
+
+            <motion.button
+              className="sidebar-menu-item"
               onClick={() => setActivePage('experts')}
               whileHover={{ x: 4 }}
               whileTap={{ scale: 0.97 }}

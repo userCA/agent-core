@@ -10,8 +10,8 @@ function getInitialCollapsed(): boolean {
   }
 }
 
-export type Page = 'chat' | 'skills' | 'connectors' | 'experts' | 'knowledge' | 'channels';
-export type H5Tab = 'chat' | 'skills' | 'settings' | 'history';
+export type Page = 'chat' | 'skills' | 'connectors' | 'experts' | 'knowledge' | 'channels' | 'companion';
+export type H5Tab = 'chat' | 'skills' | 'settings' | 'history' | 'companion';
 
 interface UIState {
   activePage: Page;

@@ -221,13 +221,14 @@ agent_core/
 
 ## 开发流程 Skill
 
-在 `.claude/skills/` 下有 3 个开发优化 skill，触发条件:
+在 `.claude/skills/` 下有 4 个开发优化 skill，触发条件:
 
 | 用户关键词 | 加载 Skill |
 |-----------|-----------|
 | "优化" / "设计有没有问题" / "审查" 且涉及前后端 | `dev-process-optimizer` (跨层) |
 | 同上，但纯后端 | `dev-backend-optimizer` |
-| 同上，但纯前端 | `dev-frontend-optimizer` |
+| 同上，但纯前端桌面 | `dev-frontend-optimizer` |
+| 同上，但涉及 H5 移动端（`src/h5/`） | `dev-process-h5` |
 | 单文件修 bug / 改文案 | 不加载 |
 
 处理完成后: 真正新发现的反模式按附录模板追加到对应 skill 末尾。现有规则已覆盖的不追加。

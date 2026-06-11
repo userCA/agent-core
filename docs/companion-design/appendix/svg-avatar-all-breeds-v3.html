@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Cat Breeds — ASCII vs Pixel-Art SVG</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 8px;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #888;
+    margin-bottom: 28px;
+    font-size: 14px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: #252525;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+  }
+  .breed-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .breed-id {
+    font-family: monospace;
+    font-size: 12px;
+    color: #888;
+    background: #1a1a1a;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #333;
+  }
+  .rarity-badge {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+  .rarity-common    { background: #3a4a3a; color: #8fbc8f; }
+  .rarity-uncommon  { background: #3a4a5a; color: #87ceeb; }
+  .rarity-rare      { background: #4a3a5a; color: #dda0dd; }
+  .rarity-epic      { background: #5a4a2a; color: #ffd700; }
+
+  .pair-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .ascii-box {
+    flex: 0 0 auto;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 16px;
+    line-height: 1.35;
+    color: #ccc;
+    white-space: pre;
+  }
+  .svg-box {
+    flex: 1 1 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .svg-box svg {
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  .traits {
+    font-size: 13px;
+    color: #aaa;
+    line-height: 1.6;
+  }
+  .traits strong { color: #ddd; }
+  .traits code {
+    background: #1a1a1a;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #ccc;
+    border: 1px solid #333;
+  }
+
+  .legend {
+    max-width: 1400px;
+    margin: 32px auto 0;
+    background: #252525;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .legend h2 {
+    margin: 0 0 12px;
+    font-size: 16px;
+    color: #fff;
+  }
+  .legend-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+    font-size: 13px;
+    color: #aaa;
+  }
+  .legend-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .legend-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    border: 1px solid #444;
+    margin-top: 1px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Cat Breeds — ASCII vs Pixel-Art SVG</h1>
+<div class="subtitle">7 breeds side-by-side: ASCII sprite (left) and detailed 32x32 pixel-art SVG (right)</div>
+
+<div class="grid">
+
+  <!-- orange_tabby -->
+  <div class="card">
+    <div class="card-header">
+      <span class="breed-name">🐱 橘猫</span>
+      <span class="breed-id">orange_tabby</span>
+      <span class="rarity-badge rarity-common">common</span>
+    </div>
+    <div class="pair-row">
+      <div class="ascii-box">  /\_/\
+ ( o o )
+ (  ω  )
+  \____/</div>
+      <div class="svg-box">
+        <svg width="128" height="128" viewBox="0 0 32 32" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+          <!-- Ears outer -->
+          <rect x="6" y="2" width="3" height="3" fill="#FF9F43"/><rect x="7" y="1" width="2" height="1" fill="#FF9F43"/>
+          <rect x="23" y="2" width="3" height="3" fill="#FF9F43"/><rect x="23" y="1" width="2" height="1" fill="#FF9F43"/>
+          <!-- Ears inner -->
+          <rect x="7" y="2" width="1" height="2" fill="#CC6611"/><rect x="24" y="2" width="1" height="2" fill="#CC6611"/>
+          <!-- Head base -->
+          <rect x="5" y="4" width="22" height="14" fill="#FF9F43"/>
+          <rect x="4" y="5" width="24" height="12" fill="#FF9F43"/>
+          <rect x="3" y="7" width="26" height="8" fill="#FF9F43"/>
+          <!-- M forehead stripes -->
+          <rect x="8" y="5" width="1" height="3" fill="#CC6611"/><rect x="9" y="5" width="1" height="2" fill="#CC6611"/>
+          <rect x="23" y="5" width="1" height="3" fill="#CC6611"/><rect x="22" y="5" width="1" height="2" fill="#CC6611"/>
+          <rect x="10" y="6" width="1" height="1" fill="#CC6611"/><rect x="21" y="6" width="1" height="1" fill="#CC6611"/>
+          <!-- Cheek stripes -->
+          <rect x="5" y="10" width="2" height="1" fill="#CC6611"/><rect x="25" y="10" width="2" height="1" fill="#CC6611"/>
+          <rect x="4" y="12" width="2" height="1" fill="#CC6611"/><rect x="26" y="12" width="2" height="1" fill="#CC6611"/>
+          <!-- Eyes whites -->
+          <rect x="9" y="10" width="4" height="3" fill="#fff"/><rect x="19" y="10" width="4" height="3" fill="#fff"/>
+          <!-- Eyes iris -->
+          <rect x="10" y="11" width="2" height="2" fill="#38B149"/><rect x="20" y="11" width="2" height="2" fill="#38B149"/>
+          <!-- Pupils -->
+          <rect x="11" y="11" width="1" height="2" fill="#000"/><rect x="21" y="11" width="1" height="2" fill="#000"/>
+          <!-- Highlights -->
+          <rect x="10" y="10" width="1" height="1" fill="#fff"/><rect x="20" y="10" width="1" height="1" fill="#fff"/>
+          <!-- Nose -->
+          <rect x="15" y="14" width="2" height="1" fill="#FF7777"/>
+          <!-- Mouth (ω) -->
+          <rect x="14" y="15" width="1" height="1" fill="#CC6611"/><rect x="17" y="15" width="1" height="1" fill="#CC6611"/>
+          <rect x="15" y="16" width="2" height="1" fill="#CC6611"/>
+          <!-- Body -->
+          <rect x="7" y="17" width="18" height="10" fill="#FF9F43"/>
+          <rect x="5" y="19" width="22" height="8" fill="#FF9F43"/>
+          <rect x="4" y="21" width="24" height="6" fill="#FF9F43"/>
+          <!-- Body stripes -->
+          <rect x="7" y="18" width="3" height="1" fill="#CC6611"/><rect x="14" y="18" width="4" height="1" fill="#CC6611"/><rect x="22" y="18" width="3" height="1" fill="#CC6611"/>
+          <rect x="5" y="20" width="4" height="1" fill="#CC6611"/><rect x="12" y="20" width="8" height="1" fill="#CC6611"/><rect x="23" y="20" width="4" height="1" fill="#CC6611"/>
+          <rect x="4" y="22" width="5" height="1" fill="#CC6611"/><rect x="11" y="22" width="10" height="1" fill="#CC6611"/><rect x="23" y="22" width="5" height="1" fill="#CC6611"/>
+          <rect x="6" y="24" width="4" height="1" fill="#CC6611"/><rect x="22" y="24" width="4" height="1" fill="#CC6611"/>
+          <!-- Tail -->
+          <rect x="26" y="23" width="3" height="2" fill="#FF9F43"/><rect x="28" y="21" width="2" height="2" fill="#FF9F43"/><rect x="29" y="19" width="2" height="2" fill="#FF9F43"/>
+          <rect x="27" y="23" width="1" height="1" fill="#CC6611"/><rect x="29" y="21" width="1" height="1" fill="#CC6611"/>
+          <!-- Paws -->
+          <rect x="7" y="26" width="3" height="2" fill="#FF9F43"/><rect x="22" y="26" width="3" height="2" fill="#FF9F43"/>
+          <rect x="8" y="28" width="2" height="1" fill="#FF9F43"/><rect x="23" y="28" width="2" height="1" fill="#FF9F43"/>
+        </svg>
+      </div>
+    </div>
+    <div class="traits">
+      <strong>Traits:</strong> Orange body <code>#FF9F43</code>, darker stripes <code>#CC6611</code>, green eyes <code>#38B149</code>, M-shaped forehead markings, round face, ω mouth.
+    </div>
+  </div>
+
+  <!-- tuxedo -->
+  <div class="card">
+    <div class="card-header">
+      <span class="breed-name">🐄 奶牛猫</span>
+      <span class="breed-id">tuxedo</span>
+      <span class="rarity-badge rarity-common">common</span>
+    </div>
+    <div class="pair-row">
+      <div class="ascii-box">  /\_/\
+ ( o o )
+ ( ◇ ◇ )
+  \____/</div>
+      <div class="svg-box">
+        <svg width="128" height="128" viewBox="0 0 32 32" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+          <!-- Ears outer (asymmetric) -->
+          <rect x="6" y="2" width="3" height="3" fill="#111"/><rect x="7" y="1" width="2" height="1" fill="#111"/>
+          <rect x="23" y="3" width="3" height="3" fill="#fff"/><rect x="23" y="2" width="2" height="1" fill="#fff"/>
+          <!-- Ears inner -->
+          <rect x="7" y="2" width="1" height="2" fill="#333"/><rect x="24" y="3" width="1" height="2" fill="#ccc"/>
+          <!-- Head base -->
+          <rect x="5" y="4" width="22" height="14" fill="#111"/>
+          <rect x="4" y="5" width="24" height="12" fill="#111"/>
+          <rect x="3" y="7" width="26" height="8" fill="#111"/>
+          <!-- White patch on right side -->
+          <rect x="20" y="4" width="7" height="8" fill="#fff"/><rect x="22" y="3" width="5" height="2" fill="#fff"/>
+          <rect x="18" y="5" width="2" height="5" fill="#fff"/>
+          <!-- White muzzle area -->
+          <rect x="12" y="12" width="8" height="5" fill="#fff"/><rect x="10" y="13" width="2" height="3" fill="#fff"/><rect x="20" y="13" width="2" height="3" fill="#fff"/>
+          <!-- Eyes -->
+          <rect x="9" y="10" width="4" height="3" fill="#fff"/><rect x="19" y="10" width="4" height="3" fill="#fff"/>
+          <rect x="10" y="11" width="2" height="2" fill="#44AAFF"/><rect x="20" y="11" width="2" height="2" fill="#44AAFF"/>
+          <rect x="11" y="11" width="1" height="2" fill="#000"/><rect x="21" y="11" width="1" height="2" fill="#000"/>
+          <rect x="10" y="10" width="1" height="1" fill="#fff"/><rect x="20" y="10" width="1" height="1" fill="#fff"/>
+          <!-- Nose -->
+          <rect x="15" y="14" width="2" height="1" fill="#FF9999"/>
+          <!-- Mouth (◇ shape) -->
+          <rect x="14" y="15" width="1" height="1" fill="#111"/><rect x="17" y="15" width="1" height="1" fill="#111"/>
+          <rect x="15" y="16" width="2" height="1" fill="#111"/>
+          <rect x="14" y="16" width="1" height="1" fill="#fff"/><rect x="17" y="16" width="1" height="1" fill="#fff"/>
+          <!-- Body -->
+          <rect x="7" y="17" width="18" height="10" fill="#111"/>
+          <rect x="5" y="19" width="22" height="8" fill="#111"/>
+          <rect x="4" y="21" width="24" height="6" fill="#111"/>
+          <!-- White chest with ◇ marking -->
+          <rect x="11" y="17" width="10" height="8" fill="#fff"/><rect x="9" y="19" width="2" height="5" fill="#fff"/><rect x="21" y="19" width="2" height="5" fill="#fff"/>
+          <rect x="14" y="19" width="1" height="1" fill="#111"/><rect x="17" y="19" width="1" height="1" fill="#111"/>
+          <rect x="15" y="20" width="2" height="1" fill="#111"/>
+          <rect x="14" y="21" width="1" height="1" fill="#111"/><rect x="17" y="21" width="1" height="1" fill="#111"/>
+          <!-- White paws -->
+          <rect x="7" y="26" width="3" height="2" fill="#fff"/><rect x="22" y="26" width="3" height="2" fill="#fff"/>
+          <rect x="8" y="28" width="2" height="1" fill="#fff"/><rect x="23" y="28" width="2" height="1" fill="#fff"/>
+          <!-- Tail -->
+          <rect x="26" y="23" width="3" height="2" fill="#111"/><rect x="28" y="21" width="2" height="2" fill="#fff"/><rect x="29" y="19" width="2" height="2" fill="#111"/>
+        </svg>
+      </div>
+    </div>
+    <div class="traits">
+      <strong>Traits:</strong> Black & white patches, white chest with ◇ black marking, bouncy asymmetric ears, bright eyes, white paws.
+    </div>
+  </div>
+
+  <!-- calico -->
+  <div class="card">
+    <div class="card-header">
+      <span class="breed-name">🎨 三花猫</span>
+      <span class="breed-id">calico</span>
+      <span class="rarity-badge rarity-uncommon">uncommon</span>
+    </div>
+    <div class="pair-row">
+      <div class="ascii-box">  /\/\/
+ ( o ● )
+ (  ω  )
+  \____/</div>
+      <div class="svg-box">
+        <svg width="128" height="128" viewBox="0 0 32 32" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+          <!-- Ears (asymmetric colors) -->
+          <rect x="6" y="2" width="3" height="3" fill="#FF9F43"/><rect x="7" y="1" width="2" height="1" fill="#FF9F43"/>
+          <rect x="23" y="2" width="3" height="3" fill="#111"/><rect x="23" y="1" width="2" height="1" fill="#111"/>
+          <rect x="7" y="2" width="1" height="2" fill="#CC6611"/><rect x="24" y="2" width="1" height="2" fill="#333"/>
+          <!-- Head base -->
+          <rect x="5" y="4" width="22" height="14" fill="#fff"/>
+          <rect x="4" y="5" width="24" height="12" fill="#fff"/>
+          <rect x="3" y="7" width="26" height="8" fill="#fff"/>
+          <!-- Orange patch left -->
+          <rect x="4" y="5" width="8" height="8" fill="#FF9F43"/><rect x="3" y="7" width="3" height="5" fill="#FF9F43"/>
+          <!-- Black patch right -->
+          <rect x="20" y="4" width="7" height="9" fill="#111"/><rect x="25" y="7" width="4" height="5" fill="#111"/>
+          <!-- Face patches -->
+          <rect x="10" y="6" width="3" height="3" fill="#FF9F43"/><rect x="19" y="7" width="2" height="2" fill="#111"/>
+          <!-- Eyes (heterochromia) -->
+          <rect x="9" y="10" width="4" height="3" fill="#fff"/><rect x="19" y="10" width="4" height="3" fill="#fff"/>
+          <!-- Left green eye -->
+          <rect x="10" y="11" width="2" height="2" fill="#38B149"/><rect x="11" y="11" width="1" height="2" fill="#000"/>
+          <rect x="10" y="10" width="1" height="1" fill="#fff"/>
+          <!-- Right blue eye -->
+          <rect x="20" y="11" width="2" height="2" fill="#44AAFF"/><rect x="21" y="11" width="1" height="2" fill="#000"/>
+          <rect x="20" y="10" width="1" height="1" fill="#fff"/>
+          <!-- Nose -->
+          <rect x="15" y="14" width="2" height="1" fill="#FF9999"/>
+          <!-- Mouth (ω) -->
+          <rect x="14" y="15" width="1" height="1" fill="#CC6611"/><rect x="17" y="15" width="1" height="1" fill="#CC6611"/>
+          <rect x="15" y="16" width="2" height="1" fill="#CC6611"/>
+          <!-- Body -->
+          <rect x="7" y="17" width="18" height="10" fill="#fff"/>
+          <rect x="5" y="19" width="22" height="8" fill="#fff"/>
+          <rect x="4" y="21" width="24" height="6" fill="#fff"/>
+          <!-- Body patches -->
+          <rect x="7" y="18" width="6" height="6" fill="#FF9F43"/><rect x="20" y="19" width="7" height="7" fill="#111"/>
+          <rect x="5" y="21" width="4" height="4" fill="#FF9F43"/>
+          <!-- Tail -->
+          <rect x="26" y="23" width="3" height="2" fill="#111"/><rect x="28" y="21" width="2" height="2" fill="#FF9F43"/><rect x="29" y="19" width="2" height="2" fill="#111"/>
+          <!-- Paws -->
+          <rect x="7" y="26" width="3" height="2" fill="#FF9F43"/><rect x="22" y="26" width="3" height="2" fill="#111"/>
+          <rect x="8" y="28" width="2" height="1" fill="#FF9F43"/><rect x="23" y="28" width="2" height="1" fill="#111"/>
+        </svg>
+      </div>
+    </div>
+    <div class="traits">
+      <strong>Traits:</strong> Three-color patches (orange/white/black), asymmetric ears, heterochromia eyes (green + blue), calico face patches.
+    </div>
+  </div>
+
+  <!-- siamese -->
+  <div class="card">
+    <div class="card-header">
+      <span class="breed-name">🧁 暹罗猫</span>
+      <span class="breed-id">siamese</span>
+      <span class="rarity-badge rarity-common">common</span>
+    </div>
+    <div class="pair-row">
+      <div class="ascii-box">  /\_/\
+ ( ´ ´ )
+ (  ▽  )
+  \____/</div>
+      <div class="svg-box">
+        <svg width="128" height="128" viewBox="0 0 32 32" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+          <!-- Ears outer (dark points) -->
+          <rect x="6" y="2" width="3" height="3" fill="#5a3a2a"/><rect x="7" y="1" width="2" height="1" fill="#5a3a2a"/>
+          <rect x="23" y="2" width="3" height="3" fill="#5a3a2a"/><rect x="23" y="1" width="2" height="1" fill="#5a3a2a"/>
+          <!-- Ears inner -->
+          <rect x="7" y="2" width="1" height="2" fill="#3a2a1a"/><rect x="24" y="2" width="1" height="2" fill="#3a2a1a"/>
+          <!-- Head base (cream) -->
+          <rect x="5" y="4" width="22" height="14" fill="#D4C0A8"/>
+          <rect x="4" y="5" width="24" height="12" fill="#D4C0A8"/>
+          <rect x="3" y="7" width="26" height="8" fill="#D4C0A8"/>
+          <!-- Dark face mask -->
+          <rect x="6" y="4" width="20" height="6" fill="#5a3a2a"/><rect x="5" y="5" width="22" height="4" fill="#5a3a2a"/>
+          <rect x="7" y="3" width="18" height="2" fill="#5a3a2a"/>
+          <!-- Mask blending -->
+          <rect x="8" y="8" width="16" height="1" fill="#8a6a5a"/>
+          <rect x="9" y="9" width="14" height="1" fill="#aa8a7a"/>
+          <!-- Eyes (almond blue) -->
+          <rect x="9" y="10" width="4" height="2" fill="#fff"/><rect x="19" y="10" width="4" height="2" fill="#fff"/>
+          <rect x="10" y="10" width="2" height="2" fill="#4080c0"/><rect x="20" y="10" width="2" height="2" fill="#4080c0"/>
+          <rect x="11" y="10" width="1" height="2" fill="#000"/><rect x="21" y="10" width="1" height="2" fill="#000"/>
+          <rect x="10" y="10" width="1" height="1" fill="#fff"/><rect x="20" y="10" width="1" height="1" fill="#fff"/>
+          <!-- Slender face shading -->
+          <rect x="5" y="11" width="2" height="3" fill="#C4B098"/><rect x="25" y="11" width="2" height="3" fill="#C4B098"/>
+          <!-- Nose -->
+          <rect x="15" y="13" width="2" height="1" fill="#aa7a6a"/>
+          <!-- Mouth (▽) -->
+          <rect x="14" y="14" width="1" height="1" fill="#5a3a2a"/><rect x="17" y="14" width="1" height="1" fill="#5a3a2a"/>
+          <rect x="15" y="15" width="2" height="1" fill="#5a3a2a"/>
+          <!-- Body (cream) -->
+          <rect x="7" y="17" width="18" height="10" fill="#D4C0A8"/>
+          <rect x="5" y="19" width="22" height="8" fill="#D4C0A8"/>
+          <rect x="4" y="21" width="24" height="6" fill="#D4C0A8"/>
+          <!-- Body shading -->
+          <rect x="7" y="18" width="18" height="1" fill="#C4B098"/>
+          <rect x="5" y="20" width="22" height="1" fill="#C4B098"/>
+          <rect x="4" y="22" width="24" height="1" fill="#C4B098"/>
+          <!-- Dark points on paws -->
+          <rect x="7" y="26" width="3" height="2" fill="#5a3a2a"/><rect x="22" y="26" width="3" height="2" fill="#5a3a2a"/>
+          <rect x="8" y="28" width="2" height="1" fill="#5a3a2a"/><rect x="23" y="28" width="2" height="1" fill="#5a3a2a"/>
+          <!-- Tail (dark point) -->
+          <rect x="26" y="23" width="3" height="2" fill="#5a3a2a"/><rect x="28" y="21" width="2" height="2" fill="#5a3a2a"/><rect x="29" y="19" width="2" height="2" fill="#5a3a2a"/>
+        </svg>
+      </div>
+    </div>
+    <div class="traits">
+      <strong>Traits:</strong> Cream body <code>#D4C0A8</code>, dark points <code>#5a3a2a</code> on ears/face/paws/tail, almond blue eyes <code>#4080c0</code>, slender face, ▽ mouth.
+    </div>
+  </div>
+
+  <!-- black_cat -->
+  <div class="card">
+    <div class="card-header">
+      <span class="breed-name">🌑 黑猫</span>
+      <span class="breed-id">black_cat</span>
+      <span class="rarity-badge rarity-common">common</span>
+    </div>
+    <div class="pair-row">
+      <div class="ascii-box">  /\_/\
+ ( ◉ ◉ )
+ (  ~  )
+  \____/</div>
+      <div class="svg-box">
+        <svg width="128" height="128" viewBox="0 0 32 32" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+          <!-- Ears outer -->
+          <rect x="6" y="2" width="3" height="3" fill="#141414"/><rect x="7" y="1" width="2" height="1" fill="#141414"/>
+          <rect x="23" y="2" width="3" height="3" fill="#141414"/><rect x="23" y="1" width="2" height="1" fill="#141414"/>
+          <!-- Ears inner (subtle) -->
+          <rect x="7" y="2" width="1" height="2" fill="#0a0a0a"/><rect x="24" y="2" width="1" height="2" fill="#0a0a0a"/>
+          <!-- Head base -->
+          <rect x="5" y="4" width="22" height="14" fill="#141414"/>
+          <rect x="4" y="5" width="24" height="12" fill="#141414"/>
+          <rect x="3" y="7" width="26" height="8" fill="#141414"/>
+          <!-- Subtle face shading -->
+          <rect x="8" y="6" width="16" height="6" fill="#1c1c1c"/>
+          <rect x="10" y="5" width="12" height="2" fill="#1c1c1c"/>
+          <!-- Eyes (glowing yellow) -->
+          <rect x="9" y="10" width="4" height="3" fill="#FFC840"/><rect x="19" y="10" width="4" height="3" fill="#FFC840"/>
+          <!-- Eye glow effect -->
+          <rect x="8" y="10" width="1" height="3" fill="#aa8800"/><rect x="13" y="10" width="1" height="3" fill="#aa8800"/>
+          <rect x="18" y="10" width="1" height="3" fill="#aa8800"/><rect x="23" y="10" width="1" height="3" fill="#aa8800"/>
+          <!-- Slit pupils -->
+          <rect x="11" y="10" width="1" height="3" fill="#000"/><rect x="21" y="10" width="1" height="3" fill="#000"/>
+          <!-- Eye highlights -->
+          <rect x="10" y="10" width="1" height="1" fill="#fff"/><rect x="20" y="10" width="1" height="1" fill="#fff"/>
+          <!-- Nose -->
+          <rect x="15" y="14" width="2" height="1" fill="#333"/>
+          <!-- Mouth (~ subtle) -->
+          <rect x="14" y="15" width="1" height="1" fill="#222"/><rect x="17" y="15" width="1" height="1" fill="#222"/>
+          <rect x="15" y="15" width="2" height="1" fill="#1a1a1a"/>
+          <!-- Body -->
+          <rect x="7" y="17" width="18" height="10" fill="#141414"/>
+          <rect x="5" y="19" width="22" height="8" fill="#141414"/>
+          <rect x="4" y="21" width="24" height="6" fill="#141414"/>
+          <!-- Body subtle shading -->
+          <rect x="7" y="18" width="18" height="1" fill="#1c1c1c"/>
+          <rect x="5" y="20" width="22" height="1" fill="#1c1c1c"/>
+          <rect x="4" y="22" width="24" height="1" fill="#1c1c1c"/>
+          <!-- Tail -->
+          <rect x="26" y="23" width="3" height="2" fill="#141414"/><rect x="28" y="21" width="2" height="2" fill="#141414"/><rect x="29" y="19" width="2" height="2" fill="#141414"/>
+          <!-- Paws -->
+          <rect x="7" y="26" width="3" height="2" fill="#141414"/><rect x="22" y="26" width="3" height="2" fill="#141414"/>
+          <rect x="8" y="28" width="2" height="1" fill="#0a0a0a"/><rect x="23" y="28" width="2" height="1" fill="#0a0a0a"/>
+        </svg>
+      </div>
+    </div>
+    <div class="traits">
+      <strong>Traits:</strong> All black <code>#141414</code> body, glowing yellow eyes <code>#FFC840</code> with slit pupils, mysterious subtle expression, dark ears.
+    </div>
+  </div>
+
+  <!-- ragdoll -->
+  <div class="card">
+    <div class="card-header">
+      <span class="breed-name">☁️ 布偶猫</span>
+      <span class="breed-id">ragdoll</span>
+      <span class="rarity-badge rarity-rare">rare</span>
+    </div>
+    <div class="pair-row">
+      <div class="ascii-box"> ~/\_/\~
+ ( ◉ ◉ )
+ (  ω  )
+ (~__~)</div>
+      <div class="svg-box">
+        <svg width="128" height="128" viewBox="0 0 32 32" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+          <!-- Fluffy ears outer -->
+          <rect x="5" y="2" width="4" height="4" fill="#E8DDD0"/><rect x="6" y="1" width="3" height="1" fill="#E8DDD0"/>
+          <rect x="23" y="2" width="4" height="4" fill="#E8DDD0"/><rect x="23" y="1" width="3" height="1" fill="#E8DDD0"/>
+          <!-- Extra fluff around ears -->
+          <rect x="4" y="3" width="1" height="3" fill="#D8CDC0"/><rect x="27" y="3" width="1" height="3" fill="#D8CDC0"/>
+          <rect x="5" y="1" width="2" height="1" fill="#D8CDC0"/><rect x="25" y="1" width="2" height="1" fill="#D8CDC0"/>
+          <!-- Ears inner -->
+          <rect x="6" y="3" width="2" height="2" fill="#C0A890"/><rect x="24" y="3" width="2" height="2" fill="#C0A890"/>
+          <!-- Head base -->
+          <rect x="5" y="5" width="22" height="14" fill="#E8DDD0"/>
+          <rect x="4" y="6" width="24" height="12" fill="#E8DDD0"/>
+          <rect x="3" y="8" width="26" height="8" fill="#E8DDD0"/>
+          <!-- Face mask -->
+          <rect x="7" y="5" width="18" height="7" fill="#C0A890"/><rect x="6" y="6" width="20" height="5" fill="#C0A890"/>
+          <rect x="8" y="4" width="16" height="2" fill="#C0A890"/>
+          <!-- Mask blending -->
+          <rect x="8" y="9" width="16" height="1" fill="#D0C0A8"/>
+          <rect x="9" y="10" width="14" height="1" fill="#D8C8B0"/>
+          <!-- Eyes (deep blue) -->
+          <rect x="9" y="11" width="4" height="3" fill="#fff"/><rect x="19" y="11" width="4" height="3" fill="#fff"/>
+          <rect x="10" y="12" width="2" height="2" fill="#6090D0"/><rect x="20" y="12" width="2" height="2" fill="#6090D0"/>
+          <rect x="11" y="12" width="1" height="2" fill="#000"/><rect x="21" y="12" width="1" height="2" fill="#000"/>
+          <rect x="10" y="11" width="1" height="1" fill="#fff"/><rect x="20" y="11" width="1" height="1" fill="#fff"/>
+          <!-- White chin -->
+          <rect x="12" y="14" width="8" height="3" fill="#fff"/><rect x="10" y="15" width="2" height="2" fill="#fff"/><rect x="20" y="15" width="2" height="2" fill="#fff"/>
+          <!-- Nose -->
+          <rect x="15" y="14" width="2" height="1" fill="#FFAAAA"/>
+          <!-- Mouth (ω) -->
+          <rect x="14" y="16" width="1" height="1" fill="#C0A890"/><rect x="17" y="16" width="1" height="1" fill="#C0A890"/>
+          <rect x="15" y="17" width="2" height="1" fill="#C0A890"/>
+          <!-- Fluffy body -->
+          <rect x="6" y="18" width="20" height="10" fill="#E8DDD0"/>
+          <rect x="4" y="20" width="24" height="8" fill="#E8DDD0"/>
+          <rect x="3" y="22" width="26" height="6" fill="#E8DDD0"/>
+          <!-- Body fluff shading -->
+          <rect x="6" y="19" width="20" height="1" fill="#D8CDC0"/>
+          <rect x="4" y="21" width="24" height="1" fill="#D8CDC0"/>
+          <rect x="3" y="23" width="26" height="1" fill="#D8CDC0"/>
+          <!-- Extra fluff sides -->
+          <rect x="3" y="20" width="1" height="4" fill="#D8CDC0"/><rect x="28" y="20" width="1" height="4" fill="#D8CDC0"/>
+          <!-- White chest -->
+          <rect x="11" y="19" width="10" height="7" fill="#fff"/><rect x="9" y="21" width="2" height="4" fill="#fff"/><rect x="21" y="21" width="2" height="4" fill="#fff"/>
+          <!-- White paws -->
+          <rect x="6" y="27" width="4" height="2" fill="#fff"/><rect x="22" y="27" width="4" height="2" fill="#fff"/>
+          <rect x="7" y="29" width="2" height="1" fill="#fff"/><rect x="23" y="29" width="2" height="1" fill="#fff"/>
+          <!-- Tail (fluffy) -->
+          <rect x="27" y="24" width="3" height="3" fill="#E8DDD0"/><rect x="29" y="22" width="2" height="2" fill="#D8CDC0"/><rect x="30" y="20" width="1" height="2" fill="#E8DDD0"/>
+        </svg>
+      </div>
+    </div>
+    <div class="traits">
+      <strong>Traits:</strong> Light cream body <code>#E8DDD0</code>, darker face mask <code>#C0A890</code>, fluffy long fur appearance, deep blue eyes <code>#6090D0</code>, white chin/paws.
+    </div>
+  </div>
+
+  <!-- scottish_fold -->
+  <div class="card">
+    <div class="card-header">
+      <span class="breed-name">🍞 折耳猫</span>
+      <span class="breed-id">scottish_fold</span>
+      <span class="rarity-badge rarity-epic">epic</span>
+    </div>
+    <div class="pair-row">
+      <div class="ascii-box">  __/\__
+ ( o o )
+ (  ω  )
+  \____/</div>
+      <div class="svg-box">
+        <svg width="128" height="128" viewBox="0 0 32 32" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+          <!-- Folded ears (flat, no points) -->
+          <rect x="5" y="4" width="5" height="2" fill="#D4B896"/><rect x="6" y="3" width="4" height="1" fill="#D4B896"/>
+          <rect x="22" y="4" width="5" height="2" fill="#D4B896"/><rect x="22" y="3" width="4" height="1" fill="#D4B896"/>
+          <!-- Ear fold shadow -->
+          <rect x="5" y="4" width="5" height="1" fill="#C4A886"/><rect x="22" y="4" width="5" height="1" fill="#C4A886"/>
+          <!-- Ear inner -->
+          <rect x="6" y="4" width="3" height="1" fill="#C4A886"/><rect x="23" y="4" width="3" height="1" fill="#C4A886"/>
+          <!-- Head base (extra round) -->
+          <rect x="5" y="5" width="22" height="14" fill="#D4B896"/>
+          <rect x="4" y="6" width="24" height="12" fill="#D4B896"/>
+          <rect x="3" y="8" width="26" height="8" fill="#D4B896"/>
+          <!-- Round cheeks -->
+          <rect x="3" y="10" width="2" height="4" fill="#D4B896"/><rect x="27" y="10" width="2" height="4" fill="#D4B896"/>
+          <rect x="2" y="11" width="1" height="2" fill="#D4B896"/><rect x="29" y="11" width="1" height="2" fill="#D4B896"/>
+          <!-- Face shading -->
+          <rect x="8" y="7" width="16" height="5" fill="#E4C8A6"/>
+          <rect x="10" y="6" width="12" height="2" fill="#E4C8A6"/>
+          <!-- Big round eyes -->
+          <rect x="9" y="11" width="4" height="4" fill="#fff"/><rect x="19" y="11" width="4" height="4" fill="#fff"/>
+          <!-- Eye color -->
+          <rect x="10" y="12" width="2" height="2" fill="#88CC44"/><rect x="20" y="12" width="2" height="2" fill="#88CC44"/>
+          <!-- Pupils (round, small = shy) -->
+          <rect x="11" y="12" width="1" height="2" fill="#000"/><rect x="21" y="12" width="1" height="2" fill="#000"/>
+          <!-- Highlights -->
+          <rect x="10" y="11" width="1" height="1" fill="#fff"/><rect x="20" y="11" width="1" height="1" fill="#fff"/>
+          <!-- Rosy cheeks -->
+          <rect x="6" y="13" width="2" height="2" fill="#E8A090"/><rect x="24" y="13" width="2" height="2" fill="#E8A090"/>
+          <!-- Small nose -->
+          <rect x="15" y="15" width="2" height="1" fill="#FFAAAA"/>
+          <!-- Small shy mouth (ω) -->
+          <rect x="14" y="16" width="1" height="1" fill="#C4A886"/><rect x="17" y="16" width="1" height="1" fill="#C4A886"/>
+          <rect x="15" y="17" width="2" height="1" fill="#C4A886"/>
+          <!-- Body -->
+          <rect x="7" y="18" width="18" height="10" fill="#D4B896"/>
+          <rect x="5" y="20" width="22" height="8" fill="#D4B896"/>
+          <rect x="4" y="22" width="24" height="6" fill="#D4B896"/>
+          <!-- Body shading -->
+          <rect x="7" y="19" width="18" height="1" fill="#C4A886"/>
+          <rect x="5" y="21" width="22" height="1" fill="#C4A886"/>
+          <rect x="4" y="23" width="24" height="1" fill="#C4A886"/>
+          <!-- Round body appearance -->
+          <rect x="3" y="21" width="1" height="4" fill="#D4B896"/><rect x="28" y="21" width="1" height="4" fill="#D4B896"/>
+          <!-- Tail -->
+          <rect x="26" y="24" width="3" height="2" fill="#D4B896"/><rect x="28" y="22" width="2" height="2" fill="#C4A886"/>
+          <!-- Paws -->
+          <rect x="7" y="27" width="3" height="2" fill="#E4C8A6"/><rect x="22" y="27" width="3" height="2" fill="#E4C8A6"/>
+          <rect x="8" y="29" width="2" height="1" fill="#E4C8A6"/><rect x="23" y="29" width="2" height="1" fill="#E4C8A6"/>
+        </svg>
+      </div>
+    </div>
+    <div class="traits">
+      <strong>Traits:</strong> Folded flat ears (no points), round face <code>#D4B896</code>, big round eyes, small shy expression, warm beige tones.
+    </div>
+  </div>
+
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <h2>Trait to SVG Mapping</h2>
+  <div class="legend-grid">
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#FF9F43;"></div>
+      <div><strong>Orange / 橘色</strong><br>orange_tabby body, calico patches</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#CC6611;"></div>
+      <div><strong>Dark Orange / 深橘</strong><br>Stripes, markings, mouths</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#38B149;"></div>
+      <div><strong>Green / 绿色</strong><br>orange_tabby eyes, calico left eye</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#141414;"></div>
+      <div><strong>Black / 黑色</strong><br>black_cat body, tuxedo patches, calico patches</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#FFC840;"></div>
+      <div><strong>Yellow Glow / 黄光</strong><br>black_cat glowing eyes</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#D4C0A8;"></div>
+      <div><strong>Cream / 米色</strong><br>siamese body, scottish_fold body</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#5a3a2a;"></div>
+      <div><strong>Dark Points / 深点</strong><br>siamese ears, face, paws, tail</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#4080c0;"></div>
+      <div><strong>Blue / 蓝色</strong><br>siamese almond eyes</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#E8DDD0;"></div>
+      <div><strong>Light Cream / 浅奶白</strong><br>ragdoll body</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#C0A890;"></div>
+      <div><strong>Mask / 面具色</strong><br>ragdoll face mask</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#6090D0;"></div>
+      <div><strong>Deep Blue / 深蓝</strong><br>ragdoll eyes</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#D4B896;"></div>
+      <div><strong>Warm Beige / 暖 beige</strong><br>scottish_fold body &amp; ears</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#44AAFF;"></div>
+      <div><strong>Bright Blue / 亮蓝</strong><br>tuxedo eyes, calico right eye</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#fff; border-color:#666;"></div>
+      <div><strong>White / 白色</strong><br>tuxedo/calico patches, ragdoll chin/paws, eye whites</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#88CC44;"></div>
+      <div><strong>Soft Green / 柔绿</strong><br>scottish_fold eyes</div>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#E8A090;"></div>
+      <div><strong>Rosy / 玫瑰色</strong><br>scottish_fold cheeks</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
