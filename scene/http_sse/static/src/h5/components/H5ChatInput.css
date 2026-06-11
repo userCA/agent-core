@@ -554,4 +554,9 @@
   .c1, .c2, .c3, .c4 {
     animation: none;
   }
+  .label-voice .text-voice p:first-child {
+    animation: none;
+    background-image: none;
+    color: var(--mute);
+  }
 }

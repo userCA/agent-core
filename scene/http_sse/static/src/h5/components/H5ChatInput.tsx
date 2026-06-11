@@ -65,7 +65,7 @@ export default function H5ChatInput({ onSend }: Props) {
       )}
 
       <div className="container-ia-chat">
-        <input type="checkbox" name="input-voice" id="input-voice" className="input-voice" style={{display: 'none'}} />
+        <input type="checkbox" name="input-voice" id="input-voice" className="input-voice" style={{display: 'none'}} aria-label="语音模式" />
         <input
           ref={inputRef}
           type="text"
@@ -78,7 +78,7 @@ export default function H5ChatInput({ onSend }: Props) {
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
         />
-        <input type="checkbox" name="input-files" id="input-files" className="input-files" style={{display: 'none'}} />
+        <input type="checkbox" name="input-files" id="input-files" className="input-files" style={{display: 'none'}} aria-label="上传文件" />
         <div className="container-upload-files">
           <svg className="upload-file" xmlns="http://www.w3.org/2000/svg" width={24} height={24} viewBox="0 0 24 24">
             <g fill="none" stroke="currentColor" strokeWidth={2}>

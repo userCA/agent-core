@@ -28,6 +28,7 @@ export default function CollapsibleInput({ onSend }: Props) {
           <motion.button
             className="h5-input-fab"
             onClick={() => setExpanded(true)}
+            aria-label="展开输入框"
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0 }}
@@ -83,7 +84,7 @@ export default function CollapsibleInput({ onSend }: Props) {
                   <span className="h5-fab-nose" />
                 </motion.span>
                 <span className="h5-input-expanded-title">和咪兔聊聊</span>
-                <button className="h5-input-dismiss" onClick={() => setExpanded(false)}>
+                <button className="h5-input-dismiss" onClick={() => setExpanded(false)} aria-label="关闭输入框">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>

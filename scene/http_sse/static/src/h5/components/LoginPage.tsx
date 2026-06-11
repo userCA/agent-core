@@ -90,11 +90,13 @@ export default function LoginPage() {
             onChange={(e) => setUid(e.target.value)}
             placeholder="输入用户 ID（留空自动生成）"
             disabled={loading}
+            aria-label="用户 ID"
           />
           <button
             className="h5-login-btn"
             onClick={() => handleLogin()}
             disabled={loading}
+            aria-label={loading ? '连接中' : '开始对话'}
           >
             {loading ? '连接中...' : '开始对话'}
           </button>
