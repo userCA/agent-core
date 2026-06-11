@@ -360,7 +360,6 @@
   padding: var(--p);
   place-items: center;
   position: relative;
-  animation: circle1 5s ease-in-out infinite;
 }
 
 .ai::before,
