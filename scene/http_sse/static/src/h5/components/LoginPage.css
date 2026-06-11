@@ -52,6 +52,7 @@
   color: var(--ink);
   outline: none;
   transition: border-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .h5-login-input:focus {
   border-color: var(--accent);
@@ -76,6 +77,7 @@
   cursor: pointer;
   min-height: 52px;
   transition: background 0.15s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .h5-login-btn:active {
   transform: scale(0.98);
@@ -115,6 +117,7 @@
   cursor: pointer;
   min-height: 44px;
   transition: border-color 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .h5-login-recent-item:active {
   border-color: var(--accent);

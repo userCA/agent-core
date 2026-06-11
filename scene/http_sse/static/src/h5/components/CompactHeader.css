@@ -74,6 +74,7 @@
   color: var(--mute);
   cursor: pointer;
   border-radius: var(--radius-sm);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .h5-menu-btn:active {
@@ -129,8 +130,8 @@
 
 .h5-menu-close {
   padding: 0;
-  min-height: 36px;
-  min-width: 36px;
+  min-height: 40px;
+  min-width: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -139,6 +140,7 @@
   color: var(--mute);
   cursor: pointer;
   border-radius: var(--radius-sm);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .h5-menu-close:active {

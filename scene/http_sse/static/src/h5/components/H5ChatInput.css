@@ -91,6 +91,7 @@
   transition: all 0.5s;
   width: 28px;
   height: 28px;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .container-upload-files .upload-file:active {
@@ -195,6 +196,7 @@
   visibility: hidden;
   pointer-events: none;
   transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .label-files:focus-visible,
@@ -217,6 +219,7 @@
   cursor: pointer;
   transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05);
   z-index: 999;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .input-voice:checked ~ .label-voice {

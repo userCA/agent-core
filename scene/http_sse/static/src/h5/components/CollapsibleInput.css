@@ -186,6 +186,7 @@
   color: var(--ash);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .h5-input-dismiss:active {
   background: var(--surface-card);
