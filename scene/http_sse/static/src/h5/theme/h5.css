@@ -230,12 +230,14 @@
 .h5-app-layout .btn {
     min-height: 44px;
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .h5-app-layout input,
 .h5-app-layout textarea,
 .h5-app-layout select {
     font-size: 16px;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .h5-app-layout .msg-action-btn {
