@@ -81,14 +81,14 @@
   left: 0;
   display: flex;
   color: var(--ash);
-  transition: all 0.5s;
+  transition: opacity 0.5s, visibility 0.5s, filter 0.5s;
 }
 
 .container-upload-files .upload-file {
   margin: 4px;
   padding: 2px;
   cursor: pointer;
-  transition: all 0.5s;
+  transition: color 0.5s;
   width: 28px;
   height: 28px;
   -webkit-tap-highlight-color: transparent;
@@ -114,7 +114,7 @@
   line-height: 18px;
   font-family: var(--font-body, "Segoe UI", Tahoma, Geneva, Verdana, sans-serif);
   font-weight: 500;
-  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05);
+  transition: max-width 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05), margin-left 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05);
   z-index: 999;
 }
 
@@ -195,7 +195,7 @@
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05);
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05), opacity 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05), visibility 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -217,7 +217,7 @@
   border: none;
   outline: none;
   cursor: pointer;
-  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05);
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05), opacity 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05), visibility 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05), color 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05), background 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.05);
   z-index: 999;
   -webkit-tap-highlight-color: transparent;
 }
@@ -269,7 +269,7 @@
 
 .label-voice .icon-voice {
   position: absolute;
-  transition: all 0.3s;
+  transition: opacity 0.3s, transform 0.3s;
   animation: breathe 2.4s ease-in-out infinite;
   transform-origin: center;
 }
@@ -285,7 +285,7 @@
 
 .label-voice .text-voice p {
   opacity: 0;
-  transition: all 0.3s;
+  transition: opacity 0.3s;
   text-wrap: nowrap;
 }
 

@@ -27,7 +27,7 @@
   color: var(--mute);
   cursor: pointer;
   font-family: var(--font-sans);
-  transition: all 0.15s ease;
+  transition: color 0.15s ease, background 0.15s ease;
   -webkit-tap-highlight-color: transparent;
   position: relative;
   border-radius: 12px;
