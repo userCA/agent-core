@@ -114,7 +114,7 @@ class TestEndToEndPipeline:
                 
                 # If validation passed, apply it
                 if validation_result.passed:
-                    applied = await gate.apply_proposal(proposal, backup=False)
+                    applied = await gate.apply_proposal(proposal, backup=False, force=True)
                     assert applied is True
                     
                     # Verify skill was modified
@@ -193,63 +193,69 @@ class TestCollectorIntegration:
     """Test trace collector integration with agent lifecycle."""
 
     async def test_collector_records_success(self):
-        """Test that collector records successful executions."""
+        """Test that collector records successful executions via on_event."""
         store = InMemorySkillEvolutionStore()
         collector = SkillTraceCollector(store)
-        
-        # Simulate agent start - create a minimal mock context
-        class FakeContext:
-            messages = []
-        
-        await collector.on_before_agent_start(FakeContext())
-        
-        # Simulate skill loading
-        await collector.on_skill_loaded(
-            skill_name="test-skill",
-            rule_ids=["rule_1", "rule_2"],
-            ctx=FakeContext(),
-        )
-        
-        # Simulate successful turn end
+
+        # Simulate agent with state containing skill tags
         class FakeState:
-            error_message = None
+            system_prompt = '<skill name="test-skill">desc</skill>'
             messages = []
-        
-        class FakeTurnEnd:
-            def __init__(self):
-                self.state = FakeState()
-                self.turn_index = 0
-        
-        await collector.on_turn_end(FakeContext(), FakeTurnEnd())
-        
-        # Verify trace was saved
+
+        class FakeAgent:
+            state = FakeState()
+
+        class FakeMessage:
+            error_message = None
+            stop_reason = "stop"
+
+        from agent_core.extensions.base import ExtensionContext
+        from agent_core.core.events import AgentStart, TurnEnd
+
+        ctx = ExtensionContext(session_id="s1", agent=FakeAgent(), store=store)
+
+        # AgentStart resets state
+        await collector.on_event(ctx, AgentStart())
+
+        # Register rules via on_skill_loaded for precise tracking
+        await collector.on_skill_loaded("test-skill", ["rule_1", "rule_2"])
+
+        # TurnEnd with successful message
+        evt = TurnEnd(message=FakeMessage(), tool_results=[])
+        await collector.on_event(ctx, evt)
+
         traces = await store.get_traces()
         assert len(traces) == 1
         assert traces[0].skill_name == "test-skill"
+        assert traces[0].loaded_rules == ["rule_1", "rule_2"]
         assert traces[0].execution_outcome == ExecutionOutcome.SUCCESS
 
     async def test_collector_records_failure(self):
-        """Test that collector records failed executions."""
+        """Test that collector records failures via on_event."""
         store = InMemorySkillEvolutionStore()
         collector = SkillTraceCollector(store)
-        
-        class FakeContext:
-            messages = []
-        
-        await collector.on_before_agent_start(FakeContext())
-        await collector.on_skill_loaded("test-skill", ["rule_1"], ctx=FakeContext())
-        
+
         class FakeState:
-            error_message = "Something went wrong"
+            system_prompt = '<skill name="test-skill">desc</skill>'
             messages = []
-        
-        class FakeTurnEnd:
-            def __init__(self):
-                self.state = FakeState()
-                self.turn_index = 0
-        
-        await collector.on_turn_end(FakeContext(), FakeTurnEnd())
-        
+
+        class FakeAgent:
+            state = FakeState()
+
+        class FakeMessage:
+            error_message = "Something went wrong"
+            stop_reason = "error"
+
+        from agent_core.extensions.base import ExtensionContext
+        from agent_core.core.events import AgentStart, TurnEnd
+
+        ctx = ExtensionContext(session_id="s1", agent=FakeAgent(), store=store)
+        await collector.on_event(ctx, AgentStart())
+        await collector.on_skill_loaded("test-skill", ["rule_1"])
+
+        evt = TurnEnd(message=FakeMessage(), tool_results=[])
+        await collector.on_event(ctx, evt)
+
         traces = await store.get_traces()
         assert len(traces) == 1
         assert traces[0].execution_outcome == ExecutionOutcome.FAILURE
@@ -259,25 +265,84 @@ class TestCollectorIntegration:
         """Test that collector can be disabled."""
         store = InMemorySkillEvolutionStore()
         collector = SkillTraceCollector(store, enabled=False)
-        
-        class FakeContext:
-            messages = []
-        
-        await collector.on_before_agent_start(FakeContext())
-        await collector.on_skill_loaded("test-skill", ["rule_1"], ctx=FakeContext())
-        
+
         class FakeState:
-            error_message = None
+            system_prompt = '<skill name="test-skill">desc</skill>'
             messages = []
-        
-        class FakeTurnEnd:
-            def __init__(self):
-                self.state = FakeState()
-                self.turn_index = 0
-        
-        await collector.on_turn_end(FakeContext(), FakeTurnEnd())
-        
-        # No traces should be saved
+
+        class FakeAgent:
+            state = FakeState()
+
+        class FakeMessage:
+            error_message = None
+            stop_reason = "stop"
+
+        from agent_core.extensions.base import ExtensionContext
+        from agent_core.core.events import AgentStart, TurnEnd
+
+        ctx = ExtensionContext(session_id="s1", agent=FakeAgent(), store=store)
+        await collector.on_event(ctx, AgentStart())
+        await collector.on_skill_loaded("test-skill", ["rule_1"])
+
+        evt = TurnEnd(message=FakeMessage(), tool_results=[])
+        await collector.on_event(ctx, evt)
+
+        # No traces should be saved when disabled
+        traces = await store.get_traces()
+        assert len(traces) == 0
+
+    async def test_on_event_extracts_skill_from_system_prompt(self):
+        """Test that on_event extracts skill names from <skill> tags."""
+        store = InMemorySkillEvolutionStore()
+        collector = SkillTraceCollector(store)
+
+        class FakeState:
+            system_prompt = '<skill name="skill-a">desc</skill>\n<skill name="skill-b">desc</skill>'
+            messages = []
+
+        class FakeAgent:
+            state = FakeState()
+
+        class FakeMessage:
+            error_message = None
+            stop_reason = "stop"
+
+        from agent_core.extensions.base import ExtensionContext
+        from agent_core.core.events import AgentStart, TurnEnd
+
+        ctx = ExtensionContext(session_id="s1", agent=FakeAgent(), store=store)
+        await collector.on_event(ctx, AgentStart())
+        evt = TurnEnd(message=FakeMessage(), tool_results=[])
+        await collector.on_event(ctx, evt)
+
+        traces = await store.get_traces()
+        skill_names = {t.skill_name for t in traces}
+        assert skill_names == {"skill-a", "skill-b"}
+
+    async def test_on_event_no_skills_skips_trace(self):
+        """Test that no trace is saved when system_prompt has no skills."""
+        store = InMemorySkillEvolutionStore()
+        collector = SkillTraceCollector(store)
+
+        class FakeState:
+            system_prompt = "No skill tags here"
+            messages = []
+
+        class FakeAgent:
+            state = FakeState()
+
+        class FakeMessage:
+            error_message = None
+            stop_reason = "stop"
+
+        from agent_core.extensions.base import ExtensionContext
+        from agent_core.core.events import AgentStart, TurnEnd
+
+        ctx = ExtensionContext(session_id="s1", agent=FakeAgent(), store=store)
+        await collector.on_event(ctx, AgentStart())
+        evt = TurnEnd(message=FakeMessage(), tool_results=[])
+        await collector.on_event(ctx, evt)
+
         traces = await store.get_traces()
         assert len(traces) == 0
 
@@ -360,9 +425,70 @@ class TestValidationIntegration:
         
         if result.passed:
             # Apply and verify
-            applied = await gate.apply_proposal(proposal, backup=False)
+            applied = await gate.apply_proposal(proposal, backup=False, force=True)
             assert applied
             
             skill_path = Path(temp_skill_dir) / "test-skill" / "SKILL.md"
             new_content = skill_path.read_text(encoding="utf-8")
             assert "Important new rule about type safety" in new_content
+
+    async def test_human_review_gate_blocks_auto_apply(self, temp_skill_dir):
+        """Test that require_human_review blocks auto-apply without validation."""
+        gate = SkillValidationGate(skill_dir=temp_skill_dir, require_human_review=True)
+
+        proposal = PatchProposal(
+            proposal_id="p1",
+            source_traces=["t1"],
+            skill_name="test-skill",
+            operation="modify",
+            target_rule_id="rule_1",
+            new_content="new content",
+            confidence=0.5,
+        )
+
+        # Without force=True, should be blocked
+        applied = await gate.apply_proposal(proposal, backup=False)
+        assert applied is False
+
+        # With force=True, should succeed
+        applied = await gate.apply_proposal(proposal, backup=False, force=True)
+        assert applied is True
+
+    async def test_human_review_gate_off_allows_auto_apply(self, temp_skill_dir):
+        """Test that require_human_review=False allows direct apply."""
+        gate = SkillValidationGate(skill_dir=temp_skill_dir, require_human_review=False)
+
+        proposal = PatchProposal(
+            proposal_id="p1",
+            source_traces=["t1"],
+            skill_name="test-skill",
+            operation="modify",
+            target_rule_id="rule_1",
+            new_content="updated content",
+            confidence=0.5,
+        )
+
+        applied = await gate.apply_proposal(proposal, backup=False)
+        assert applied is True
+
+    def test_diff_proposal_output(self, temp_skill_dir):
+        """Test that diff_proposal generates readable output."""
+        gate = SkillValidationGate(skill_dir=temp_skill_dir)
+
+        proposal = PatchProposal(
+            proposal_id="p1",
+            source_traces=["t1"],
+            skill_name="test-skill",
+            operation="add",
+            new_content="New rule",
+            rationale="Needed for safety",
+            confidence=0.9,
+        )
+
+        diff = gate.diff_proposal(proposal)
+        assert "test-skill" in diff
+        assert "add" in diff
+        assert "New rule" in diff
+        assert "Needed for safety" in diff
+        # Should have diff markers
+        assert "-" in diff

@@ -6,6 +6,7 @@ import { importSkill } from '../../api/client';
 import Icon from '../shared/Icon';
 import Loading from '../shared/Loading';
 import EmptyState from '../shared/EmptyState';
+import EvolutionPanel from './EvolutionPanel';
 import './Pages.css';
 
 interface Props { onBack?: () => void; }
@@ -231,6 +232,7 @@ export default function SkillsPage({ onBack }: Props) {
                 <div className="card-meta">
                   <code>/skill:{s.name}</code>
                 </div>
+                <EvolutionPanel skillName={s.name} />
               </div>
             );
           })}

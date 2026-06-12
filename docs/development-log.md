@@ -54,3 +54,4 @@
 
 | 2026-06-06 | 68. Header 三栏重构 + MiniGameHost 多游戏 dock  69. UX 审查 + focus-visible 修复 | [2026-06-06.md](development-log/2026-06-06.md) |
 | 2026-06-08 | 70. Motion 动画库集成  71. 小游戏系统完整移除  72. UX 审计修复 | [2026-06-08.md](development-log/2026-06-08.md) |
+| 2026-06-12 | 73. skill_evolution 全面审查/Bug修复/三层落地  74. EvolutionPanel UI | [2026-06-12.md](development-log/2026-06-12.md) |

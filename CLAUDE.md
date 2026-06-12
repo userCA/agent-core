@@ -37,7 +37,7 @@ pytest tests/tools/
 
 ## 本地验证
 
-改动代码后启动前后端手动验证：
+### 启动后端
 
 ```bash
 # 构建前端（scene/http_sse/static/）
@@ -48,6 +48,28 @@ PORT=8001 python -m scene.http_sse.server
 ```
 
 浏览器打开 `http://localhost:8001` 即可交互验证。
+
+**注意：前端是 H5 移动端页面**（`src/main.tsx` 入口加载的是 `src/h5/App.tsx`），不是桌面 Web 页面。在桌面浏览器打开时，UI 会以移动端视口宽度展示。
+
+### 前端开发
+
+```bash
+cd scene/http_sse/static && npm run dev   # Vite 开发服务器，默认 http://localhost:5173
+```
+
+Vite 开发服务器已配置代理将 `/skills`、`/chat`、`/capabilities` 等 API 请求转发到 `http://localhost:8001`。开发时前端 `npm run dev` + 后端 `python -m scene.http_sse.server` 同时运行。
+
+**H5 / 桌面切换**：`main.tsx` 通过 URL 参数 `?mode=` 控制入口：
+- `http://localhost:5173` → 默认 H5 移动端
+- `http://localhost:5173?mode=desktop` → 桌面 Web 端（侧边栏布局）
+- `http://localhost:5173?mode=h5` → 显式 H5
+
+前端技术栈：
+- React 18 + TypeScript + Zustand
+- 双入口：`src/h5/App.tsx`（H5 移动端）和 `src/desktop/App.tsx`（桌面 Web 端）
+- 组件在 `src/components/` 中 H5/桌面共享
+- 纯 CSS，无 UI 框架
+- 路由用 Zustand 状态机（`activePage` / `h5ActiveTab`），无 React Router
 
 ## 架构
 

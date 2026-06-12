@@ -33,6 +33,10 @@ class SkillValidationGate:
     Without validation, the system could degrade over time by accepting changes
     that help some cases but hurt others.
 
+    When agent_runner is provided, tests are executed against a real agent
+    instance with the modified skill. Without it, falls back to heuristic
+    keyword-overlap scoring.
+
     Usage:
         gate = SkillValidationGate(skill_dir=".claude/skills")
         result = await gate.validate(proposal, test_cases)
@@ -43,8 +47,10 @@ class SkillValidationGate:
     def __init__(
         self,
         skill_dir: str | Path = ".claude/skills",
-        test_threshold: float = 0.05,  # Minimum improvement to accept
-        timeout_per_test: float = 30.0,  # Seconds per test case
+        test_threshold: float = 0.05,
+        timeout_per_test: float = 30.0,
+        agent_runner: Callable | None = None,
+        require_human_review: bool = True,
     ):
         """Initialize the validation gate.
 
@@ -52,12 +58,16 @@ class SkillValidationGate:
             skill_dir: Directory containing skill files
             test_threshold: Minimum score delta to accept change (default 5% improvement)
             timeout_per_test: Max seconds to run each test case
+            agent_runner: Optional async callable that runs an agent with modified skill.
+            require_human_review: If True, proposals with recommendation != "accept"
+                are blocked from auto-apply. Set False for fully automated pipelines.
         """
         self.skill_dir = Path(skill_dir)
         self.test_threshold = test_threshold
         self.timeout_per_test = timeout_per_test
+        self.agent_runner = agent_runner
+        self.require_human_review = require_human_review
 
-        # Test case registry - can be populated programmatically or from files
         self._test_cases: dict[str, list[TestCase]] = {}
 
     def register_test_cases(self, skill_name: str, cases: list[TestCase]) -> None:
@@ -227,12 +237,13 @@ class SkillValidationGate:
             for match in matches:
                 rule_text = match.group(1)
                 if target_rule in rule_text or self._rule_matches(rule_text, target_rule):
-                    # Replace this rule
-                    new_rule = f"## 规则 {target_rule.split('_')[1]}：{new_content}\n\n"
+                    rule_num = self._extract_rule_number(target_rule) or target_rule
+                    new_rule = f"## 规则 {rule_num}：{new_content}\n\n"
                     return old_content[:match.start()] + new_rule + old_content[match.end():]
 
             # If no match found, append as new rule
-            return old_content + f"\n\n## 规则 {target_rule}：{new_content}\n"
+            rule_num = self._extract_rule_number(target_rule) or target_rule
+            return old_content + f"\n\n## 规则 {rule_num}：{new_content}\n"
 
         elif operation == "delete" and target_rule:
             # Remove the target rule
@@ -250,13 +261,21 @@ class SkillValidationGate:
             return 1
         return max(int(m) for m in matches) + 1
 
-    def _rule_matches(self, rule_text: str, target_rule: str) -> bool:
-        """Check if a rule block matches the target rule ID.
+    def _extract_rule_number(self, rule_id: str) -> str | None:
+        """Extract numeric rule identifier from either format.
 
-        Handles formats like:
-        - "rule_14" → look for "规则 14"
-        - "规则 14" → exact match
+        "rule_14" → "14"
+        "规则 14" → "14"
         """
+        if rule_id.startswith("rule_"):
+            return rule_id.split("_")[1]
+        m = re.search(r"规则\s*(\d+)", rule_id)
+        if m:
+            return m.group(1)
+        return None
+
+    def _rule_matches(self, rule_text: str, target_rule: str) -> bool:
+        """Check if a rule block matches the target rule ID."""
         if target_rule.startswith("rule_"):
             num = target_rule.split("_")[1]
             return f"规则 {num}" in rule_text
@@ -305,51 +324,129 @@ class SkillValidationGate:
         test_case: TestCase,
         skill_content: str,
     ) -> float:
-        """Execute a single test case and return a score.
+        """Execute a single test case and return a score (0.0-1.0).
 
-        This is a simplified implementation. In production, this would:
-        1. Create a temporary skill file with the test content
-        2. Run the agent with the test query
-        3. Check if expected behavior occurred
-        4. Return a score based on success criteria
-
-        For now, we use heuristic matching on the skill content itself.
+        When agent_runner is available, invokes the real agent with the
+        modified skill content and checks the result. Otherwise falls back
+        to keyword-overlap heuristic scoring.
         """
-        # Heuristic scoring based on whether the skill content addresses the test
+        # Use real agent execution when available
+        if self.agent_runner is not None:
+            try:
+                result = await asyncio.wait_for(
+                    self.agent_runner(skill_content, test_case.input_query),
+                    timeout=self.timeout_per_test,
+                )
+                if isinstance(result, dict) and result.get("success"):
+                    return 1.0
+                return 0.0
+            except asyncio.TimeoutError:
+                _log.warning("Agent test %s timed out", test_case.test_id)
+                return 0.0
+            except Exception:
+                _log.exception("Agent test %s failed", test_case.test_id)
+                return 0.0
+
+        # Heuristic fallback: keyword overlap scoring
         query_lower = test_case.input_query.lower()
         skill_lower = skill_content.lower()
 
-        # Check if relevant keywords from query appear in skill
         query_words = set(re.findall(r'\w+', query_lower))
         skill_words = set(re.findall(r'\w+', skill_lower))
 
         overlap = len(query_words & skill_words) / len(query_words) if query_words else 0
+        base_score = min(overlap * 2, 1.0)
 
-        # Base score on keyword overlap
-        base_score = min(overlap * 2, 1.0)  # Scale up but cap at 1.0
-
-        # Bonus if expected behavior keywords are present
         expected_lower = test_case.expected_behavior.lower()
         expected_words = set(re.findall(r'\w+', expected_lower))
         expected_overlap = len(expected_words & skill_words) / len(expected_words) if expected_words else 0
         bonus = expected_overlap * 0.2
 
-        return min(base_score + bonus, 1.0)
+        # Use success_criteria: if callable, invoke it; strings act as weight signal
+        criteria_weight = 1.0
+        criteria = test_case.success_criteria
+        if callable(criteria):
+            try:
+                criteria_weight = 1.2 if criteria(skill_content) else 0.8
+            except Exception:
+                pass
+        elif isinstance(criteria, str) and criteria != "no_error":
+            # Named criteria that doesn't appear in skill content → penalty
+            if criteria.lower() not in skill_lower:
+                criteria_weight = 0.9
+
+        return min((base_score + bonus) * criteria_weight, 1.0)
+
+    def diff_proposal(
+        self,
+        proposal: PatchProposal,
+    ) -> str:
+        """Generate a human-readable diff of what a proposal would change.
+
+        Returns a unified-diff-style string showing old vs new content.
+        Does NOT modify any files.
+
+        Args:
+            proposal: The proposal to preview
+
+        Returns:
+            Diff string suitable for human review
+        """
+        old_content = ""
+        skill_path = self.skill_dir / proposal.skill_name / "SKILL.md"
+        if skill_path.exists():
+            old_content = skill_path.read_text(encoding="utf-8")
+
+        new_content = self._apply_proposal(old_content, proposal)
+
+        if old_content == new_content:
+            return f"# No change (proposal {proposal.proposal_id} had no effect)\n"
+
+        lines: list[str] = [
+            f"# Proposed change for: {proposal.skill_name}",
+            f"# Operation: {proposal.operation}",
+            f"# Target rule: {proposal.target_rule_id or '(new)'}",
+            f"# Confidence: {proposal.confidence:.0%}",
+            f"# Rationale: {proposal.rationale}",
+            "",
+        ]
+
+        # Simple line diff
+        old_lines = old_content.splitlines(keepends=True)
+        new_lines = new_content.splitlines(keepends=True)
+
+        for line in old_lines:
+            lines.append(f"-{line.rstrip()}")
+        for line in new_lines:
+            lines.append(f"+{line.rstrip()}")
+
+        return "\n".join(lines)
 
     async def apply_proposal(
         self,
         proposal: PatchProposal,
         backup: bool = True,
+        force: bool = False,
     ) -> bool:
-        """Apply an accepted proposal to the actual skill file.
+        """Apply a validated proposal to the actual skill file.
+
+        When require_human_review is True, proposals must have been validated
+        with a passing score (recommendation == "accept") unless force=True.
 
         Args:
             proposal: The validated proposal to apply
             backup: Whether to create a backup before modifying
+            force: If True, bypass the human-review gate
 
         Returns:
             True if successfully applied
         """
+        if self.require_human_review and not force:
+            _log.warning(
+                "[ValidationGate] Human review required — use force=True to bypass, "
+                "or validate first and only apply proposals with recommendation='accept'"
+            )
+            return False
         skill_path = self.skill_dir / proposal.skill_name / "SKILL.md"
 
         if not skill_path.exists():
@@ -378,14 +475,21 @@ class SkillValidationGate:
 def create_validation_gate(
     skill_dir: str | Path = ".claude/skills",
     test_threshold: float = 0.05,
+    agent_runner: Callable | None = None,
+    require_human_review: bool = True,
 ) -> SkillValidationGate:
     """Factory function to create a validation gate.
 
     Args:
         skill_dir: Directory containing skill files
         test_threshold: Minimum improvement to accept changes
+        agent_runner: Optional async callable for real agent execution.
+        require_human_review: If True, blocks auto-apply for non-accepted proposals.
 
     Returns:
         Configured SkillValidationGate
     """
-    return SkillValidationGate(skill_dir, test_threshold=test_threshold)
+    return SkillValidationGate(
+        skill_dir, test_threshold=test_threshold,
+        agent_runner=agent_runner, require_human_review=require_human_review,
+    )

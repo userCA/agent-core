@@ -1,5 +1,6 @@
 """Tests for offline evolution agent."""
 
+import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
@@ -144,13 +145,13 @@ class TestProposalAnalysis:
             execution_outcome=ExecutionOutcome.SUCCESS,
             user_feedback="This was very helpful!",
         )
-        
-        proposal = await agent._analyze_success_trace(trace)
-        
+
+        proposals = await agent._analyze_success_trace(trace)
+
         # Should generate a proposal boosting confidence in loaded rules
-        assert proposal is not None
-        assert proposal.confidence >= 0.6
-        assert "helpful" in proposal.rationale.lower() or "confirmed" in proposal.rationale.lower()
+        assert len(proposals) > 0
+        assert proposals[0].confidence >= 0.6
+        assert "helpful" in proposals[0].rationale.lower() or "confirmed" in proposals[0].rationale.lower()
 
     async def test_failure_trace_with_missing_rule(self, agent):
         """Test detecting missing rule pattern in failures."""
@@ -251,3 +252,90 @@ class TestConflictResolution:
         
         # Low confidence discarded
         assert any(p.proposal_id == "p2" for p in result["discarded"])
+
+
+class TestBatchAnalysis:
+    """Test cross-trace batch analysis."""
+
+    @pytest.fixture
+    def agent(self):
+        store = InMemorySkillEvolutionStore()
+        return OfflineEvolutionAgent(store)
+
+    async def test_batch_without_provider_returns_empty(self, agent):
+        """Batch analysis requires model_provider; returns empty otherwise."""
+        traces = [
+            SkillEvolutionTrace(
+                trace_id=f"t{i}",
+                skill_name="test",
+                execution_outcome=ExecutionOutcome.FAILURE,
+                execution_details={"error": "test error"},
+            )
+            for i in range(3)
+        ]
+        result = await agent._analyze_failure_batch(traces)
+        assert result == []
+
+    async def test_parse_batch_proposals_valid_json(self, agent):
+        """Test parsing valid JSON array from LLM response."""
+        raw = json.dumps([
+            {"operation": "add", "new_content": "rule A", "rationale": "fixes bug",
+             "target_rule_id": None, "confidence": 0.8},
+            {"operation": "modify", "new_content": "rule B", "rationale": "improves",
+             "target_rule_id": "rule_1", "confidence": 0.7},
+        ])
+        traces = [
+            SkillEvolutionTrace(trace_id="t1", skill_name="test"),
+            SkillEvolutionTrace(trace_id="t2", skill_name="test"),
+        ]
+        proposals = agent._parse_batch_proposals(raw, traces, "test")
+        assert len(proposals) == 2
+        assert proposals[0].operation == "add"
+        assert len(proposals[0].source_traces) == 2  # All batch trace IDs
+        assert proposals[1].operation == "modify"
+
+    async def test_parse_batch_proposals_skips_invalid(self, agent):
+        """Test that invalid entries in batch response are skipped."""
+        raw = json.dumps([
+            {"operation": "add", "new_content": "valid", "rationale": "ok",
+             "target_rule_id": None, "confidence": 0.5},
+            {"invalid": "no operation field"},
+        ])
+        traces = [SkillEvolutionTrace(trace_id="t1", skill_name="test")]
+        proposals = agent._parse_batch_proposals(raw, traces, "test")
+        assert len(proposals) == 1
+
+    async def test_trace_deduplication(self, agent):
+        """Test that already-analyzed traces are skipped in subsequent cycles."""
+        store = agent.store
+        for i in range(5):
+            await store.save_trace(SkillEvolutionTrace(
+                trace_id=f"t{i}",
+                skill_name="test",
+                execution_outcome=ExecutionOutcome.FAILURE,
+                execution_details={"error": "test"},
+            ))
+
+        # First cycle should analyze all 5
+        result1 = await agent.run_evolution_cycle(skill_name="test", min_traces=3)
+        assert result1["status"] == "completed"
+        assert result1["traces_analyzed"] == 5
+
+        # Second cycle should skip all (no new traces)
+        result2 = await agent.run_evolution_cycle(skill_name="test", min_traces=1)
+        assert result2["status"] == "skipped"
+        assert result2["reason"] == "no_new_traces"
+
+        # Add new traces
+        for i in range(5, 7):
+            await store.save_trace(SkillEvolutionTrace(
+                trace_id=f"t{i}",
+                skill_name="test",
+                execution_outcome=ExecutionOutcome.FAILURE,
+                execution_details={"error": "test"},
+            ))
+
+        # Third cycle should only analyze the 2 new traces
+        result3 = await agent.run_evolution_cycle(skill_name="test", min_traces=1)
+        assert result3["status"] == "completed"
+        assert result3["traces_analyzed"] == 2

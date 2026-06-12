@@ -659,6 +659,204 @@ def _reload_channels(channels: list[dict[str, Any]]) -> None:
         os.environ.pop("FEISHU_APP_SECRET", None)
 
 
+# ---- Skill Evolution ----
+
+class EvolutionAnalyzeRequest(BaseModel):
+    skill_name: str = Field(..., min_length=1, max_length=100)
+    min_traces: int = Field(default=10, ge=1, le=10000)
+
+
+class EvolutionProposalAction(BaseModel):
+    skill_name: str = Field(..., min_length=1, max_length=100)
+    reason: str | None = Field(default=None, max_length=500)
+
+
+_evolution_cache: dict[str, list[dict[str, Any]]] = {}
+
+
+def _get_skill_dir() -> str:
+    return os.path.join(manager._cwd, ".pi", "skills")
+
+
+@app.get("/skills/evolution/summary")
+async def get_evolution_summary() -> dict[str, Any]:
+    """Get trace counts per skill and recent evolution cycles."""
+    from agent_core.skill_evolution.store import JsonlSkillEvolutionStore
+
+    trace_store = JsonlSkillEvolutionStore()
+    skill_dir = _get_skill_dir()
+
+    trace_counts: dict[str, dict[str, int]] = {}
+    if os.path.isdir(skill_dir):
+        for name in os.listdir(skill_dir):
+            if os.path.isdir(os.path.join(skill_dir, name)):
+                total = await trace_store.get_trace_count(skill_name=name)
+                success = await trace_store.get_trace_count(skill_name=name, outcome="success")
+                failure = await trace_store.get_trace_count(skill_name=name, outcome="failure")
+                if total > 0:
+                    trace_counts[name] = {"total": total, "success": success, "failure": failure}
+
+    return {"trace_counts": trace_counts}
+
+
+@app.post("/skills/evolution/analyze")
+async def analyze_skill_evolution(body: EvolutionAnalyzeRequest) -> dict[str, Any]:
+    """Run an evolution cycle and return proposals with diffs."""
+    from agent_core.skill_evolution import (
+        create_offline_evolution_agent,
+        create_validation_gate,
+    )
+
+    agent = create_offline_evolution_agent("jsonl")
+    result = await agent.run_evolution_cycle(
+        skill_name=body.skill_name,
+        min_traces=body.min_traces,
+    )
+
+    if result.get("status") != "completed" or not result.get("final_proposals"):
+        return {
+            "status": result.get("status", "error"),
+            "reason": result.get("reason", result.get("message", "")),
+            "trace_count": result.get("trace_count", result.get("traces_analyzed", 0)),
+            "proposals": [],
+        }
+
+    gate = create_validation_gate(skill_dir=_get_skill_dir())
+    proposals_out: list[dict[str, Any]] = []
+
+    for p_dict in result["final_proposals"]:
+        from agent_core.skill_evolution import PatchProposal
+        proposal = PatchProposal(
+            proposal_id=p_dict["proposal_id"],
+            source_traces=p_dict.get("source_traces", []),
+            skill_name=p_dict["skill_name"],
+            operation=p_dict.get("operation", "add"),
+            target_rule_id=p_dict.get("target_rule_id"),
+            new_content=p_dict.get("new_content"),
+            rationale=p_dict.get("rationale", ""),
+            confidence=p_dict.get("confidence", 0.5),
+        )
+        diff = gate.diff_proposal(proposal)
+        proposals_out.append({
+            **p_dict,
+            "diff": diff,
+        })
+
+    _evolution_cache[body.skill_name] = proposals_out
+
+    return {
+        "status": "completed",
+        "cycle_id": result.get("cycle_id", ""),
+        "traces_analyzed": result.get("traces_analyzed", 0),
+        "proposals_generated": result.get("proposals_generated", 0),
+        "conflicts": result.get("conflicts", 0),
+        "discarded": result.get("discarded", 0),
+        "proposals": proposals_out,
+    }
+
+
+@app.get("/skills/evolution/proposals/{skill_name}")
+async def get_evolution_proposals(skill_name: str) -> dict[str, Any]:
+    """Get cached proposals for a skill from the last analyze call."""
+    proposals = _evolution_cache.get(skill_name, [])
+    return {"skill_name": skill_name, "proposals": proposals}
+
+
+@app.post("/skills/evolution/proposals/{proposal_id}/accept")
+async def accept_evolution_proposal(
+    proposal_id: str,
+    body: EvolutionProposalAction,
+) -> dict[str, Any]:
+    """Validate and apply an accepted proposal, writing audit log."""
+    from agent_core.skill_evolution import (
+        PatchProposal,
+        create_validation_gate,
+        write_audit_entry,
+    )
+
+    proposals = _evolution_cache.get(body.skill_name, [])
+    p_dict = next((p for p in proposals if p.get("proposal_id") == proposal_id), None)
+    if p_dict is None:
+        return {"success": False, "error": "Proposal not found"}
+
+    proposal = PatchProposal(
+        proposal_id=p_dict["proposal_id"],
+        source_traces=p_dict.get("source_traces", []),
+        skill_name=p_dict["skill_name"],
+        operation=p_dict.get("operation", "add"),
+        target_rule_id=p_dict.get("target_rule_id"),
+        new_content=p_dict.get("new_content"),
+        rationale=p_dict.get("rationale", ""),
+        confidence=p_dict.get("confidence", 0.5),
+    )
+
+    gate = create_validation_gate(skill_dir=_get_skill_dir(), require_human_review=False)
+    result = await gate.validate(proposal)
+    applied = await gate.apply_proposal(proposal, backup=True, force=True)
+
+    audit_id = write_audit_entry(
+        proposal_id=proposal_id,
+        skill_name=body.skill_name,
+        action="accept" if applied else "reject",
+        operation=proposal.operation,
+        target_rule_id=proposal.target_rule_id,
+        diff_summary=(proposal.new_content or "")[:200],
+        rationale=proposal.rationale,
+        validation_score=result.score_delta,
+    )
+
+    # Remove from cache on success
+    if applied:
+        _evolution_cache[body.skill_name] = [
+            p for p in proposals if p.get("proposal_id") != proposal_id
+        ]
+
+    return {"success": applied, "audit_id": audit_id, "validation_score": result.score_delta}
+
+
+@app.post("/skills/evolution/proposals/{proposal_id}/reject")
+async def reject_evolution_proposal(
+    proposal_id: str,
+    body: EvolutionProposalAction,
+) -> dict[str, Any]:
+    """Reject a proposal and write audit log (no skill file modification)."""
+    from agent_core.skill_evolution import write_audit_entry
+
+    proposals = _evolution_cache.get(body.skill_name, [])
+    p_dict = next((p for p in proposals if p.get("proposal_id") == proposal_id), None)
+    if p_dict is None:
+        return {"success": False, "error": "Proposal not found"}
+
+    audit_id = write_audit_entry(
+        proposal_id=proposal_id,
+        skill_name=body.skill_name,
+        action="reject",
+        operation=p_dict.get("operation", ""),
+        target_rule_id=p_dict.get("target_rule_id"),
+        diff_summary=(p_dict.get("new_content") or "")[:200],
+        rationale=p_dict.get("rationale", ""),
+        reject_reason=body.reason,
+    )
+
+    _evolution_cache[body.skill_name] = [
+        p for p in proposals if p.get("proposal_id") != proposal_id
+    ]
+
+    return {"success": True, "audit_id": audit_id}
+
+
+@app.get("/skills/evolution/audit")
+async def get_evolution_audit(
+    skill_name: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Read evolution audit log entries."""
+    from agent_core.skill_evolution import read_audit_log
+
+    entries = read_audit_log(skill_name=skill_name, limit=limit)
+    return {"entries": entries, "total": len(entries)}
+
+
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 DIST_DIR = os.path.join(STATIC_DIR, "dist")
 DIST_ASSETS = os.path.join(DIST_DIR, "assets")

@@ -4,12 +4,21 @@ import './theme/tokens.css';
 
 async function bootstrap() {
   const root = document.getElementById('root')!;
-  document.documentElement.classList.add('h5-html');
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get('mode') || 'h5'; // 默认 H5，?mode=desktop 切换桌面
 
-  const { default: H5App } = await import('./h5/App');
-  ReactDOM.createRoot(root).render(
-    <React.StrictMode><H5App /></React.StrictMode>
-  );
+  if (mode === 'desktop') {
+    const { default: DesktopApp } = await import('./desktop/App');
+    ReactDOM.createRoot(root).render(
+      <React.StrictMode><DesktopApp /></React.StrictMode>
+    );
+  } else {
+    document.documentElement.classList.add('h5-html');
+    const { default: H5App } = await import('./h5/App');
+    ReactDOM.createRoot(root).render(
+      <React.StrictMode><H5App /></React.StrictMode>
+    );
+  }
 }
 
 bootstrap();

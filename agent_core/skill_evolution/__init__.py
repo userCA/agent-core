@@ -92,6 +92,10 @@ from .validation import (
     SkillValidationGate,
     create_validation_gate,
 )
+from .audit import (
+    write_audit_entry,
+    read_audit_log,
+)
 
 __all__ = [
     # Types
@@ -121,6 +125,10 @@ __all__ = [
     # Validation
     "SkillValidationGate",
     "create_validation_gate",
+
+    # Audit
+    "write_audit_entry",
+    "read_audit_log",
 ]
 
 __version__ = "0.1.0"

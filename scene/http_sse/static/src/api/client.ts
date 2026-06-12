@@ -356,3 +356,113 @@ export async function deleteChannel(channelId: string): Promise<boolean> {
   if (!resp.ok) throw new Error(`Delete channel failed: ${resp.status}`);
   return (await resp.json() as { success: boolean }).success;
 }
+
+// ---- Skill Evolution ----
+
+export interface EvolutionTraceCounts {
+  [skill: string]: { total: number; success: number; failure: number };
+}
+
+export interface EvolutionSummary {
+  trace_counts: EvolutionTraceCounts;
+}
+
+export interface EvolutionProposal {
+  proposal_id: string;
+  skill_name: string;
+  operation: string;
+  target_rule_id: string | null;
+  new_content: string | null;
+  rationale: string;
+  confidence: number;
+  diff: string;
+  source_traces: string[];
+}
+
+export interface EvolutionAnalyzeResult {
+  status: string;
+  cycle_id?: string;
+  reason?: string;
+  traces_analyzed?: number;
+  proposals_generated?: number;
+  proposals: EvolutionProposal[];
+}
+
+export interface EvolutionAuditEntry {
+  audit_id: string;
+  timestamp: number;
+  proposal_id: string;
+  skill_name: string;
+  action: 'accept' | 'reject';
+  operation: string;
+  target_rule_id: string | null;
+  diff_summary: string;
+  rationale: string;
+  validation_score: number;
+  reject_reason: string | null;
+}
+
+export async function fetchEvolutionSummary(): Promise<EvolutionSummary> {
+  const resp = await fetch(`${API_BASE}/skills/evolution/summary`);
+  if (!resp.ok) throw new Error(`Failed to fetch evolution summary: ${resp.status}`);
+  return resp.json() as Promise<EvolutionSummary>;
+}
+
+export async function analyzeSkillEvolution(
+  skillName: string,
+  minTraces = 10,
+): Promise<EvolutionAnalyzeResult> {
+  const resp = await fetch(`${API_BASE}/skills/evolution/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ skill_name: skillName, min_traces: minTraces }),
+  });
+  if (!resp.ok) throw new Error(`Evolution analyze failed: ${resp.status}`);
+  return resp.json() as Promise<EvolutionAnalyzeResult>;
+}
+
+export async function fetchEvolutionProposals(skillName: string): Promise<EvolutionProposal[]> {
+  const resp = await fetch(`${API_BASE}/skills/evolution/proposals/${encodeURIComponent(skillName)}`);
+  if (!resp.ok) throw new Error(`Failed to fetch proposals: ${resp.status}`);
+  const data = await resp.json() as { proposals: EvolutionProposal[] };
+  return data.proposals;
+}
+
+export async function acceptEvolutionProposal(
+  proposalId: string,
+  skillName: string,
+): Promise<{ success: boolean; audit_id: string; validation_score: number }> {
+  const resp = await fetch(`${API_BASE}/skills/evolution/proposals/${encodeURIComponent(proposalId)}/accept`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ skill_name: skillName }),
+  });
+  if (!resp.ok) throw new Error(`Accept proposal failed: ${resp.status}`);
+  return resp.json() as Promise<{ success: boolean; audit_id: string; validation_score: number }>;
+}
+
+export async function rejectEvolutionProposal(
+  proposalId: string,
+  skillName: string,
+  reason?: string,
+): Promise<{ success: boolean; audit_id: string }> {
+  const resp = await fetch(`${API_BASE}/skills/evolution/proposals/${encodeURIComponent(proposalId)}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ skill_name: skillName, reason: reason || null }),
+  });
+  if (!resp.ok) throw new Error(`Reject proposal failed: ${resp.status}`);
+  return resp.json() as Promise<{ success: boolean; audit_id: string }>;
+}
+
+export async function fetchEvolutionAudit(
+  skillName?: string,
+  limit = 50,
+): Promise<{ entries: EvolutionAuditEntry[]; total: number }> {
+  const params = new URLSearchParams();
+  if (skillName) params.set('skill_name', skillName);
+  params.set('limit', String(limit));
+  const resp = await fetch(`${API_BASE}/skills/evolution/audit?${params}`);
+  if (!resp.ok) throw new Error(`Failed to fetch audit: ${resp.status}`);
+  return resp.json() as Promise<{ entries: EvolutionAuditEntry[]; total: number }>;
+}
