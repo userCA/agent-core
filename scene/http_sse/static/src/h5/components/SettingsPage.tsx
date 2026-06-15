@@ -50,7 +50,7 @@ const SettingRow = ({ icon, label, value, onClick, danger }: RowProps) => (
         <Icon
           name={icon}
           size={16}
-          style={{ color: danger ? 'var(--danger)' : 'var(--mute)' }}
+          style={{ color: 'var(--mute)' }}
         />
       </div>
       <span className="h5-settings-row__label">{label}</span>

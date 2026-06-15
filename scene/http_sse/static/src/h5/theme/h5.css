@@ -25,17 +25,16 @@
 
 .h5-app-layout .bubble-assistant {
     max-width: 92%;
-    background: transparent;
-    border: none;
-    padding: 6px 2px;
+    background: var(--surface-soft);
+    border: 1px solid var(--hairline);
+    padding: 10px 14px;
     font-size: 15px;
     line-height: 1.6;
+    border-radius: var(--radius-sm);
 }
 
 [data-theme="dark"] .h5-app-layout .bubble-assistant {
     background: rgba(255, 255, 255, 0.03);
-    border-radius: var(--radius-sm);
-    padding: 6px 8px;
 }
 
 .h5-app-layout .msg-wrapper {

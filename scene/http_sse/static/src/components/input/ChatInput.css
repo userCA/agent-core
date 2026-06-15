@@ -213,6 +213,11 @@
     outline-offset: -2px;
 }
 
+.more-popover button:active {
+    background: var(--surface-card);
+    transform: scale(0.97);
+}
+
 /* Skill panel */
 .skill-panel {
     display: flex;

@@ -14,11 +14,6 @@ export default function BottomTabBar() {
   const activeTab = useUIStore((s) => s.h5ActiveTab);
   const setActiveTab = useUIStore((s) => s.setH5ActiveTab);
 
-  // Hide tab bar on aux pages (settings/history)
-  if (activeTab === 'settings' || activeTab === 'history') {
-    return null;
-  }
-
   return (
     <Tabs.Root value={activeTab} onValueChange={(v) => setActiveTab(v as 'chat' | 'skills')} asChild>
       <nav className="h5-tab-bar">

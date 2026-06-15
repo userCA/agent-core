@@ -38,8 +38,10 @@
 }
 
 /* CSS animation runs on compositor thread — no JS jank */
-.welcome-logo--float {
-    animation: logoFloat 3s ease-in-out infinite;
+@media (prefers-reduced-motion: no-preference) {
+    .welcome-logo--float {
+        animation: logoFloat 3s ease-in-out infinite;
+    }
 }
 
 @keyframes logoFloat {

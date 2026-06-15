@@ -112,13 +112,19 @@
     display: flex;
     gap: 4px;
     margin-top: 6px;
-    opacity: 0;
+    opacity: 0.6;
     transition: opacity 0.15s ease;
 }
 
 .msg-wrapper:hover .msg-actions,
 .msg-wrapper:focus-within .msg-actions {
     opacity: 1;
+}
+
+@media (hover: none) {
+    .msg-actions {
+        opacity: 0.7;
+    }
 }
 
 .msg-action-btn {

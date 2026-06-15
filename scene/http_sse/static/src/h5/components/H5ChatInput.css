@@ -230,8 +230,8 @@
 .input-voice:checked ~ .label-voice {
   background-color: var(--surface-soft);
   right: 0;
-  width: 300px;
-  height: 300px;
+  width: min(300px, calc(100vw - 32px));
+  height: min(300px, calc(100vw - 32px));
   border-radius: 3rem;
   box-shadow:
     0 10px 40px rgba(0, 0, 60, 0.25),
@@ -358,7 +358,7 @@
 
 .ai {
   --z: 0;
-  --s: 300px;
+  --s: min(300px, calc(100vw - 32px));
   --p: calc(var(--s) / 4);
   width: var(--s);
   aspect-ratio: 1;
@@ -497,7 +497,7 @@
 
 .c {
   position: absolute;
-  width: 300px;
+  width: 100%;
   aspect-ratio: 1;
   border-radius: 50%;
   will-change: transform, opacity;

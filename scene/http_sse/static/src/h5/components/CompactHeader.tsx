@@ -103,7 +103,7 @@ export default function CompactHeader({ onAbort }: Props) {
               <Icon name="menu" size={18} />
             </motion.button>
           )}
-          <span className="h5-header-title">{title}</span>
+          <span className="h5-header-title" title={title}>{title}</span>
         </div>
 
         <div className="h5-header-actions">
