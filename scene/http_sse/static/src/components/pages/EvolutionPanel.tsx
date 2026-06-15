@@ -1,5 +1,7 @@
+import * as Collapsible from '@radix-ui/react-collapsible';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSkillStore } from '../../stores/skill-store';
+import TooltipWrap from '../shared/TooltipWrap';
 import type { EvolutionProposal, EvolutionAuditEntry } from '../../api/client';
 
 interface Props { skillName: string }
@@ -102,11 +104,10 @@ export default function EvolutionPanel({ skillName }: Props) {
     setLoadingProposals(true);
     await analyzeEvolution(skillName);
     setLoadingProposals(false);
-    setExpanded(true);
+    handleExpand(true);
   };
 
-  const handleExpand = () => {
-    const next = !expanded;
+  const handleExpand = (next: boolean) => {
     setExpanded(next);
     if (next) {
       loadEvolutionProposals(skillName);
@@ -130,111 +131,113 @@ export default function EvolutionPanel({ skillName }: Props) {
       <div className="evo-bg-noise" />
       <div className="evo-bg-scan" />
 
-      {/* ── Trigger bar ─────────────────────────────────── */}
-      <div className="evo-trigger" onClick={handleExpand} role="button" tabIndex={0}>
-        <div className="evo-trigger-left">
-          <span className="evo-chevron" />
-          <span className="evo-trigger-label">Evolution</span>
-          {hasTraces && <span className={`evo-pulse${failRate > 30 ? ' evo-pulse-warn' : ''}`} />}
-        </div>
-
-        {hasTraces ? (
-          <div className="evo-trigger-stats">
-            <span className="evo-stat">
-              <span className="evo-stat-val">{total}</span>
-              <span className="evo-stat-lbl">traces</span>
-            </span>
-            <span className="evo-stat-divider" />
-            <span className="evo-stat evo-stat-ok">
-              <span className="evo-stat-val">{succ}</span>
-              <span className="evo-stat-lbl">pass</span>
-            </span>
-            <span className="evo-stat-divider" />
-            <span className={`evo-stat${fail > 0 ? ' evo-stat-err' : ''}`}>
-              <span className="evo-stat-val">{fail}</span>
-              <span className="evo-stat-lbl">fail</span>
-            </span>
-          </div>
-        ) : (
-          <span className="evo-trigger-empty">Awaiting data</span>
-        )}
-      </div>
-
-      {/* ── Expanded body ──────────────────────────────── */}
-      <div className={`evo-body${expanded ? ' evo-body-open' : ''}`}>
-        {/* Empty state */}
-        {!hasTraces && proposals.length === 0 && (
-          <div className="evo-empty">
-            <div className="evo-empty-orbs">
-              <span className="evo-orb" /><span className="evo-orb" /><span className="evo-orb" />
+      <Collapsible.Root open={expanded} onOpenChange={handleExpand}>
+        <Collapsible.Trigger asChild>
+          <div className="evo-trigger" aria-label="展开 Evolution">
+            <div className="evo-trigger-left">
+              <span className="evo-chevron" />
+              <span className="evo-trigger-label">Evolution</span>
+              {hasTraces && <span className={`evo-pulse${failRate > 30 ? ' evo-pulse-warn' : ''}`} />}
             </div>
-            <p className="evo-empty-title">No execution traces yet</p>
-            <p className="evo-empty-desc">
-              Traces are captured automatically when skills are loaded during agent runs.
-              Once enough data accumulates, the evolution system can analyse patterns and
-              suggest rule improvements.
-            </p>
-          </div>
-        )}
 
-        {/* Actions */}
-        <div className="evo-actions">
-          <button
-            className="evo-btn-analyze"
-            disabled={evolutionLoading || loadingProposals || !hasTraces}
-            onClick={(e) => { e.stopPropagation(); handleAnalyze(); }}
-          >
-            {loadingProposals ? (
-              <><span className="evo-spinner" />Analysing traces&hellip;</>
+            {hasTraces ? (
+              <div className="evo-trigger-stats">
+                <span className="evo-stat">
+                  <span className="evo-stat-val">{total}</span>
+                  <span className="evo-stat-lbl">traces</span>
+                </span>
+                <span className="evo-stat-divider" />
+                <span className="evo-stat evo-stat-ok">
+                  <span className="evo-stat-val">{succ}</span>
+                  <span className="evo-stat-lbl">pass</span>
+                </span>
+                <span className="evo-stat-divider" />
+                <span className={`evo-stat${fail > 0 ? ' evo-stat-err' : ''}`}>
+                  <span className="evo-stat-val">{fail}</span>
+                  <span className="evo-stat-lbl">fail</span>
+                </span>
+              </div>
             ) : (
-              <><span className="evo-btn-icon">\u2699</span>Analyse traces</>
+              <span className="evo-trigger-empty">Awaiting data</span>
             )}
-          </button>
-          {hasTraces && proposals.length === 0 && !loadingProposals && (
-            <span className="evo-hint">
-              {traces.total < 10
-                ? `Need ${10 - traces.total} more traces before analysis (min. 10)`
-                : 'Ready for analysis'}
-            </span>
+          </div>
+        </Collapsible.Trigger>
+
+        <Collapsible.Content className="evo-body">
+          {/* Empty state */}
+          {!hasTraces && proposals.length === 0 && (
+            <div className="evo-empty">
+              <div className="evo-empty-orbs">
+                <span className="evo-orb" /><span className="evo-orb" /><span className="evo-orb" />
+              </div>
+              <p className="evo-empty-title">No execution traces yet</p>
+              <p className="evo-empty-desc">
+                Traces are captured automatically when skills are loaded during agent runs.
+                Once enough data accumulates, the evolution system can analyse patterns and
+                suggest rule improvements.
+              </p>
+            </div>
           )}
-        </div>
 
-        {/* Proposals */}
-        {proposals.length > 0 && (
-          <div className="evo-proposals">
-            <div className="evo-section-head">
-              <span className="evo-section-icon">\u25c6</span>
-              Proposals
-              <span className="evo-badge">{proposals.length}</span>
-            </div>
-            {proposals.map((p, i) => (
-              <ProposalCard
-                key={p.proposal_id}
-                proposal={p}
-                index={i}
-                onAccept={() => handleAccept(p.proposal_id)}
-                onReject={() => handleReject(p.proposal_id)}
-                rejectReason={rejectReason}
-                onRejectReasonChange={setRejectReason}
-              />
-            ))}
+          {/* Actions */}
+          <div className="evo-actions">
+            <button
+              className="evo-btn-analyze"
+              disabled={evolutionLoading || loadingProposals || !hasTraces}
+              onClick={(e) => { e.stopPropagation(); handleAnalyze(); }}
+            >
+              {loadingProposals ? (
+                <><span className="evo-spinner" />Analysing traces&hellip;</>
+              ) : (
+                <><span className="evo-btn-icon">\u2699</span>Analyse traces</>
+              )}
+            </button>
+            {hasTraces && proposals.length === 0 && !loadingProposals && (
+              <span className="evo-hint">
+                {traces.total < 10
+                  ? `Need ${10 - traces.total} more traces before analysis (min. 10)`
+                  : 'Ready for analysis'}
+              </span>
+            )}
           </div>
-        )}
 
-        {/* Audit trail */}
-        {skillAudit.length > 0 && (
-          <div className="evo-audit">
-            <div className="evo-section-head evo-section-head-sub">
-              <span className="evo-section-icon">\u25cb</span>
-              Audit trail
-              <span className="evo-badge evo-badge-ghost">{skillAudit.length}</span>
+          {/* Proposals */}
+          {proposals.length > 0 && (
+            <div className="evo-proposals">
+              <div className="evo-section-head">
+                <span className="evo-section-icon">\u25c6</span>
+                Proposals
+                <span className="evo-badge">{proposals.length}</span>
+              </div>
+              {proposals.map((p, i) => (
+                <ProposalCard
+                  key={p.proposal_id}
+                  proposal={p}
+                  index={i}
+                  onAccept={() => handleAccept(p.proposal_id)}
+                  onReject={() => handleReject(p.proposal_id)}
+                  rejectReason={rejectReason}
+                  onRejectReasonChange={setRejectReason}
+                />
+              ))}
             </div>
-            {skillAudit.map((entry) => (
-              <AuditEntry key={entry.audit_id} entry={entry} />
-            ))}
-          </div>
-        )}
-      </div>
+          )}
+
+          {/* Audit trail */}
+          {skillAudit.length > 0 && (
+            <div className="evo-audit">
+              <div className="evo-section-head evo-section-head-sub">
+                <span className="evo-section-icon">\u25cb</span>
+                Audit trail
+                <span className="evo-badge evo-badge-ghost">{skillAudit.length}</span>
+              </div>
+              {skillAudit.map((entry) => (
+                <AuditEntry key={entry.audit_id} entry={entry} />
+              ))}
+            </div>
+          )}
+        </Collapsible.Content>
+      </Collapsible.Root>
     </div>
   );
 }
@@ -273,7 +276,8 @@ function ProposalCard({
           {p.target_rule_id && <span className="pp-rule">{p.target_rule_id}</span>}
         </div>
 
-        <div className="pp-conf" title={`${confPct}% \u2014 ${confidenceLabel(p.confidence)}`}>
+        <TooltipWrap label={`${confPct}% — ${confidenceLabel(p.confidence)}`}>
+          <div className="pp-conf">
           <svg className="pp-conf-ring" viewBox="0 0 36 36">
             <defs>
               <filter id={`glow-${p.proposal_id}`}>
@@ -293,6 +297,7 @@ function ProposalCard({
           </svg>
           <span className={`pp-conf-text ${tier}`}>{confPct}<small>%</small></span>
         </div>
+        </TooltipWrap>
       </div>
 
       {/* Rationale */}

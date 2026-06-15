@@ -475,7 +475,7 @@
     left: 2px;
 }
 
-.h5-app-layout .skill-toggle.on .skill-toggle-knob {
+.h5-app-layout .skill-toggle[data-state="checked"] .skill-toggle-knob {
     transform: translateX(14px);
 }
 

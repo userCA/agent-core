@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { MotionConfig, AnimatePresence, motion } from 'motion/react';
 import { BridgeProvider } from '../bridge/BridgeContext';
 import { useSSE } from '../hooks/useSSE';
@@ -40,6 +41,7 @@ export default function H5App() {
 
   return (
     <BridgeProvider>
+      <Tooltip.Provider delayDuration={500} skipDelayDuration={0}>
       <MotionConfig reducedMotion="user">
         <div className="h5-app-layout">
           <CompactHeader onAbort={abort} />
@@ -114,6 +116,7 @@ export default function H5App() {
         <ToastContainer />
         <ConfirmDialog />
       </MotionConfig>
+      </Tooltip.Provider>
     </BridgeProvider>
   );
 }

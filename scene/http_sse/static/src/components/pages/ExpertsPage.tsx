@@ -1,3 +1,4 @@
+import * as Collapsible from '@radix-ui/react-collapsible';
 import React, { useState, useMemo } from 'react';
 import { useSessionStore } from '../../stores/session-store';
 import { useSkillStore } from '../../stores/skill-store';
@@ -6,8 +7,10 @@ import { useToastStore } from '../../stores/toast-store';
 import { useConfirmStore } from '../../stores/confirm-store';
 import { savePersona, deletePersona, fetchConnectors, type PersonaInfo, type ConnectorInfo } from '../../api/client';
 import Icon from '../shared/Icon';
+import TooltipWrap from '../shared/TooltipWrap';
 import EmptyState from '../shared/EmptyState';
 import Loading from '../shared/Loading';
+import CollapsibleSection from '../shared/CollapsibleSection';
 import './Pages.css';
 
 function emptyPersona(): PersonaInfo {
@@ -80,15 +83,6 @@ export default function ExpertsPage({ onBack }: Props) {
   }, [personas, search]);
 
   const activePersona = personas.find((p) => p.id === personaId);
-
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const startNew = () => {
     setForm(emptyPersona());
@@ -322,59 +316,63 @@ export default function ExpertsPage({ onBack }: Props) {
                   {/* Local tools */}
                   {visibleLocalTools.length > 0 && (
                     <div className="tool-group">
-                      <button
-                        className="tool-group-label-btn"
-                        onClick={() => {
+                      <CollapsibleSection
+                        open={expandedToolGroups.has('local')}
+                        onOpenChange={(open) => {
                           setExpandedToolGroups((prev) => {
                             const n = new Set(prev);
-                            if (n.has('local')) n.delete('local'); else n.add('local');
+                            if (open) n.add('local'); else n.delete('local');
                             return n;
                           });
                         }}
+                        trigger={
+                          <button className="tool-group-label-btn" type="button">
+                            <Icon name={expandedToolGroups.has('local') ? 'chevron-up' : 'chevron-down'} size={11} />
+                            本地 ({toolCountLabel(visibleLocalTools)})
+                          </button>
+                        }
+                        contentClassName="tool-toggle-grid"
                       >
-                        {expandedToolGroups.has('local') ? '[-]' : '[+]'} 本地 ({toolCountLabel(visibleLocalTools)})
-                      </button>
-                      {expandedToolGroups.has('local') && (
-                        <div className="tool-toggle-grid">
-                          {visibleLocalTools.map((t: string) => {
-                            const on = toolList.includes(t);
-                            return (
-                              <button key={t} className={`tool-toggle${on ? ' on' : ''}`} onClick={() => toggleFormTool(t)} type="button">
-                                {on && <Icon name="check" size={11} />} {t}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
+                        {visibleLocalTools.map((t: string) => {
+                          const on = toolList.includes(t);
+                          return (
+                            <button key={t} className={`tool-toggle${on ? ' on' : ''}`} onClick={() => toggleFormTool(t)} type="button">
+                              {on && <Icon name="check" size={11} />} {t}
+                            </button>
+                          );
+                        })}
+                      </CollapsibleSection>
                     </div>
                   )}
                   {/* MCP connector tools */}
                   {connectorTools.map((c) => (
                     <div key={c.name} className="tool-group">
-                      <button
-                        className="tool-group-label-btn"
-                        onClick={() => {
+                      <CollapsibleSection
+                        open={expandedToolGroups.has(c.name)}
+                        onOpenChange={(open) => {
                           setExpandedToolGroups((prev) => {
                             const n = new Set(prev);
-                            if (n.has(c.name)) n.delete(c.name); else n.add(c.name);
+                            if (open) n.add(c.name); else n.delete(c.name);
                             return n;
                           });
                         }}
+                        trigger={
+                          <button className="tool-group-label-btn" type="button">
+                            <Icon name={expandedToolGroups.has(c.name) ? 'chevron-up' : 'chevron-down'} size={11} />
+                            {c.name} ({toolCountLabel(c.tools)})
+                          </button>
+                        }
+                        contentClassName="tool-toggle-grid"
                       >
-                        {expandedToolGroups.has(c.name) ? '[-]' : '[+]'} {c.name} ({toolCountLabel(c.tools)})
-                      </button>
-                      {expandedToolGroups.has(c.name) && (
-                        <div className="tool-toggle-grid">
-                          {c.tools.map((t: string) => {
-                            const on = toolList.includes(t);
-                            return (
-                              <button key={t} className={`tool-toggle${on ? ' on' : ''}`} onClick={() => toggleFormTool(t)} type="button">
-                                {on && <Icon name="check" size={11} />} {t}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
+                        {c.tools.map((t: string) => {
+                          const on = toolList.includes(t);
+                          return (
+                            <button key={t} className={`tool-toggle${on ? ' on' : ''}`} onClick={() => toggleFormTool(t)} type="button">
+                              {on && <Icon name="check" size={11} />} {t}
+                            </button>
+                          );
+                        })}
+                      </CollapsibleSection>
                     </div>
                   ))}
                 </div>
@@ -397,35 +395,48 @@ export default function ExpertsPage({ onBack }: Props) {
             const toolCount = p.enabled_tools?.length || 0;
             return (
               <div key={p.id} className="expert-item">
-                <div className="expert-item-header">
-                  <button className="expert-item-toggle" onClick={() => toggleExpand(p.id)} aria-expanded={isExpanded}>
-                    <span
-                      className="expert-bracket"
-                      onClick={(e) => { e.stopPropagation(); setPersonaId(isActive ? null : p.id); }}
-                      title={isActive ? '停用' : '激活'}
-                    >
-                      [{isActive ? '*' : ' '}]
-                    </span>
-                    <div className="expert-item-info">
-                      <span className="expert-item-name">{p.name}</span>
-                      <span className="expert-item-desc">{p.description}</span>
+                <Collapsible.Root
+                  open={isExpanded}
+                  onOpenChange={(open) => {
+                    setExpanded((prev) => {
+                      const next = new Set(prev);
+                      if (open) next.add(p.id);
+                      else next.delete(p.id);
+                      return next;
+                    });
+                  }}
+                >
+                  <div className="expert-item-header">
+                    <Collapsible.Trigger asChild>
+                      <button className="expert-item-toggle" type="button">
+                        <TooltipWrap label={isActive ? '停用' : '激活'}>
+                          <span
+                            className="expert-bracket"
+                            onClick={(e) => { e.stopPropagation(); setPersonaId(isActive ? null : p.id); }}
+                          >
+                            [{isActive ? '*' : ' '}]
+                          </span>
+                        </TooltipWrap>
+                        <div className="expert-item-info">
+                          <span className="expert-item-name">{p.name}</span>
+                          <span className="expert-item-desc">{p.description}</span>
+                        </div>
+                        <div className="expert-item-right">
+                          <span className="expert-item-meta">
+                            {toolCount > 0 && <span>{toolCount} 工具</span>}
+                          </span>
+                          <span className="connector-item-arrow">
+                            {isExpanded ? <Icon name="chevron-up" size={12} /> : <Icon name="chevron-down" size={12} />}
+                          </span>
+                        </div>
+                      </button>
+                    </Collapsible.Trigger>
+                    <div className="expert-item-actions">
+                      <button className="expert-action-link" onClick={() => startEdit(p)}>[/] 编辑</button>
+                      <button className="expert-action-link expert-action-delete" onClick={() => handleDelete(p.id)}>[x] 删除</button>
                     </div>
-                    <div className="expert-item-right">
-                      <span className="expert-item-meta">
-                        {toolCount > 0 && <span>{toolCount} 工具</span>}
-                      </span>
-                      <span className="connector-item-arrow">
-                        {isExpanded ? '[-]' : '[+]'}
-                      </span>
-                    </div>
-                  </button>
-                  <div className="expert-item-actions">
-                    <button className="expert-action-link" onClick={() => startEdit(p)}>[/] 编辑</button>
-                    <button className="expert-action-link expert-action-delete" onClick={() => handleDelete(p.id)}>[x] 删除</button>
                   </div>
-                </div>
-                {isExpanded && (
-                  <div className="expert-item-detail">
+                  <Collapsible.Content className="expert-item-detail">
                     {p.system_prompt && (
                       <div className="expert-detail-section">
                         <span className="expert-detail-label">System Prompt</span>
@@ -452,8 +463,8 @@ export default function ExpertsPage({ onBack }: Props) {
                         </div>
                       </div>
                     )}
-                  </div>
-                )}
+                  </Collapsible.Content>
+                </Collapsible.Root>
               </div>
             );
           })}

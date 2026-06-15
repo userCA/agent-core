@@ -7,6 +7,7 @@ import Icon from '../shared/Icon';
 import Loading from '../shared/Loading';
 import { SkeletonList } from '../shared/Skeleton';
 import EmptyState from '../shared/EmptyState';
+import CollapsibleSection from '../shared/CollapsibleSection';
 import './Pages.css';
 
 const emptyChannel = (): ChannelInfo => ({
@@ -43,13 +44,6 @@ export default function ChannelsPage({ onBack }: Props) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [showForm, submitting, openDropdown]);
-
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
-      if (prev.has(id)) { prev.delete(id); return new Set(prev); }
-      return new Set([id]); // Close others, open only this one
-    });
-  };
 
   const startNew = () => {
     setForm(emptyChannel()); setEditingId(null); setShowForm(true);
@@ -127,33 +121,33 @@ export default function ChannelsPage({ onBack }: Props) {
             const isExpanded = expanded.has(ch.id);
             return (
               <div key={ch.id} className={`connector-item${ch.enabled ? ' ok' : ''}`}>
-                <button
-                  className="connector-item-header"
-                  onClick={() => toggleExpand(ch.id)}
-                  aria-expanded={isExpanded}
+                <CollapsibleSection
+                  open={isExpanded}
+                  onOpenChange={(open) => setExpanded(open ? new Set([ch.id]) : new Set())}
+                  trigger={
+                    <button className="connector-item-header" type="button">
+                      <div className="connector-item-head">
+                        <span className={`dot${ch.enabled ? ' green' : ''}`} />
+                        <span className="connector-item-name">{ch.name}</span>
+                        <span className="connector-item-badge type-kb">{ch.type}</span>
+                      </div>
+                      <div className="connector-item-meta">
+                        <span>{ch.app_id?.slice(0, 20) || '未配置'}</span>
+                        <span className="connector-item-arrow">
+                          {isExpanded ? <Icon name="chevron-up" size={12} /> : <Icon name="chevron-down" size={12} />}
+                        </span>
+                      </div>
+                    </button>
+                  }
+                  contentClassName="connector-item-tools"
                 >
-                  <div className="connector-item-head">
-                    <span className={`dot${ch.enabled ? ' green' : ''}`} />
-                    <span className="connector-item-name">{ch.name}</span>
-                    <span className="connector-item-badge type-kb">{ch.type}</span>
+                  <span className="connector-tool-badge">App ID: {ch.app_id || '-'}</span>
+                  <span className="connector-tool-badge">Secret: ****</span>
+                  <div className="connector-item-tool-actions" style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn" onClick={() => startEdit(ch)} disabled={submitting}>编辑</button>
+                    <button className="btn btn-danger" onClick={() => handleDelete(ch.id)} disabled={submitting}>删除</button>
                   </div>
-                  <div className="connector-item-meta">
-                    <span>{ch.app_id?.slice(0, 20) || '未配置'}</span>
-                    <span className="connector-item-arrow">
-                      {isExpanded ? <Icon name="chevron-up" size={12} /> : <Icon name="chevron-down" size={12} />}
-                    </span>
-                  </div>
-                </button>
-                {isExpanded && (
-                  <div className="connector-item-tools">
-                    <span className="connector-tool-badge">App ID: {ch.app_id || '-'}</span>
-                    <span className="connector-tool-badge">Secret: ****</span>
-                    <div className="connector-item-tool-actions" style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn" onClick={() => startEdit(ch)} disabled={submitting}>编辑</button>
-                      <button className="btn btn-danger" onClick={() => handleDelete(ch.id)} disabled={submitting}>删除</button>
-                    </div>
-                  </div>
-                )}
+                </CollapsibleSection>
               </div>
             );
           })}

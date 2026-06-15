@@ -297,32 +297,6 @@ body {
     scrollbar-color: var(--hairline-strong) transparent;
 }
 
-/* ---- tooltip ---- */
-.tooltip {
-    position: relative;
-}
-.tooltip::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
-    background: var(--surface-dark);
-    color: var(--on-dark);
-    font-size: 11px;
-    font-family: var(--font-mono);
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s ease;
-    z-index: var(--z-tooltip);
-}
-.tooltip:hover::after {
-    opacity: 1;
-}
-
 /* ---- shake animation ---- */
 @keyframes shake {
     0%, 100% { transform: translateX(0); }

@@ -84,18 +84,33 @@
 
 /* Menu Backdrop */
 .h5-menu-backdrop {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: fixed;
+  inset: 0;
   background: rgba(0, 0, 0, 0.4);
   z-index: 100;
 }
 
+.h5-menu-backdrop[data-state="open"] {
+  animation: menu-backdrop-in 0.2s ease;
+}
+
+.h5-menu-backdrop[data-state="closed"] {
+  animation: menu-backdrop-out 0.15s ease;
+}
+
+@keyframes menu-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes menu-backdrop-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
 /* Menu Panel */
 .h5-menu-panel {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   width: 200px;
@@ -110,6 +125,24 @@
   flex-direction: column;
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
   border-right: 1px solid color-mix(in srgb, var(--hairline) 50%, transparent);
+}
+
+.h5-menu-panel[data-state="open"] {
+  animation: menu-panel-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.h5-menu-panel[data-state="closed"] {
+  animation: menu-panel-out 0.2s ease;
+}
+
+@keyframes menu-panel-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes menu-panel-out {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-100%); }
 }
 
 .h5-menu-header {

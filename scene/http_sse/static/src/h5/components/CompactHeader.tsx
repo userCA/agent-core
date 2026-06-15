@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { motion } from 'motion/react';
 import { useChatStore } from '../../stores/chat-store';
 import { useSessionStore } from '../../stores/session-store';
 import { useThemeStore } from '../../stores/theme-store';
@@ -38,7 +39,6 @@ export default function CompactHeader({ onAbort }: Props) {
   const setInputValue = useUIStore((s) => s.setInputValue);
   const resetChat = useChatStore((s) => s.reset);
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const currentSession = sessions.find((s) => s.session_id === sessionId);
   const title = h5ActiveTab === 'chat' && currentSession
@@ -73,28 +73,6 @@ export default function CompactHeader({ onAbort }: Props) {
       },
     },
   ];
-
-  // Close menu on outside click or escape
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setMenuOpen(false);
-      }
-    }
-    if (menuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEscape);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [menuOpen]);
 
   const handleMenuToggle = () => {
     setMenuOpen((prev) => !prev);
@@ -168,66 +146,49 @@ export default function CompactHeader({ onAbort }: Props) {
         </div>
       </header>
 
-      {/* Side Menu Overlay */}
-      <AnimatePresence>
-        {menuOpen && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              className="h5-menu-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => setMenuOpen(false)}
-            />
-            {/* Menu Panel */}
-            <motion.div
-              ref={menuRef}
-              className="h5-menu-panel"
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', stiffness: 400, damping: 32 }}
-            >
-              <div className="h5-menu-header">
-                <span className="h5-menu-title">菜单</span>
+      {/* Side Menu */}
+      <Dialog.Root open={menuOpen} onOpenChange={setMenuOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="h5-menu-backdrop" />
+          <Dialog.Content className="h5-menu-panel" aria-describedby={undefined}>
+            <Dialog.Title className="h5-menu-header">
+              <span className="h5-menu-title">菜单</span>
+              <Dialog.Close asChild>
                 <motion.button
                   className="btn h5-menu-close"
-                  onClick={() => setMenuOpen(false)}
                   whileTap={{ scale: 0.92 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 >
                   <Icon name="close" size={18} />
                 </motion.button>
-              </div>
-              <nav className="h5-menu-list">
-                {menuItems.map((item, index) => (
-                  <motion.button
-                    key={item.label}
-                    className="h5-menu-item"
-                    onClick={item.action}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{
-                      delay: 0.02 + index * 0.03,
-                      type: 'spring',
-                      stiffness: 400,
-                      damping: 32,
-                    }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <span className="h5-menu-item-icon">
-                      <Icon name={item.icon} size={20} />
-                    </span>
-                    <span className="h5-menu-item-label">{item.label}</span>
-                  </motion.button>
-                ))}
-              </nav>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+              </Dialog.Close>
+            </Dialog.Title>
+            <nav className="h5-menu-list">
+              {menuItems.map((item, index) => (
+                <motion.button
+                  key={item.label}
+                  className="h5-menu-item"
+                  onClick={item.action}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{
+                    delay: 0.02 + index * 0.03,
+                    type: 'spring',
+                    stiffness: 400,
+                    damping: 32,
+                  }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <span className="h5-menu-item-icon">
+                    <Icon name={item.icon} size={20} />
+                  </span>
+                  <span className="h5-menu-item-label">{item.label}</span>
+                </motion.button>
+              ))}
+            </nav>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </>
   );
 }

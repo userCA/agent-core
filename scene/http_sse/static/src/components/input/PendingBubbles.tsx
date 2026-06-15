@@ -1,6 +1,7 @@
 import React from 'react';
 import { useChatStore } from '../../stores/chat-store';
 import Icon from '../shared/Icon';
+import TooltipWrap from '../shared/TooltipWrap';
 
 export default function PendingBubbles() {
   const pendingQueue = useChatStore((s) => s.pendingQueue);
@@ -13,14 +14,15 @@ export default function PendingBubbles() {
       {pendingQueue.map((text, i) => (
         <div key={i} className="pending-bubble">
           <span className="pending-text">{text.length > 60 ? text.slice(0, 60) + '...' : text}</span>
-          <button
-            className="pending-remove"
-            onClick={() => removePending(i)}
-            title="移除"
-            aria-label="移除待发送消息"
-          >
-            <Icon name="cancel" size={12} />
-          </button>
+          <TooltipWrap label="移除">
+            <button
+              className="pending-remove"
+              onClick={() => removePending(i)}
+              aria-label="移除待发送消息"
+            >
+              <Icon name="cancel" size={12} />
+            </button>
+          </TooltipWrap>
         </div>
       ))}
       <style>{`

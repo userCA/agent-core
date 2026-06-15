@@ -3,10 +3,13 @@ import { useSkillStore } from '../../stores/skill-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useToastStore } from '../../stores/toast-store';
 import { importSkill } from '../../api/client';
+import * as Switch from '@radix-ui/react-switch';
 import Icon from '../shared/Icon';
+import TooltipWrap from '../shared/TooltipWrap';
 import Loading from '../shared/Loading';
 import EmptyState from '../shared/EmptyState';
 import EvolutionPanel from './EvolutionPanel';
+import CollapsibleSection from '../shared/CollapsibleSection';
 import './Pages.css';
 
 interface Props { onBack?: () => void; }
@@ -105,15 +108,6 @@ export default function SkillsPage({ onBack }: Props) {
     }
   };
 
-  const toggleToolExpand = (name: string) => {
-    setExpandedTools((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  };
-
   const resetCreateForm = () => {
     setCreateName('');
     setCreateDesc('');
@@ -170,25 +164,27 @@ export default function SkillsPage({ onBack }: Props) {
               aria-label="搜索技能"
             />
           </div>
-          <button
-            className="btn"
-            onClick={() => {
-              resetCreateForm();
-              setShowCreate(true);
-            }}
-            title="粘贴技能描述创建"
-            disabled={importing}
-          >
-            <Icon name="plus" size={14} /> 创建
-          </button>
-          <button
-            className="btn"
-            onClick={() => fileRef.current?.click()}
-            title="导入 .md 技能文件"
+          <TooltipWrap label="粘贴技能描述创建">
+            <button
+              className="btn"
+              onClick={() => {
+                resetCreateForm();
+                setShowCreate(true);
+              }}
+              disabled={importing}
+            >
+              <Icon name="plus" size={14} /> 创建
+            </button>
+          </TooltipWrap>
+          <TooltipWrap label="导入 .md 技能文件">
+            <button
+              className="btn"
+              onClick={() => fileRef.current?.click()}
             disabled={importing}
           >
             <Icon name="upload" size={14} /> {importing ? '导入中...' : '导入'}
           </button>
+          </TooltipWrap>
           <input ref={fileRef} type="file" accept=".md" style={{ display: 'none' }} onChange={handleImport} />
         </div>
       </div>
@@ -218,15 +214,14 @@ export default function SkillsPage({ onBack }: Props) {
                 <div className="card-head">
                   <span className="card-icon"><Icon name="code" size={16} /></span>
                   <span className="card-title">{s.name}</span>
-                  <button
-                    className={`skill-toggle${isOn ? ' on' : ''}`}
-                    onClick={() => toggleSkill(s.name)}
-                    role="switch"
-                    aria-checked={isOn}
+                  <Switch.Root
+                    className="skill-toggle"
+                    checked={isOn}
+                    onCheckedChange={() => toggleSkill(s.name)}
                     aria-label={s.name}
                   >
-                    <span className="skill-toggle-knob" />
-                  </button>
+                    <Switch.Thumb className="skill-toggle-knob" />
+                  </Switch.Root>
                 </div>
                 <p className="card-desc">{s.description}</p>
                 <div className="card-meta">
@@ -265,21 +260,35 @@ export default function SkillsPage({ onBack }: Props) {
                       ? t.description.slice(0, DESC_PREVIEW_LEN) + '…'
                       : t.description;
                     return (
-                      <div
+                      <CollapsibleSection
                         key={t.name}
-                        className={`card${needsExpand ? ' card-clickable' : ''}`}
-                        onClick={() => needsExpand && toggleToolExpand(t.name)}
+                        open={isOpen}
+                        onOpenChange={(open) => {
+                          if (!needsExpand) return;
+                          setExpandedTools((prev) => {
+                            const next = new Set(prev);
+                            if (open) next.add(t.name);
+                            else next.delete(t.name);
+                            return next;
+                          });
+                        }}
+                        trigger={
+                          <div className={`card${needsExpand ? ' card-clickable' : ''}`}>
+                            <div className="card-head">
+                              <span className="card-title">{t.name}</span>
+                              {needsExpand && (
+                                <Icon name={isOpen ? 'chevron-up' : 'chevron-down'} size={12} />
+                              )}
+                            </div>
+                            <p className="card-desc">{preview}</p>
+                          </div>
+                        }
+                        contentClassName="card-desc-extra"
                       >
-                        <div className="card-head">
-                          <span className="card-title">{t.name}</span>
-                          {needsExpand && (
-                            <span style={{ fontSize: 10, color: 'var(--mute)', flexShrink: 0 }}>
-                              {isOpen ? '▼' : '▶'}
-                            </span>
-                          )}
-                        </div>
-                        <p className="card-desc">{preview}</p>
-                      </div>
+                        {needsExpand && (
+                          <p className="card-desc">{t.description.slice(DESC_PREVIEW_LEN)}</p>
+                        )}
+                      </CollapsibleSection>
                     );
                   })}
                 </div>

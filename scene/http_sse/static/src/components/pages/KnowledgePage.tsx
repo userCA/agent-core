@@ -1,3 +1,4 @@
+import * as Collapsible from '@radix-ui/react-collapsible';
 import React, { useState, useEffect, useRef } from 'react';
 import { useUIStore } from '../../stores/ui-store';
 import { useToastStore } from '../../stores/toast-store';
@@ -125,18 +126,6 @@ export default function KnowledgePage({ onBack }: Props) {
     }
   };
 
-  const toggleExpand = async (docName: string) => {
-    if (expanded.has(docName)) {
-      setExpanded((prev) => { const n = new Set(prev); n.delete(docName); return n; });
-      return;
-    }
-    setExpanded((prev) => { const n = new Set(prev); n.add(docName); return n; });
-    if (!details[docName]) {
-      const doc = await fetchKnowledgeDoc(docName);
-      setDetails((prev) => ({ ...prev, [docName]: doc }));
-    }
-  };
-
   const handleEdit = async (docName: string) => {
     const doc = await fetchKnowledgeDoc(docName);
     if (doc) {
@@ -247,33 +236,49 @@ export default function KnowledgePage({ onBack }: Props) {
             const detail = details[d.name];
             return (
               <div key={d.name} className="expert-item">
-                <div className="expert-item-header">
-                  <button className="expert-item-toggle" onClick={() => toggleExpand(d.name)} aria-expanded={isExpanded}>
-                    <div className="expert-item-info">
-                      <span className="expert-item-name">{d.original_name || d.name}</span>
+                <Collapsible.Root
+                  open={isExpanded}
+                  onOpenChange={async (open) => {
+                    if (open && !details[d.name]) {
+                      const doc = await fetchKnowledgeDoc(d.name);
+                      setDetails((prev) => ({ ...prev, [d.name]: doc }));
+                    }
+                    setExpanded((prev) => {
+                      const n = new Set(prev);
+                      if (open) n.add(d.name);
+                      else n.delete(d.name);
+                      return n;
+                    });
+                  }}
+                >
+                  <div className="expert-item-header">
+                    <Collapsible.Trigger asChild>
+                      <button className="expert-item-toggle" type="button">
+                        <div className="expert-item-info">
+                          <span className="expert-item-name">{d.original_name || d.name}</span>
+                        </div>
+                        <div className="expert-item-right">
+                          <span className="expert-item-meta">
+                            {d.chunk_count} 个片段
+                          </span>
+                          <span className="connector-item-arrow">
+                            {isExpanded ? <Icon name="chevron-up" size={12} /> : <Icon name="chevron-down" size={12} />}
+                          </span>
+                        </div>
+                      </button>
+                    </Collapsible.Trigger>
+                    <div className="expert-item-actions">
+                      <button className="expert-action-link" onClick={() => handleEdit(d.name)}>
+                        [/] 编辑
+                      </button>
+                      <button className="expert-action-link expert-action-delete" onClick={() => handleDelete(d.name)}>
+                        [x] 删除
+                      </button>
                     </div>
-                    <div className="expert-item-right">
-                      <span className="expert-item-meta">
-                        {d.chunk_count} 个片段
-                      </span>
-                      <span className="connector-item-arrow">
-                        {isExpanded ? '[-]' : '[+]'}
-                      </span>
-                    </div>
-                  </button>
-                  <div className="expert-item-actions">
-                    <button className="expert-action-link" onClick={() => handleEdit(d.name)}>
-                      [/] 编辑
-                    </button>
-                    <button className="expert-action-link expert-action-delete" onClick={() => handleDelete(d.name)}>
-                      [x] 删除
-                    </button>
                   </div>
-                </div>
-                {isExpanded && (
-                  <div className="expert-item-detail">
+                  <Collapsible.Content className="expert-item-detail">
                     {detail ? (
-                      detail.chunks.map((c, i) => (
+                      detail.chunks.map((c) => (
                         <div key={c.index} className="expert-detail-section">
                           <span className="expert-detail-label">{c.index}</span>
                           <pre className="expert-detail-prompt" style={{ maxHeight: 120 }}>
@@ -284,8 +289,8 @@ export default function KnowledgePage({ onBack }: Props) {
                     ) : (
                       <span className="expert-detail-empty"><Loading text="加载中..." size="sm" /></span>
                     )}
-                  </div>
-                )}
+                  </Collapsible.Content>
+                </Collapsible.Root>
               </div>
             );
           })}

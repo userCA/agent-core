@@ -5,6 +5,7 @@ import Markdown from '../shared/Markdown';
 import BlocksRenderer from './BlocksRenderer';
 import AudioPlayer from '../tools/AudioPlayer';
 import Icon, { ICON_SIZES } from '../shared/Icon';
+import TooltipWrap from '../shared/TooltipWrap';
 import { useToastStore } from '../../stores/toast-store';
 import './MessageBubble.css';
 
@@ -96,15 +97,16 @@ export default function MessageBubble({ message }: Props) {
         </div>
         {audios?.map((a, i) => <AudioPlayer key={`a-${i}`} audio={a} />)}
         <div className="msg-actions">
-          <button
-            className="msg-action-btn"
-            onClick={handleCopy}
-            title={copied ? '已复制' : '复制'}
-            aria-label={copied ? '已复制' : '复制消息内容'}
-          >
-            <Icon name={copied ? 'check' : 'clipboard'} size={12} />
-            {copied ? '已复制' : '复制'}
-          </button>
+          <TooltipWrap label={copied ? '已复制' : '复制'}>
+            <button
+              className="msg-action-btn"
+              onClick={handleCopy}
+              aria-label={copied ? '已复制' : '复制消息内容'}
+            >
+              <Icon name={copied ? 'check' : 'clipboard'} size={12} />
+              {copied ? '已复制' : '复制'}
+            </button>
+          </TooltipWrap>
         </div>
         {usage && (
           <div className="usage-info">

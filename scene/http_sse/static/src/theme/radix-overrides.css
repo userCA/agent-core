@@ -1,0 +1,215 @@
+:root {
+    --radix-transition: 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Ensure Radix portals respect our z-index scale */
+[data-radix-popper-content-wrapper] {
+    z-index: var(--z-dropdown) !important;
+}
+
+/* Focus states */
+[role="dialog"]:focus-visible,
+[role="alertdialog"]:focus-visible,
+[data-radix-collection-item]:focus-visible,
+[data-radix-collapsible-trigger]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Lucide spinner animation */
+.lucide-spin {
+    animation: lucide-spin 0.8s linear infinite;
+}
+
+@keyframes lucide-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Collapsible content animations */
+.collapsible-content {
+    overflow: hidden;
+}
+
+.collapsible-content[data-state="open"] {
+    animation: collapsible-open 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.collapsible-content[data-state="closed"] {
+    animation: collapsible-closed 0.2s ease;
+}
+
+@keyframes collapsible-open {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: var(--radix-collapsible-content-height, 1000px);
+    }
+}
+
+@keyframes collapsible-closed {
+    from {
+        opacity: 1;
+        max-height: var(--radix-collapsible-content-height, 1000px);
+    }
+    to {
+        opacity: 0;
+        max-height: 0;
+    }
+}
+
+/* AlertDialog / Dialog overlay */
+.alert-dialog-overlay,
+.dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    background: var(--backdrop);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.alert-dialog-overlay[data-state="open"],
+.dialog-overlay[data-state="open"] {
+    animation: overlay-open 0.15s ease;
+}
+
+.alert-dialog-overlay[data-state="closed"],
+.dialog-overlay[data-state="closed"] {
+    animation: overlay-closed 0.15s ease;
+}
+
+@keyframes overlay-open {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes overlay-closed {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+/* Toast viewport */
+.toast-viewport {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: var(--z-toast);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 360px;
+    width: 100%;
+    pointer-events: none;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.toast-viewport > * {
+    pointer-events: auto;
+}
+
+@media (max-width: 640px) {
+    .toast-viewport {
+        top: 12px;
+        right: 12px;
+        left: 12px;
+        max-width: none;
+    }
+}
+
+/* Toast item state animations */
+.toast-item[data-state="open"] {
+    animation: toast-slide-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.toast-item[data-state="closed"] {
+    animation: toast-slide-out 0.2s ease forwards;
+}
+
+.toast-item[data-swipe="move"] {
+    transform: translateX(var(--radix-toast-swipe-move-x));
+}
+
+.toast-item[data-swipe="cancel"] {
+    transform: translateX(0);
+    transition: transform 0.2s ease;
+}
+
+.toast-item[data-swipe="end"] {
+    animation: toast-swipe-out 0.2s ease forwards;
+}
+
+@keyframes toast-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(48px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@keyframes toast-slide-out {
+    from {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(48px) scale(0.95);
+    }
+}
+
+@keyframes toast-swipe-out {
+    from {
+        transform: translateX(var(--radix-toast-swipe-end-x));
+    }
+    to {
+        transform: translateX(100%);
+    }
+}
+
+/* Tooltip content */
+.tooltip-content {
+    background: var(--surface-dark, #333);
+    color: var(--on-dark, #fff);
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    z-index: var(--z-tooltip);
+    line-height: 1.4;
+    max-width: 240px;
+}
+
+.tooltip-content[data-state="delayed-open"] {
+    animation: tooltip-fade-in 0.15s ease;
+}
+
+.tooltip-content[data-state="instant-open"] {
+    animation: tooltip-fade-in 0.15s ease;
+}
+
+.tooltip-content[data-state="closed"] {
+    animation: tooltip-fade-out 0.1s ease;
+}
+
+@keyframes tooltip-fade-in {
+    from { opacity: 0; transform: translateY(2px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes tooltip-fade-out {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(2px); }
+}
+
+.tooltip-arrow {
+    fill: var(--surface-dark, #333);
+}

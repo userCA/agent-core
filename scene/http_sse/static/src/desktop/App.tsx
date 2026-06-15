@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { MotionConfig, AnimatePresence, motion } from 'motion/react';
 import { BridgeProvider } from '../bridge/BridgeContext';
 import { useSSE } from '../hooks/useSSE';
@@ -56,6 +57,7 @@ export default function DesktopApp() {
 
   return (
     <BridgeProvider>
+      <Tooltip.Provider delayDuration={500} skipDelayDuration={0}>
       <MotionConfig reducedMotion="user">
         <div className="app-layout">
         <a className="skip-link" href="#main-content">跳到主要内容</a>
@@ -127,6 +129,7 @@ export default function DesktopApp() {
       <ToastContainer />
       <ConfirmDialog />
       </MotionConfig>
+      </Tooltip.Provider>
     </BridgeProvider>
   );
 }

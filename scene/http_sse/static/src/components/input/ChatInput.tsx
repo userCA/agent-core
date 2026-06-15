@@ -6,6 +6,7 @@ import { useSkillStore } from '../../stores/skill-store';
 import { useModelStore } from '../../stores/model-store';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import Icon from '../shared/Icon';
+import TooltipWrap from '../shared/TooltipWrap';
 import './ChatInput.css';
 
 interface Props {
@@ -151,15 +152,16 @@ export default function ChatInput({ onSend, compact, inlineToolbar }: Props) {
       {showSkills && visibleSkills.length > 0 && (
         <div className="skill-panel">
           {visibleSkills.map((s) => (
-            <button
-              key={s.name}
-              className="skill-item"
-              onClick={() => insertSkill(s.name)}
-              title={s.description}
-            >
-              <span className="skill-name">{s.name}</span>
-              <span className="skill-desc">{s.description}</span>
-            </button>
+            <TooltipWrap label={s.description}>
+              <button
+                key={s.name}
+                className="skill-item"
+                onClick={() => insertSkill(s.name)}
+              >
+                <span className="skill-name">{s.name}</span>
+                <span className="skill-desc">{s.description}</span>
+              </button>
+            </TooltipWrap>
           ))}
         </div>
       )}
@@ -176,14 +178,15 @@ export default function ChatInput({ onSend, compact, inlineToolbar }: Props) {
           aria-label="消息输入框，按 Enter 发送，Shift+Enter 换行"
         />
         {inputValue && (
-          <button
-            className="input-clear-btn"
-            onClick={() => setInputValue('')}
-            title="清空"
-            aria-label="清空输入"
-          >
-            <Icon name="cancel" size={12} />
-          </button>
+          <TooltipWrap label="清空">
+            <button
+              className="input-clear-btn"
+              onClick={() => setInputValue('')}
+              aria-label="清空输入"
+            >
+              <Icon name="cancel" size={12} />
+            </button>
+          </TooltipWrap>
         )}
 
         <div className={`input-actions${compact ? ' input-actions--compact' : ''}`}>
@@ -191,41 +194,45 @@ export default function ChatInput({ onSend, compact, inlineToolbar }: Props) {
             <>
               {inlineToolbar ? (
                 <div className="actions-left inline-toolbar">
-                  <button
-                    className="action-btn"
-                    onClick={() => fileRef.current?.click()}
-                    title="上传文件"
-                    aria-label="上传文件"
-                  >
-                    <Icon name="upload" size={14} />
-                  </button>
-                  <button
-                    className="action-btn"
-                    onClick={() => imageRef.current?.click()}
-                    title="上传图片"
-                    aria-label="上传图片"
-                  >
-                    <Icon name="image" size={14} />
-                  </button>
-                  <button
-                    className="action-btn"
-                    onClick={() => setShowModels(!showModels)}
-                    title="选择模型"
-                    aria-label="选择模型"
-                  >
-                    <Icon name="chevron-down" size={14} />
-                  </button>
+                  <TooltipWrap label="上传文件">
+                    <button
+                      className="action-btn"
+                      onClick={() => fileRef.current?.click()}
+                      aria-label="上传文件"
+                    >
+                      <Icon name="upload" size={14} />
+                    </button>
+                  </TooltipWrap>
+                  <TooltipWrap label="上传图片">
+                    <button
+                      className="action-btn"
+                      onClick={() => imageRef.current?.click()}
+                      aria-label="上传图片"
+                    >
+                      <Icon name="image" size={14} />
+                    </button>
+                  </TooltipWrap>
+                  <TooltipWrap label="选择模型">
+                    <button
+                      className="action-btn"
+                      onClick={() => setShowModels(!showModels)}
+                      aria-label="选择模型"
+                    >
+                      <Icon name="chevron-down" size={14} />
+                    </button>
+                  </TooltipWrap>
                 </div>
               ) : (
                 <>
-                  <button
-                    className={`action-btn${showMore ? ' active' : ''}`}
-                    onClick={() => setShowMore((v) => !v)}
-                    title="更多"
-                    aria-label="更多"
-                  >
-                    <Icon name="plus" size={18} />
-                  </button>
+                  <TooltipWrap label="更多">
+                    <button
+                      className={`action-btn${showMore ? ' active' : ''}`}
+                      onClick={() => setShowMore((v) => !v)}
+                      aria-label="更多"
+                    >
+                      <Icon name="plus" size={18} />
+                    </button>
+                  </TooltipWrap>
                   {showMore && (
                     <>
                       <div className="more-backdrop" onClick={() => setShowMore(false)} />
@@ -299,27 +306,31 @@ export default function ChatInput({ onSend, compact, inlineToolbar }: Props) {
             </>
           ) : (
             <div className="actions-left">
-              <button
-                className="action-btn"
-                onClick={() => setShowSkills((v) => !v)}
-                title="选择技能"
-                aria-label="选择技能"
-              >
-                <Icon name="code" size={16} />
-              </button>
-              <button
-                className={`action-btn${showMore ? ' active' : ''}`}
-                onClick={() => setShowMore((v) => !v)}
-                title="更多工具"
-                aria-label="更多工具"
-              >
-                <Icon name="plus" size={16} />
-              </button>
+              <TooltipWrap label="选择技能">
+                <button
+                  className="action-btn"
+                  onClick={() => setShowSkills((v) => !v)}
+                  aria-label="选择技能"
+                >
+                  <Icon name="code" size={16} />
+                </button>
+              </TooltipWrap>
+              <TooltipWrap label="更多工具">
+                <button
+                  className={`action-btn${showMore ? ' active' : ''}`}
+                  onClick={() => setShowMore((v) => !v)}
+                  aria-label="更多工具"
+                >
+                  <Icon name="plus" size={16} />
+                </button>
+              </TooltipWrap>
               <div className="model-bar">
-                <button className="model-pick" onClick={() => setShowModels(!showModels)} title="切换模型">
+                <TooltipWrap label="切换模型">
+                  <button className="model-pick" onClick={() => setShowModels(!showModels)}>
                   <span className="model-label">{models.find(m => m.provider === currentProvider && m.model === currentModel)?.label || `${currentProvider}/${currentModel}`}</span>
                   <Icon name="chevron-down" size={10} />
                 </button>
+                </TooltipWrap>
                 {showModels && (
                   <>
                     <div className="more-backdrop" onClick={() => setShowModels(false)} />
@@ -370,14 +381,15 @@ export default function ChatInput({ onSend, compact, inlineToolbar }: Props) {
           )}
           <div className="actions-right">
             {!compact && (
-              <button
-                className={`action-btn${recording ? ' recording' : ''}`}
-                onClick={toggleRecording}
-                title={recording ? '停止录音' : '语音输入'}
-                aria-label={recording ? '停止录音' : '语音输入'}
-              >
-                <Icon name="recording" size={16} />
-              </button>
+              <TooltipWrap label={recording ? '停止录音' : '语音输入'}>
+                <button
+                  className={`action-btn${recording ? ' recording' : ''}`}
+                  onClick={toggleRecording}
+                  aria-label={recording ? '停止录音' : '语音输入'}
+                >
+                  <Icon name="recording" size={16} />
+                </button>
+              </TooltipWrap>
             )}
             <motion.button
               className="send-btn"

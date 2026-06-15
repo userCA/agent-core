@@ -3,9 +3,11 @@ import { fetchConnectors, addConnector, removeConnector, type ConnectorInfo, typ
 import { useUIStore } from '../../stores/ui-store';
 import { useConfirmStore } from '../../stores/confirm-store';
 import Icon from '../shared/Icon';
+import TooltipWrap from '../shared/TooltipWrap';
 import Loading from '../shared/Loading';
 import { SkeletonList } from '../shared/Skeleton';
 import EmptyState from '../shared/EmptyState';
+import CollapsibleSection from '../shared/CollapsibleSection';
 import './Pages.css';
 
 const TRANSPORT_OPTIONS: { value: string; label: string }[] = [
@@ -89,15 +91,6 @@ export default function ConnectorsPage({ onBack }: Props) {
     }
     return list;
   }, [connectors, search, typeFilter]);
-
-  const toggleExpand = (name: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  };
 
   const handleAdd = () => {
     setForm(emptyPayload());
@@ -334,40 +327,49 @@ export default function ConnectorsPage({ onBack }: Props) {
             const isConnected = c.status === 'connected';
             return (
               <div key={c.name} className={`connector-item${isConnected ? ' ok' : ' err'}`}>
-                <button
-                  className="connector-item-header"
-                  onClick={() => toggleExpand(c.name)}
-                  aria-expanded={isExpanded}
+                <CollapsibleSection
+                  open={isExpanded}
+                  onOpenChange={(open) => {
+                    setExpanded((prev) => {
+                      const next = new Set(prev);
+                      if (open) next.add(c.name);
+                      else next.delete(c.name);
+                      return next;
+                    });
+                  }}
+                  trigger={
+                    <button className="connector-item-header">
+                      <div className="connector-item-head">
+                        <span className={`dot${isConnected ? ' green' : ' red'}`} />
+                        <span className="connector-item-name">{c.name}</span>
+                        <span className="connector-item-badge">{c.transport}</span>
+                        {(c.type || 'tool') === 'knowledge' && <span className="connector-item-badge type-kb">知识库</span>}
+                      </div>
+                      <div className="connector-item-meta">
+                        <span>{c.tools.length} 工具</span>
+                        <span className="connector-item-arrow">
+                          {isExpanded ? <Icon name="chevron-up" size={12} /> : <Icon name="chevron-down" size={12} />}
+                        </span>
+                      </div>
+                    </button>
+                  }
+                  contentClassName="connector-item-tools"
                 >
-                  <div className="connector-item-head">
-                    <span className={`dot${isConnected ? ' green' : ' red'}`} />
-                    <span className="connector-item-name">{c.name}</span>
-                    <span className="connector-item-badge">{c.transport}</span>
-                    {(c.type || 'tool') === 'knowledge' && <span className="connector-item-badge type-kb">知识库</span>}
-                  </div>
-                  <div className="connector-item-meta">
-                    <span>{c.tools.length} 工具</span>
-                    <span className="connector-item-arrow">
-                      {isExpanded ? <Icon name="chevron-up" size={12} /> : <Icon name="chevron-down" size={12} />}
-                    </span>
-                  </div>
-                </button>
-                {isExpanded && (
-                  <div className="connector-item-tools">
-                    {c.tools.length === 0 ? (
-                      <span className="connector-item-empty">暂无工具</span>
-                    ) : (
-                      c.tools.map((t) => (
-                        <span key={t} className="connector-tool-badge">{t}</span>
-                      ))
-                    )}
-                    <div className="connector-item-tool-actions">
-                      <button className="btn btn-danger" onClick={() => handleDelete(c.name)} title="删除连接器">
+                  {c.tools.length === 0 ? (
+                    <span className="connector-item-empty">暂无工具</span>
+                  ) : (
+                    c.tools.map((t) => (
+                      <span key={t} className="connector-tool-badge">{t}</span>
+                    ))
+                  )}
+                  <div className="connector-item-tool-actions">
+                    <TooltipWrap label="删除连接器">
+                      <button className="btn btn-danger" onClick={() => handleDelete(c.name)}>
                         <Icon name="cancel" size={12} /> 删除
                       </button>
-                    </div>
+                    </TooltipWrap>
                   </div>
-                )}
+                </CollapsibleSection>
               </div>
             );
           })}

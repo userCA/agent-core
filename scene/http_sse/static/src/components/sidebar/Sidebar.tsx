@@ -6,6 +6,7 @@ import { useChatStore } from '../../stores/chat-store';
 import { useToastStore } from '../../stores/toast-store';
 import { fetchSessionMessages, deleteSession } from '../../api/client';
 import Icon from '../shared/Icon';
+import TooltipWrap from '../shared/TooltipWrap';
 import Loading from '../shared/Loading';
 import EmptyState from '../shared/EmptyState';
 import './Sidebar.css';
@@ -123,14 +124,15 @@ export default function Sidebar() {
             <button className="sidebar-new-btn" onClick={handleNewSession}>
               <Icon name="plus" size={14} /> 新建任务
             </button>
-            <button
-              className="sidebar-toggle-btn"
-              onClick={toggleSidebar}
-              aria-label="收起侧边栏"
-              title="收起"
-            >
-              <Icon name="panel-left" size={16} />
-            </button>
+            <TooltipWrap label="收起">
+              <button
+                className="sidebar-toggle-btn"
+                onClick={toggleSidebar}
+                aria-label="收起侧边栏"
+              >
+                <Icon name="panel-left" size={16} />
+              </button>
+            </TooltipWrap>
           </div>
 
           <div className="sidebar-menu">
@@ -287,14 +289,15 @@ export default function Sidebar() {
                         <span className="session-title">{s.title || '未命名会话'}</span>
                         <span className="session-meta">{formatTime(s.created_at)}</span>
                       </button>
-                      <button
-                        className="session-delete"
-                        onClick={(e) => handleDelete(e, s.session_id)}
-                        title="删除会话"
-                        aria-label="删除会话"
-                      >
-                        <Icon name="cancel" size={12} />
-                      </button>
+                      <TooltipWrap label="删除会话">
+                        <button
+                          className="session-delete"
+                          onClick={(e) => handleDelete(e, s.session_id)}
+                          aria-label="删除会话"
+                        >
+                          <Icon name="cancel" size={12} />
+                        </button>
+                      </TooltipWrap>
                     </motion.div>
                   );
                 })}
@@ -314,14 +317,15 @@ export default function Sidebar() {
         )}
       </AnimatePresence>
       {collapsed && (
-        <button
-          className="sidebar-toggle-btn"
-          onClick={toggleSidebar}
-          aria-label="展开侧边栏"
-          title="展开"
-        >
-          <Icon name="panel-right" size={16} />
-        </button>
+        <TooltipWrap label="展开">
+          <button
+            className="sidebar-toggle-btn"
+            onClick={toggleSidebar}
+            aria-label="展开侧边栏"
+          >
+            <Icon name="panel-right" size={16} />
+          </button>
+        </TooltipWrap>
       )}
     </motion.aside>
   );

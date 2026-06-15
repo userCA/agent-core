@@ -2,6 +2,7 @@ import { useChatStore } from '../../stores/chat-store';
 import { useThemeStore } from '../../stores/theme-store';
 import { AnimatePresence, motion } from 'motion/react';
 import Icon, { ICON_SIZES } from '../shared/Icon';
+import TooltipWrap from '../shared/TooltipWrap';
 import HeaderCompanion from '../companion/HeaderCompanion';
 import './Header.css';
 
@@ -20,12 +21,12 @@ export default function Header({ onAbort }: Props) {
       </div>
       <span className="sr-only">咪兔 - 你的AI伙伴</span>
       <div className="header-actions">
-        <button
-          className="btn"
-          onClick={toggleTheme}
-          aria-label={theme === 'light' ? '切换到暗色模式' : '切换到亮色模式'}
-          title={theme === 'light' ? '暗色模式' : '亮色模式'}
-        >
+        <TooltipWrap label={theme === 'light' ? '暗色模式' : '亮色模式'}>
+          <button
+            className="btn"
+            onClick={toggleTheme}
+            aria-label={theme === 'light' ? '切换到暗色模式' : '切换到亮色模式'}
+          >
           <AnimatePresence mode="wait">
             <motion.span
               key={theme}
@@ -39,6 +40,7 @@ export default function Header({ onAbort }: Props) {
             </motion.span>
           </AnimatePresence>
         </button>
+        </TooltipWrap>
         <span className="status-badge">
           <span className={`status-dot ${isStreaming ? 'pulse' : ''}`} />
           {isStreaming ? (

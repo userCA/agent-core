@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './theme/tokens.css';
+import './theme/radix-overrides.css';
 
 async function bootstrap() {
   const root = document.getElementById('root')!;
