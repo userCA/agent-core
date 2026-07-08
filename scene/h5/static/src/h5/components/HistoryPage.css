@@ -1,0 +1,272 @@
+.h5-history {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: transparent;
+}
+
+/* ── Search ── */
+.h5-history-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 12px;
+  padding: 8px 12px;
+  border: 1.5px solid var(--border-ink);
+  border-radius: var(--radius-sm);
+  background: rgba(240,246,244,0.88);
+  color: var(--ash);
+  box-shadow: var(--shadow-card);
+}
+
+.h5-history-search svg {
+  flex-shrink: 0;
+  color: var(--ash);
+}
+
+.h5-history-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  color: var(--ink);
+  outline: none;
+}
+
+.h5-history-search input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.h5-history-search input::placeholder {
+  color: var(--ash);
+}
+
+.h5-history-search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border: none;
+  border-radius: 50%;
+  background: var(--hairline);
+  color: var(--mute);
+  cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.h5-history-search-clear:active {
+  background: var(--ash);
+  color: var(--canvas);
+}
+
+/* ── Body ── */
+.h5-history-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 0 16px;
+}
+
+/* ── Loading ── */
+.h5-history-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.h5-history-spinner {
+  color: var(--ash);
+}
+
+/* ── Empty ── */
+.h5-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 64px 24px;
+  color: var(--ash);
+}
+
+.h5-history-empty p {
+  font-size: 14px;
+  color: var(--mute);
+  margin: 0;
+}
+
+/* ── Date group ── */
+.h5-history-group {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+/* Timeline vertical line */
+.h5-history-group::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--hairline);
+}
+
+.h5-history-date {
+  position: relative;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--body);
+  letter-spacing: 0.06em;
+  padding: 12px 16px 6px 36px;
+  margin: 0;
+}
+
+/* Date group node - hollow circle (larger) */
+.h5-history-date::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--canvas);
+  border: 2px solid var(--ash);
+  z-index: 1;
+}
+
+/* ── List item ── */
+.h5-history-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.h5-history-item {
+  display: flex;
+  align-items: center;
+  position: relative;
+  margin: 0 12px 4px 36px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(240,246,244,0.85);
+  border: 1px solid var(--border-passive);
+}
+
+/* Timeline node dot */
+.h5-history-item::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hairline-strong);
+  z-index: 1;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Hover / Active: node glow and scale */
+.h5-history-item:active::before {
+  background: var(--accent);
+  transform: translateY(-50%) scale(1.33);
+  box-shadow: 0 0 0 3px hsl(var(--accent) / 0.15);
+}
+
+/* Active session - accent dot */
+.h5-history-item--active::before {
+  background: var(--accent);
+  transform: translateY(-50%) scale(1.2);
+}
+
+/* Active session */
+.h5-history-item--active {
+  background: rgba(160,196,212,0.22);
+  border-color: var(--accent-sky);
+}
+
+.h5-history-item--active .h5-history-item-title {
+  color: var(--pastel-blue-text);
+  font-weight: 600;
+}
+
+/* Item active state (touch feedback) */
+.h5-history-item:active {
+  background: var(--surface-card);
+}
+
+.h5-history-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.h5-history-item-main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.h5-history-item-title {
+  font-size: 14px;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.h5-history-item-meta {
+  font-size: 12px;
+  color: var(--ash);
+  font-family: var(--font-mono);
+}
+
+.h5-history-item-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border: none;
+  background: transparent;
+  color: var(--ash);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s ease;
+}
+
+.h5-history-item-delete:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.h5-history-item-delete:active {
+  color: var(--danger);
+}

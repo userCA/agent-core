@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logo 动效预览 — 咪兔</title>
+<style>
+  :root { --bg: #faf8f5; --ink: #1a1a1a; --warm: #d49440; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
+    background: var(--bg); color: var(--ink); min-height: 100vh;
+    display: flex; flex-direction: column;
+  }
+  header {
+    text-align: center; padding: 40px 20px 20px;
+    border-bottom: 1px solid #e0ddd8;
+  }
+  header h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  header p  { font-size: 13px; color: #999; }
+  .grid { display: flex; gap: 0; flex: 1; }
+  .col {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px 20px; position: relative;
+    cursor: default; overflow: hidden;
+  }
+  .col + .col { border-left: 1px solid #e0ddd8; }
+  .col-label {
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #999; background: var(--bg);
+    padding: 2px 12px; border-radius: 99px; border: 1px solid #e0ddd8;
+    white-space: nowrap; z-index: 3;
+  }
+  .recommend {
+    position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 10px; color: var(--warm); font-weight: 600; z-index: 3;
+  }
+  .hint {
+    position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 11px; color: #bbb; z-index: 2;
+  }
+  .stage {
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+  }
+  h2.title {
+    font-family: 'Georgia', 'Noto Serif SC', 'STSong', serif;
+    font-size: 32px; font-weight: 600; letter-spacing: -0.02em;
+  }
+  p.subtitle {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13px; color: #aaa;
+  }
+
+  /* === shared logo typography === */
+  pre.logo, .char-logo {
+    font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
+    font-size: 14px; font-weight: 700;
+    line-height: 1.2; text-align: center;
+    white-space: pre; user-select: none;
+    color: var(--ink); margin: 0;
+  }
+  .char-logo {
+    position: relative; z-index: 1;
+  }
+  .char-logo .c {
+    display: inline-block;
+    will-change: transform;
+  }
+
+  /* === A: 3D Tilt === */
+  .card-tilt { perspective: 600px; }
+  .card-tilt-inner {
+    transition: transform 0.15s ease-out;
+    will-change: transform;
+    transform-origin: center center;
+  }
+
+  /* === C: shatter platform === */
+  .shatter-wrap {
+    position: relative;
+    overflow: visible;
+  }
+  .shatter-platform {
+    position: absolute;
+    bottom: -30px; left: 50%; transform: translateX(-50%);
+    width: 280px; height: 4px;
+    background: linear-gradient(90deg, transparent, #ccc, transparent);
+    border-radius: 2px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .shatter-wrap.active .shatter-platform { opacity: 1; }
+
+  .logo-art { white-space: pre; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>咪兔 Logo 动效预览</h1>
+  <p>鼠标悬浮到 logo 上看效果 · 全部仅用 transform/opacity，不影响性能</p>
+</header>
+
+<div class="grid">
+
+  <!-- A: 3D Tilt -->
+  <div class="col" id="col-tilt">
+    <span class="col-label">方案 A</span>
+    <span class="recommend">★ 推荐</span>
+    <div class="stage card-tilt">
+      <div class="card-tilt-inner" id="tilt-target">
+        <pre class="logo logo-art">
+              ██            ██
+             ████          ████
+            ██████        ██████
+           ██████████████████████
+          ████    ████████    ████
+          ████                ████
+          ████  ██  ██  ██  ████
+          ████    ██████    ████
+           ██████████████████████
+             ████          ████
+              ████████████████
+                ████    ████
+                 ██      ██
+        </pre>
+        <h2 class="title">咪兔</h2>
+        <p class="subtitle">3D 悬浮倾斜 · 鼠标移动控制透视角度</p>
+      </div>
+    </div>
+    <span class="hint">↗ 移动鼠标试试</span>
+  </div>
+
+  <!-- B: Water wave -->
+  <div class="col" id="col-wave">
+    <span class="col-label">方案 B</span>
+    <div class="stage">
+      <div class="char-logo" id="wave-target">
+              ██            ██
+             ████          ████
+            ██████        ██████
+           ██████████████████████
+          ████    ████████    ████
+          ████                ████
+          ████  ██  ██  ██  ████
+          ████    ██████    ████
+           ██████████████████████
+             ████          ████
+              ████████████████
+                ████    ████
+                 ██      ██
+      </div>
+      <h2 class="title">咪兔</h2>
+      <p class="subtitle">水波 · 鼠标滑过字符如水面波动</p>
+    </div>
+    <span class="hint">↗ 在文字上滑动鼠标</span>
+  </div>
+
+  <!-- C: Physical shatter -->
+  <div class="col" id="col-shatter">
+    <span class="col-label">方案 C</span>
+    <div class="stage">
+      <div class="shatter-wrap" id="shatter-wrap">
+        <div class="char-logo" id="shatter-target">
+              ██            ██
+             ████          ████
+            ██████        ██████
+           ██████████████████████
+          ████    ████████    ████
+          ████                ████
+          ████  ██  ██  ██  ████
+          ████    ██████    ████
+           ██████████████████████
+             ████          ████
+              ████████████████
+                ████    ████
+                 ██      ██
+        </div>
+        <div class="shatter-platform"></div>
+      </div>
+      <h2 class="title">咪兔</h2>
+      <p class="subtitle">碎散 · 悬浮时字符炸开落到平台</p>
+    </div>
+    <span class="hint">↗ 鼠标悬浮到文字上</span>
+  </div>
+
+</div>
+
+<script>
+// ---- shared: split text into char spans ----
+function splitChars(el) {
+  const text = el.textContent || '';
+  el.textContent = '';
+  const chars = []; // {span, row, col} for non-space chars
+  let row = 0, col = 0;
+  for (const ch of text) {
+    if (ch === '\n') { row++; col = 0; el.appendChild(document.createElement('br')); continue; }
+    const span = document.createElement('span');
+    span.className = 'c';
+    span.textContent = ch;
+    el.appendChild(span);
+    if (ch !== ' ') chars.push({ span, row, col });
+    col++;
+  }
+  return { chars, rows: row + 1, cols: col };
+}
+
+// =========== A: 3D Tilt ===========
+(function() {
+  const col = document.getElementById('col-tilt');
+  const target = document.getElementById('tilt-target');
+  if (!col || !target) return;
+  col.addEventListener('mousemove', (e) => {
+    const rect = col.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    target.style.transform = `perspective(600px) rotateX(${y*12}deg) rotateY(${x*-16}deg)`;
+  });
+  col.addEventListener('mouseleave', () => {
+    target.style.transform = 'perspective(600px) rotateX(0deg) rotateY(0deg)';
+  });
+})();
+
+// =========== B: Water wave ===========
+(function() {
+  const target = document.getElementById('wave-target');
+  if (!target) return;
+  const { chars } = splitChars(target);
+
+  // Compute char positions relative to target center
+  const targetRect = () => target.getBoundingClientRect();
+  let mouseX = -999, mouseY = -999;
+  let time = 0;
+  let running = false;
+  const cellW = 8.4, cellH = 16.8; // approximate monospace cell size
+
+  target.parentElement.addEventListener('mousemove', (e) => {
+    const rect = targetRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+    if (!running) { running = true; tick(); }
+  });
+
+  target.parentElement.addEventListener('mouseleave', () => {
+    mouseX = -999; mouseY = -999;
+  });
+
+  function tick() {
+    time++;
+    const rect = targetRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    let anyActive = false;
+
+    for (const { span, col, row } of chars) {
+      const cx2 = col * cellW;
+      const cy2 = row * cellH;
+      const dx = cx2 - mouseX;
+      const dy = cy2 - mouseY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+
+      // Ripple wave: sin(dist - time*phase) * gaussian decay
+      const wave = Math.sin(dist * 0.08 - time * 0.3) * Math.exp(-dist * 0.012) * 12;
+
+      if (Math.abs(wave) > 0.05 || mouseX > 0) anyActive = true;
+      span.style.transform = `translateY(${wave.toFixed(1)}px)`;
+    }
+
+    if (anyActive || mouseX > 0) {
+      requestAnimationFrame(tick);
+    } else {
+      running = false;
+      // settle
+      for (const { span } of chars) span.style.transform = 'translateY(0px)';
+    }
+  }
+})();
+
+// =========== C: Physical shatter ===========
+(function() {
+  const wrap = document.getElementById('shatter-wrap');
+  const target = document.getElementById('shatter-target');
+  if (!target) return;
+  const { chars } = splitChars(target);
+
+  // Physics state per char
+  const state = chars.map(() => ({
+    x: 0, y: 0, vx: 0, vy: 0, rot: 0, vr: 0,
+    settled: true,
+  }));
+
+  const GRAVITY = 0.4;
+  const GROUND = 60;
+  const BOUNCE = -0.35;
+  const FRICTION = 0.92;
+
+  let animId = null;
+
+  function explode() {
+    for (const s of state) {
+      s.settled = false;
+      s.vx = (Math.random() - 0.5) * 14;
+      s.vy = -(3 + Math.random() * 10);
+      s.vr = (Math.random() - 0.5) * 15;
+      s.x = 0; s.y = 0; s.rot = 0;
+    }
+    if (!animId) animId = requestAnimationFrame(tick);
+  }
+
+  function tick() {
+    let anyMoving = false;
+    for (const s of state) {
+      if (s.settled) continue;
+      s.vy += GRAVITY;
+      s.y += s.vy;
+      s.x += s.vx;
+      s.rot += s.vr;
+
+      if (s.y >= GROUND) {
+        s.y = GROUND;
+        if (Math.abs(s.vy) > 1.5) {
+          s.vy *= BOUNCE;
+          s.vx *= FRICTION;
+          s.vr *= 0.7;
+        } else {
+          s.vy = 0; s.vx = 0; s.vr = 0;
+          s.settled = true;
+        }
+      }
+      if (!s.settled) anyMoving = true;
+    }
+
+    // Apply transforms
+    for (let i = 0; i < chars.length; i++) {
+      const s = state[i];
+      if (s.settled && s.y === GROUND) {
+        chars[i].span.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px) rotate(${s.rot.toFixed(1)}deg)`;
+        chars[i].span.style.opacity = '0.4';
+        chars[i].span.style.color = 'var(--warm)';
+      } else if (!s.settled) {
+        chars[i].span.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px) rotate(${s.rot.toFixed(1)}deg)`;
+        chars[i].span.style.opacity = '0.5';
+        chars[i].span.style.color = 'var(--warm)';
+      }
+    }
+
+    if (anyMoving) {
+      animId = requestAnimationFrame(tick);
+    } else {
+      animId = null;
+    }
+  }
+
+  function reset() {
+    if (animId) { cancelAnimationFrame(animId); animId = null; }
+    for (let i = 0; i < chars.length; i++) {
+      state[i].settled = true;
+      state[i].x = 0; state[i].y = 0; state[i].rot = 0;
+      state[i].vx = 0; state[i].vy = 0; state[i].vr = 0;
+      chars[i].span.style.transform = 'translate(0, 0) rotate(0deg)';
+      chars[i].span.style.opacity = '1';
+      chars[i].span.style.color = '';
+    }
+  }
+
+  target.addEventListener('mouseenter', () => { wrap.classList.add('active'); explode(); });
+  target.addEventListener('mouseleave', () => { wrap.classList.remove('active'); reset(); });
+})();
+</script>
+
+</body>
+</html>

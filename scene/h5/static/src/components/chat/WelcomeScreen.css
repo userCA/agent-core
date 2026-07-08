@@ -1,0 +1,189 @@
+.welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 280px;
+    padding: 24px;
+    gap: 12px;
+    max-width: 520px;
+    margin: 0 auto;
+    position: relative;
+}
+
+.welcome-ambient {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+        radial-gradient(ellipse 80% 50% at 50% 40%, rgba(44,62,62,0.06) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 40% at 30% 70%, rgba(160,196,212,0.05) 0%, transparent 60%);
+}
+
+.welcome > * {
+    position: relative;
+    z-index: 1;
+}
+
+.welcome-logo {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.2;
+    text-align: center;
+    letter-spacing: 0;
+    margin: 0;
+}
+
+/* CSS animation runs on compositor thread — no JS jank */
+@media (prefers-reduced-motion: no-preference) {
+    .welcome-logo--float {
+        animation: logoFloat 3s ease-in-out infinite;
+    }
+}
+
+@keyframes logoFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+.welcome-title {
+    font-family: 'Ma Shan Zheng', cursive;
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+}
+
+.welcome-subtitle {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--stone);
+    margin: 0;
+}
+
+/* ---- Scene tabs ---- */
+.scene-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 4px;
+    width: 100%;
+}
+
+.scene-tab {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border: 1.5px solid var(--border-ink);
+    border-radius: var(--radius-md);
+    background: rgba(240,246,244,0.88);
+    color: var(--body);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    touch-action: manipulation;
+}
+
+.scene-tab:hover {
+    border-color: var(--hairline-strong);
+    background: var(--surface-soft);
+}
+
+.scene-tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.scene-tab.active {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--canvas);
+}
+
+/* ---- Prompt grid ---- */
+.prompt-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    width: 100%;
+    margin-top: 2px;
+}
+
+.prompt-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1.5px solid var(--border-ink);
+    border-radius: var(--radius-sm);
+    background: rgba(240,246,244,0.88);
+    color: var(--ink);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    text-align: left;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    touch-action: manipulation;
+    box-shadow: var(--shadow-card);
+}
+
+.prompt-card:hover {
+    border-color: var(--ink-primary);
+    background: rgba(240,246,244,0.95);
+}
+
+.prompt-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.prompt-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    background: var(--paper-warm);
+    color: var(--ink);
+    flex-shrink: 0;
+}
+
+.prompt-label {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+    .prompt-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .scene-tabs {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .scene-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .scene-tab {
+        flex-shrink: 0;
+    }
+}

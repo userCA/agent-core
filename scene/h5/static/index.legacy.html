@@ -1,0 +1,2447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Core</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+    <style>
+        :root {
+            --canvas: #fdfcfc;
+            --ink: #201d1d;
+            --surface-soft: #f8f7f7;
+            --surface-card: #f1eeee;
+            --surface-dark: #201d1d;
+            --hairline: rgba(15,0,0,0.10);
+            --hairline-strong: #646262;
+            --body: #424245;
+            --mute: #646262;
+            --stone: #6e6e73;
+            --ash: #9a9898;
+            --on-dark: #fdfcfc;
+            --accent: #007aff;
+            --accent-hover: #0056b3;
+            --danger: #ff3b30;
+            --danger-hover: #d70015;
+            --warning: #ff9f0a;
+            --success: #30d158;
+            --radius-sm: 4px;
+            --radius-none: 0px;
+            --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-mono);
+            background: var(--canvas);
+            color: var(--ink);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        header {
+            background: var(--canvas);
+            border-bottom: 1px solid var(--hairline);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo pre {
+            font-family: var(--font-mono);
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--ink);
+            line-height: 1.2;
+            letter-spacing: 0;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--mute);
+            padding: 4px 12px;
+            background: var(--surface-soft);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .btn {
+            padding: 6px 14px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--hairline);
+            background: var(--canvas);
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: var(--font-mono);
+            transition: border-color 0.15s ease;
+        }
+
+        .btn:hover {
+            border-color: var(--hairline-strong);
+        }
+
+        .btn-primary {
+            background: var(--ink);
+            border: 1px solid var(--ink);
+            color: var(--on-dark);
+        }
+
+        .btn-primary:hover {
+            background: #0f0000;
+            border-color: #0f0000;
+        }
+
+        .btn-danger {
+            background: var(--canvas);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: rgba(255,59,48,0.06);
+        }
+
+        #chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            scroll-behavior: smooth;
+        }
+
+        #chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #chat-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #chat-container::-webkit-scrollbar-thumb {
+            background: var(--hairline-strong);
+            border-radius: var(--radius-sm);
+        }
+
+        .message-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-width: 75%;
+            animation: slideIn 0.2s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-wrapper.user { align-self: flex-end; }
+        .message-wrapper.assistant,
+        .message-wrapper.tool { align-self: flex-start; }
+        .message-wrapper.tool { margin-top: 8px; }
+
+        .message-label {
+            font-size: 11px;
+            color: var(--mute);
+            padding: 0 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .message {
+            padding: 10px 14px;
+            line-height: 1.6;
+            word-wrap: break-word;
+            font-size: 14px;
+            border-radius: var(--radius-sm);
+        }
+
+        .message.user {
+            background: var(--surface-dark);
+            color: var(--on-dark);
+        }
+
+        .message.assistant {
+            background: transparent;
+            color: var(--body);
+            border: none;
+            padding: 0;
+            border-radius: var(--radius-none);
+            min-height: 28px;
+        }
+
+        .message.tool {
+            background: var(--surface-soft);
+            border: 1px solid var(--hairline);
+            color: var(--body);
+            font-size: 13px;
+        }
+
+        .message.error {
+            background: rgba(255,59,48,0.06);
+            border: 1px solid rgba(255,59,48,0.25);
+            color: var(--danger);
+        }
+
+        .think-block {
+            margin-bottom: 12px;
+            background: var(--surface-soft);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+        }
+
+        .think-block summary {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--mute);
+            user-select: none;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            transition: background 0.1s ease;
+        }
+
+        .think-block summary::-webkit-details-marker { display: none; }
+
+        .think-block summary::before {
+            content: '[+]';
+            font-size: 11px;
+            opacity: 0.55;
+            font-family: var(--font-mono);
+        }
+
+        .think-block[open] summary::before {
+            content: '[-]';
+        }
+
+        .think-block summary:hover {
+            background: var(--surface-card);
+        }
+
+        .think-content {
+            padding: 0 12px 10px;
+            color: var(--body);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .think-content > *:first-child { margin-top: 0; }
+        .think-content > *:last-child { margin-bottom: 0; }
+
+        .steps-panel {
+            margin-bottom: 12px;
+            background: var(--surface-soft);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            display: none;
+        }
+
+        .steps-summary {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--mute);
+            user-select: none;
+            transition: background 0.1s ease;
+        }
+
+        .steps-summary:hover {
+            background: var(--surface-card);
+        }
+
+        .steps-summary-text {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .steps-summary-arrow {
+            font-size: 11px;
+            opacity: 0.55;
+        }
+
+        .steps-list {
+            display: none;
+            padding: 0 12px 10px;
+        }
+
+        .steps-panel.open .steps-list { display: block; }
+
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            font-size: 13px;
+            color: var(--body);
+            border-bottom: 1px solid var(--hairline);
+        }
+
+        .step-item:last-child { border-bottom: none; }
+
+        .step-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+            font-family: var(--font-mono);
+        }
+
+        .step-label {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .step-status {
+            font-size: 11px;
+            opacity: 0.6;
+            flex-shrink: 0;
+        }
+
+        .step-detail {
+            margin: 4px 0 6px 28px;
+            padding: 6px 10px;
+            background: var(--surface-card);
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--body);
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .step-detail.error {
+            background: rgba(255,59,48,0.06);
+            color: var(--danger);
+        }
+
+        .final-content:empty::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--mute);
+            opacity: 0.35;
+            animation: contentPulse 1.4s ease-in-out infinite;
+        }
+
+        .widget-container {
+            margin: 12px 0;
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            background: var(--canvas);
+        }
+
+        .widget-title {
+            padding: 8px 14px;
+            font-size: 12px;
+            color: var(--mute);
+            border-bottom: 1px solid var(--hairline);
+            background: var(--surface-soft);
+        }
+
+        .widget-iframe {
+            width: 100%;
+            border: none;
+            display: block;
+        }
+
+        .audio-container {
+            margin: 12px 0;
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            background: var(--canvas);
+        }
+
+        .audio-header {
+            padding: 8px 14px;
+            font-size: 12px;
+            color: var(--mute);
+            border-bottom: 1px solid var(--hairline);
+            background: var(--surface-soft);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .audio-list {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .audio-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .audio-item audio {
+            flex: 1;
+            height: 36px;
+            min-width: 0;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 4px 0;
+        }
+
+        .typing-indicator span {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--mute);
+            animation: typingBounce 1.4s ease-in-out infinite both;
+        }
+
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        .tool-name {
+            font-weight: 600;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--ink);
+        }
+
+        .tool-name::before {
+            content: '[#]';
+            font-weight: 400;
+        }
+
+        .tool-args {
+            background: var(--surface-card);
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            margin: 6px 0;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+
+        .tool-result {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: var(--surface-soft);
+            border-radius: var(--radius-sm);
+            color: var(--body);
+            font-size: 13px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .tool-result::before {
+            content: '> ';
+            color: var(--mute);
+            font-weight: 600;
+        }
+
+        .tool-result.error {
+            background: rgba(255,59,48,0.06);
+            color: var(--danger);
+        }
+
+        .tool-result.error::before {
+            content: '[!] ';
+            color: var(--danger);
+        }
+
+        .usage-info {
+            font-size: 11px;
+            color: var(--stone);
+            margin-top: 6px;
+            padding: 0 2px;
+            letter-spacing: 0.02em;
+        }
+
+        .type-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.1em;
+            background: var(--accent);
+            margin-left: 2px;
+            vertical-align: text-bottom;
+            animation: blink 1s step-end infinite;
+            border-radius: 1px;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .msg-content:empty::before {
+            content: '...';
+            color: var(--stone);
+            font-size: 14px;
+            opacity: 0.45;
+            font-family: var(--font-mono);
+            animation: contentPulse 1.4s ease-in-out infinite;
+        }
+
+        @keyframes contentPulse {
+            0%, 100% { opacity: 0.35; }
+            50% { opacity: 0.65; }
+        }
+
+        .markdown-body {
+            font-size: 14px;
+            line-height: 1.65;
+        }
+
+        .markdown-body > *:first-child { margin-top: 0 !important; }
+        .markdown-body > *:last-child { margin-bottom: 0 !important; }
+
+        .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+            font-weight: 700;
+            line-height: 1.35;
+            margin: 1.1em 0 0.45em;
+            color: var(--ink);
+        }
+
+        .markdown-body h1 { font-size: 18px; }
+        .markdown-body h2 { font-size: 16px; }
+        .markdown-body h3 { font-size: 15px; }
+        .markdown-body h4 { font-size: 14px; }
+
+        .markdown-body p { margin: 0.5em 0; }
+
+        .markdown-body ul,
+        .markdown-body ol { padding-left: 1.4rem; margin: 0.4em 0; }
+
+        .markdown-body li { margin: 0.2em 0; }
+        .markdown-body li > p { margin: 0.2em 0; }
+        .markdown-body li > ul,
+        .markdown-body li > ol { margin: 0.2em 0; }
+
+        .markdown-body strong { font-weight: 700; color: var(--ink); }
+        .markdown-body em { font-style: italic; }
+
+        .markdown-body code {
+            background: var(--surface-card);
+            padding: 0.12em 0.4em;
+            border-radius: var(--radius-sm);
+            font-size: 0.9em;
+            color: var(--ink);
+        }
+
+        .markdown-body pre {
+            background: var(--surface-soft);
+            padding: 12px 14px;
+            border-radius: var(--radius-sm);
+            overflow-x: auto;
+            margin: 0.6em 0;
+            font-size: 13px;
+            line-height: 1.55;
+            border: 1px solid var(--hairline);
+        }
+
+        .markdown-body pre code {
+            background: transparent;
+            padding: 0;
+            color: var(--body);
+            font-size: inherit;
+        }
+
+        .markdown-body a {
+            color: var(--accent);
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .markdown-body blockquote {
+            padding: 8px 14px;
+            border-left: 2px solid var(--hairline-strong);
+            margin: 0.5em 0;
+            color: var(--mute);
+        }
+
+        .markdown-body blockquote > *:first-child { margin-top: 0; }
+        .markdown-body blockquote > *:last-child { margin-bottom: 0; }
+
+        .markdown-body hr {
+            border: none;
+            border-top: 1px solid var(--hairline);
+            margin: 1em 0;
+        }
+
+        .markdown-body table {
+            border-collapse: collapse;
+            margin: 0.5em 0;
+            font-size: 13px;
+        }
+
+        .markdown-body th,
+        .markdown-body td {
+            padding: 6px 10px;
+            border: 1px solid var(--hairline);
+        }
+
+        .markdown-body th {
+            background: var(--surface-soft);
+            font-weight: 700;
+            text-align: left;
+        }
+
+        #input-area {
+            background: var(--canvas);
+            border-top: 1px solid var(--hairline);
+            padding: 16px 24px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .input-wrapper { flex: 1; position: relative; }
+
+        #message-input {
+            width: 100%;
+            padding: 10px 14px;
+            padding-right: 3rem;
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            background: var(--surface-soft);
+            color: var(--ink);
+            font-size: 14px;
+            font-family: var(--font-mono);
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+
+        #message-input::placeholder { color: var(--stone); }
+
+        #message-input:focus {
+            border-color: var(--ink);
+            background: var(--canvas);
+        }
+
+        .input-hint {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 13px;
+            color: var(--stone);
+            pointer-events: none;
+        }
+
+        #send-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--ink);
+            background: var(--ink);
+            color: var(--on-dark);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.15s ease;
+            flex-shrink: 0;
+        }
+
+        #send-btn:hover:not(:disabled) { opacity: 0.85; }
+
+        #send-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: var(--surface-soft);
+            border-color: var(--hairline);
+            color: var(--stone);
+        }
+
+        #send-btn svg { width: 18px; height: 18px; }
+
+        .welcome-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            gap: 16px;
+            text-align: center;
+            padding: 32px;
+        }
+
+        .welcome-wordmark {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.2;
+            color: var(--ink);
+            white-space: pre;
+            margin-bottom: 8px;
+        }
+
+        .welcome-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .welcome-subtitle {
+            color: var(--body);
+            font-size: 14px;
+            max-width: 440px;
+            line-height: 1.6;
+        }
+
+        .welcome-examples {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 8px;
+        }
+
+        .example-chip {
+            padding: 8px 16px;
+            background: var(--canvas);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            color: var(--mute);
+            cursor: pointer;
+            transition: border-color 0.15s ease;
+            font-family: var(--font-mono);
+        }
+
+        .example-chip:hover {
+            border-color: var(--ink);
+            color: var(--ink);
+        }
+
+        .hitl-card {
+            margin: 12px 0;
+            padding: 16px;
+            background: var(--canvas);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            animation: slideIn 0.2s ease-out;
+        }
+
+        .hitl-prompt {
+            font-size: 14px;
+            color: var(--ink);
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+
+        .hitl-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .hitl-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .hitl-field label {
+            font-size: 12px;
+            color: var(--mute);
+            font-weight: 500;
+        }
+
+        .hitl-field input[type="text"],
+        .hitl-field textarea,
+        .hitl-field select {
+            padding: 8px 12px;
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            background: var(--surface-soft);
+            color: var(--ink);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+
+        .hitl-field input[type="text"]:focus,
+        .hitl-field textarea:focus,
+        .hitl-field select:focus {
+            border-color: var(--ink);
+            background: var(--canvas);
+        }
+
+        .hitl-field select {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23646262' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 2rem;
+            cursor: pointer;
+        }
+
+        .hitl-field select option { background: var(--canvas); color: var(--ink); }
+
+        .hitl-select-preview {
+            display: none;
+            margin-top: 8px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--hairline);
+            max-width: 200px;
+            max-height: 120px;
+            object-fit: cover;
+        }
+
+        .hitl-select-preview.show { display: block; }
+
+        .hitl-field textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .hitl-image-upload { position: relative; }
+
+        .hitl-image-upload input[type="file"] { display: none; }
+
+        .hitl-upload-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: var(--canvas);
+            border: 1px dashed var(--hairline-strong);
+            border-radius: var(--radius-sm);
+            color: var(--mute);
+            font-size: 13px;
+            cursor: pointer;
+            transition: border-color 0.15s ease;
+            font-family: var(--font-mono);
+        }
+
+        .hitl-upload-btn:hover {
+            border-color: var(--ink);
+            color: var(--ink);
+        }
+
+        .hitl-image-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .hitl-image-thumb {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            border: 1px solid var(--hairline);
+            background: var(--surface-soft);
+        }
+        .hitl-image-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .hitl-image-remove {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.65);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            cursor: pointer;
+            border: none;
+            line-height: 1;
+        }
+        .hitl-image-remove:hover { background: var(--danger); }
+        .hitl-image-hint {
+            font-size: 11px;
+            color: var(--stone);
+            margin-top: 4px;
+        }
+
+        .hitl-required { color: var(--danger); margin-left: 4px; }
+        .hitl-field-error {
+            border-color: var(--danger) !important;
+        }
+        .hitl-error-text {
+            color: var(--danger);
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .hitl-image-preview {
+            margin-top: 8px;
+            max-width: 200px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--hairline);
+        }
+
+        .hitl-audio-record {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hitl-record-btn {
+            padding: 8px 16px;
+            background: var(--canvas);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            color: var(--mute);
+            font-size: 13px;
+            cursor: pointer;
+            transition: border-color 0.15s ease;
+            font-family: var(--font-mono);
+        }
+
+        .hitl-record-btn.recording {
+            background: rgba(255,59,48,0.06);
+            border-color: var(--danger);
+            color: var(--danger);
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .hitl-audio-playback {
+            display: none;
+            max-width: 200px;
+        }
+
+        .hitl-audio-playback.show { display: block; }
+
+        .hitl-submit {
+            padding: 8px 20px;
+            background: var(--ink);
+            border: 1px solid var(--ink);
+            border-radius: var(--radius-sm);
+            color: var(--on-dark);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            align-self: flex-start;
+            font-family: var(--font-mono);
+            transition: opacity 0.15s ease;
+        }
+
+        .hitl-submit:hover:not(:disabled) { opacity: 0.85; }
+
+        .hitl-submit:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .hitl-status {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--success);
+        }
+
+        /* Pending message bubbles */
+        .pending-bubbles {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 0 24px;
+            background: var(--canvas);
+            border-top: 1px solid var(--hairline);
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease, padding 0.2s ease;
+        }
+        .pending-bubbles.has-items {
+            max-height: 120px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+        .pending-bubble {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            background: var(--surface-soft);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            color: var(--mute);
+            max-width: 220px;
+        }
+        .pending-bubble-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .pending-bubble-remove {
+            cursor: pointer;
+            opacity: 0.6;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0 2px;
+        }
+        .pending-bubble-remove:hover {
+            opacity: 1;
+            color: var(--danger);
+        }
+
+        /* Running step spinner */
+        .step-status.running {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+        }
+        .step-status.running::after {
+            content: '';
+            width: 10px;
+            height: 10px;
+            border: 1.5px solid var(--hairline);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: stepSpin 0.8s linear infinite;
+        }
+        @keyframes stepSpin {
+            to { transform: rotate(360deg); }
+        }
+
+        .step-elapsed {
+            font-size: 11px;
+            color: var(--stone);
+            margin-left: 4px;
+        }
+        .step-slow-hint {
+            font-size: 11px;
+            color: var(--warning);
+            margin-left: 4px;
+        }
+
+        /* Differentiated tool result rendering */
+        .result-audio {
+            display: block;
+            width: 100%;
+            max-width: 400px;
+            margin: 6px 0;
+            border-radius: var(--radius-sm);
+        }
+        .result-video {
+            display: block;
+            width: 100%;
+            max-width: 400px;
+            margin: 6px 0;
+            border-radius: var(--radius-sm);
+            background: #000;
+        }
+        .result-image {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: var(--radius-sm);
+            margin: 6px 0;
+            display: block;
+        }
+        .result-code {
+            background: var(--surface-soft);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            margin: 6px 0;
+            border: 1px solid var(--hairline);
+        }
+        .result-code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            background: var(--surface-card);
+            font-size: 11px;
+            color: var(--mute);
+            cursor: pointer;
+            user-select: none;
+        }
+        .result-code-header:hover { background: var(--hairline); }
+        .result-code-body {
+            padding: 8px 10px;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--body);
+            max-height: 200px;
+            overflow-y: auto;
+            transition: max-height 0.15s ease;
+        }
+        .result-code-body.collapsed {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            overflow: hidden;
+        }
+        .result-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 13px;
+        }
+        .result-link:hover { text-decoration: underline; }
+
+        /* Auth modal */
+        .auth-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .auth-modal.show { display: flex; }
+        .auth-modal-body {
+            background: var(--canvas);
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            padding: 24px;
+            width: 380px;
+            max-width: 92vw;
+            animation: slideIn 0.2s ease-out;
+        }
+        .auth-modal-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .auth-modal-desc {
+            font-size: 13px;
+            color: var(--body);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+        .auth-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+        .auth-field label {
+            font-size: 12px;
+            color: var(--mute);
+            font-weight: 500;
+        }
+        .auth-field input {
+            padding: 8px 12px;
+            border: 1px solid var(--hairline);
+            border-radius: var(--radius-sm);
+            background: var(--surface-soft);
+            color: var(--ink);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+        .auth-field input:focus {
+            border-color: var(--ink);
+            background: var(--canvas);
+        }
+        .auth-modal-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .auth-modal-actions button { flex: 1; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <pre>[ agent-core ]</pre>
+        </div>
+        <div class="header-actions">
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                <span>[x] 在线</span>
+            </div>
+            <button class="btn btn-danger" id="cancel-btn" style="display:none;">[!] 取消</button>
+            <button class="btn" id="auth-btn" title="设置 AIGC 认证 Header">[key] 认证</button>
+            <button class="btn" id="new-session-btn">[+] 新会话</button>
+        </div>
+    </header>
+
+    <div id="chat-container">
+        <div class="welcome-screen" id="welcome">
+            <pre class="welcome-wordmark">
+  █████╗  ██████╗ ███████╗███╗  ██╗████████╗
+ ██╔══██╗██╔════╝ ██╔════╝████╗ ██║╚══██╔══╝
+ ███████║██║  ██╗███████╗██╔██╗██║   ██║
+ ██╔══██║██║  ║██║╚════██║██║╚████║   ██║
+ ██║  ██║╚██████╔╝███████║██║ ╚███║   ██║
+ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚══╝   ╚═╝
+            </pre>
+            <div class="welcome-title">Agent Core</div>
+            <div class="welcome-subtitle">基于 Agent Core 的流式对话体验。<br>支持工具调用、实时响应。</div>
+            <div class="welcome-examples">
+                <div class="example-chip" data-text="你好，请介绍一下你自己">[+] 打个招呼</div>
+                <div class="example-chip" data-text="当前目录有哪些文件？">[+] 列出文件</div>
+                <div class="example-chip" data-text="帮我写一段 Python 快速排序">[+] 写代码</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="pending-bubbles" class="pending-bubbles"></div>
+
+    <div id="auth-modal" class="auth-modal">
+        <div class="auth-modal-body">
+            <div class="auth-modal-title">设置 AIGC 认证</div>
+            <div class="auth-modal-desc">用于触发 <code>create_*</code> 工具时附加到 HTTP header。保存在浏览器本地。</div>
+            <div class="auth-field"><label>uid</label><input id="auth-uid" autocomplete="off"></div>
+            <div class="auth-field"><label>deviceid</label><input id="auth-deviceid" autocomplete="off"></div>
+            <div class="auth-field"><label>channel</label><input id="auth-channel" autocomplete="off" placeholder="014000D"></div>
+            <div class="auth-field"><label>pacmtoken</label><input id="auth-pacmtoken" autocomplete="off"></div>
+            <div class="auth-modal-actions">
+                <button class="btn" id="auth-cancel">取消</button>
+                <button class="btn btn-primary" id="auth-save">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="input-area">
+        <div class="input-wrapper">
+            <input type="text" id="message-input" placeholder="输入消息..." autocomplete="off">
+            <span class="input-hint">&#8629;</span>
+        </div>
+        <button id="send-btn" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+        </button>
+    </div>
+
+    <script>
+        let sessionId = null;
+        let isStreaming = false;
+        let pendingQueue = [];
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const newSessionBtn = document.getElementById('new-session-btn');
+        const authBtn = document.getElementById('auth-btn');
+        const authModal = document.getElementById('auth-modal');
+        const welcome = document.getElementById('welcome');
+        const pendingBubblesEl = document.getElementById('pending-bubbles');
+
+        const AUTH_KEYS = ['uid', 'deviceid', 'channel', 'pacmtoken'];
+        const AUTH_STORAGE_KEY = 'aigc_auth';
+
+        function loadAuth() {
+            try {
+                return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || '{}');
+            } catch {
+                return {};
+            }
+        }
+
+        function saveAuth(obj) {
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(obj));
+            refreshAuthBadge();
+        }
+
+        function buildAuthHeaders() {
+            const auth = loadAuth();
+            const headers = {};
+            AUTH_KEYS.forEach(k => {
+                if (auth[k]) headers[k] = auth[k];
+            });
+            return headers;
+        }
+
+        function refreshAuthBadge() {
+            const auth = loadAuth();
+            const hasAny = AUTH_KEYS.some(k => auth[k]);
+            authBtn.textContent = hasAny ? '[key] 已认证' : '[key] 认证';
+            authBtn.style.background = hasAny ? 'rgba(48,209,88,0.08)' : '';
+            authBtn.style.borderColor = hasAny ? 'rgba(48,209,88,0.3)' : '';
+        }
+
+        function openAuthModal() {
+            const auth = loadAuth();
+            AUTH_KEYS.forEach(k => {
+                document.getElementById('auth-' + k).value = auth[k] || '';
+            });
+            authModal.classList.add('show');
+        }
+
+        function closeAuthModal() {
+            authModal.classList.remove('show');
+        }
+
+        authBtn.addEventListener('click', openAuthModal);
+        document.getElementById('auth-cancel').addEventListener('click', closeAuthModal);
+        document.getElementById('auth-save').addEventListener('click', () => {
+            const obj = {};
+            AUTH_KEYS.forEach(k => {
+                const v = document.getElementById('auth-' + k).value.trim();
+                if (v) obj[k] = v;
+            });
+            saveAuth(obj);
+            closeAuthModal();
+        });
+        authModal.addEventListener('click', (e) => {
+            if (e.target === authModal) closeAuthModal();
+        });
+        refreshAuthBadge();
+
+        // Example chips
+        document.querySelectorAll('.example-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                messageInput.value = chip.dataset.text;
+                messageInput.focus();
+            });
+        });
+
+        function hideWelcome() {
+            if (welcome && welcome.parentNode) {
+                welcome.remove();
+            }
+        }
+
+        function addMessage(role, content) {
+            hideWelcome();
+            const wrapper = document.createElement('div');
+            wrapper.className = `message-wrapper ${role}`;
+
+            const label = document.createElement('div');
+            label.className = 'message-label';
+            label.textContent = role === 'user' ? '> you' : role === 'tool' ? '[#] tool' : 'assistant';
+            wrapper.appendChild(label);
+
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            div.innerHTML = content;
+            wrapper.appendChild(div);
+
+            chatContainer.appendChild(wrapper);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return div;
+        }
+
+        async function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderHitlCard({ toolCallId, prompt, inputSchema, sessionId }) {
+            const card = document.createElement('div');
+            card.className = 'hitl-card';
+            card.dataset.toolCallId = toolCallId;
+
+            const promptDiv = document.createElement('div');
+            promptDiv.className = 'hitl-prompt';
+            promptDiv.textContent = prompt;
+            card.appendChild(promptDiv);
+
+            const form = document.createElement('form');
+            form.className = 'hitl-form';
+
+            const fieldValues = {};
+            const fields = (inputSchema && inputSchema.fields) || [];
+
+            fields.forEach(field => {
+                const fieldWrap = document.createElement('div');
+                fieldWrap.className = 'hitl-field';
+
+                const label = document.createElement('label');
+                label.textContent = field.label || field.name;
+                if (field.required) {
+                    const star = document.createElement('span');
+                    star.className = 'hitl-required';
+                    star.textContent = '*';
+                    label.appendChild(star);
+                }
+                fieldWrap.appendChild(label);
+
+                if (field.type === 'select') {
+                    const select = document.createElement('select');
+                    const placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = field.placeholder || '请选择…';
+                    placeholder.disabled = true;
+                    placeholder.selected = true;
+                    select.appendChild(placeholder);
+
+                    const preview = document.createElement('img');
+                    preview.className = 'hitl-select-preview';
+                    preview.alt = 'preview';
+
+                    const optMap = {};
+                    (field.options || []).forEach(opt => {
+                        const o = document.createElement('option');
+                        o.value = opt.value;
+                        o.textContent = opt.label || opt.value;
+                        select.appendChild(o);
+                        optMap[opt.value] = opt;
+                    });
+
+                    select.addEventListener('change', (e) => {
+                        fieldValues[field.name] = e.target.value;
+                        const opt = optMap[e.target.value];
+                        if (opt && opt.preview_url) {
+                            preview.src = opt.preview_url;
+                            preview.classList.add('show');
+                        } else {
+                            preview.classList.remove('show');
+                        }
+                    });
+
+                    fieldWrap.appendChild(select);
+                    fieldWrap.appendChild(preview);
+                } else if (field.type === 'image_upload') {
+                    const max = field.max || 1;
+                    const accept = Array.isArray(field.accept) && field.accept.length
+                        ? field.accept.join(',')
+                        : 'image/*';
+                    fieldValues[field.name] = [];
+
+                    const uploadWrap = document.createElement('div');
+                    uploadWrap.className = 'hitl-image-upload';
+
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.accept = accept;
+                    fileInput.multiple = max > 1;
+
+                    const uploadBtn = document.createElement('label');
+                    uploadBtn.className = 'hitl-upload-btn';
+                    const updateBtnText = () => {
+                        const count = fieldValues[field.name].length;
+                        uploadBtn.firstChild ? uploadBtn.firstChild.remove() : null;
+                        uploadBtn.insertBefore(
+                            document.createTextNode(
+                                count > 0
+                                    ? `[+] 已选 ${count}/${max}，继续添加`
+                                    : `[+] 选择图片（最多 ${max} 张）`
+                            ),
+                            uploadBtn.firstChild,
+                        );
+                    };
+                    uploadBtn.appendChild(fileInput);
+                    updateBtnText();
+
+                    const grid = document.createElement('div');
+                    grid.className = 'hitl-image-grid';
+
+                    const hint = document.createElement('div');
+                    hint.className = 'hitl-image-hint';
+
+                    const renderGrid = () => {
+                        grid.innerHTML = '';
+                        fieldValues[field.name].forEach((b64, idx) => {
+                            const thumb = document.createElement('div');
+                            thumb.className = 'hitl-image-thumb';
+                            const img = document.createElement('img');
+                            img.src = b64;
+                            thumb.appendChild(img);
+                            const remove = document.createElement('button');
+                            remove.type = 'button';
+                            remove.className = 'hitl-image-remove';
+                            remove.textContent = 'x';
+                            remove.addEventListener('click', () => {
+                                fieldValues[field.name].splice(idx, 1);
+                                renderGrid();
+                                updateBtnText();
+                                hint.textContent = '';
+                            });
+                            thumb.appendChild(remove);
+                            grid.appendChild(thumb);
+                        });
+                    };
+
+                    fileInput.addEventListener('change', async (e) => {
+                        const files = Array.from(e.target.files || []);
+                        const remaining = max - fieldValues[field.name].length;
+                        if (remaining <= 0) {
+                            hint.textContent = `已达上限 ${max} 张`;
+                            fileInput.value = '';
+                            return;
+                        }
+                        const toAdd = files.slice(0, remaining);
+                        if (files.length > toAdd.length) {
+                            hint.textContent = `已截取前 ${toAdd.length} 张（上限 ${max}）`;
+                        } else {
+                            hint.textContent = '';
+                        }
+                        for (const f of toAdd) {
+                            const b64 = await fileToBase64(f);
+                            fieldValues[field.name].push(b64);
+                        }
+                        fileInput.value = '';
+                        renderGrid();
+                        updateBtnText();
+                    });
+
+                    uploadWrap.appendChild(uploadBtn);
+                    uploadWrap.appendChild(hint);
+                    uploadWrap.appendChild(grid);
+                    fieldWrap.appendChild(uploadWrap);
+                } else if (field.type === 'audio_record') {
+                    const audioWrap = document.createElement('div');
+                    audioWrap.className = 'hitl-audio-record';
+
+                    const recordBtn = document.createElement('button');
+                    recordBtn.type = 'button';
+                    recordBtn.className = 'hitl-record-btn';
+                    recordBtn.textContent = '[rec] 按住录音';
+
+                    const playback = document.createElement('audio');
+                    playback.className = 'hitl-audio-playback';
+                    playback.controls = true;
+
+                    let mediaRecorder = null;
+                    let audioChunks = [];
+                    let isRecording = false;
+
+                    const startRecord = async () => {
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            mediaRecorder = new MediaRecorder(stream);
+                            audioChunks = [];
+                            mediaRecorder.ondataavailable = (e) => {
+                                if (e.data.size > 0) audioChunks.push(e.data);
+                            };
+                            mediaRecorder.onstop = () => {
+                                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                                const url = URL.createObjectURL(blob);
+                                playback.src = url;
+                                playback.classList.add('show');
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                    fieldValues[field.name] = reader.result;
+                                };
+                                reader.readAsDataURL(blob);
+                                stream.getTracks().forEach(t => t.stop());
+                            };
+                            mediaRecorder.start();
+                            isRecording = true;
+                            recordBtn.classList.add('recording');
+                            recordBtn.textContent = '[!] 停止录音';
+                        } catch (err) {
+                            alert('无法访问麦克风: ' + err.message);
+                        }
+                    };
+
+                    const stopRecord = () => {
+                        if (mediaRecorder && isRecording) {
+                            mediaRecorder.stop();
+                            isRecording = false;
+                            recordBtn.classList.remove('recording');
+                            recordBtn.textContent = '[rec] 重新录音';
+                        }
+                    };
+
+                    recordBtn.addEventListener('mousedown', startRecord);
+                    recordBtn.addEventListener('mouseup', stopRecord);
+                    recordBtn.addEventListener('mouseleave', stopRecord);
+                    recordBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecord(); });
+                    recordBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRecord(); });
+
+                    audioWrap.appendChild(recordBtn);
+                    audioWrap.appendChild(playback);
+                    fieldWrap.appendChild(audioWrap);
+                } else if (field.type === 'textarea') {
+                    const textarea = document.createElement('textarea');
+                    textarea.placeholder = field.placeholder || '';
+                    textarea.addEventListener('input', (e) => {
+                        fieldValues[field.name] = e.target.value;
+                    });
+                    fieldWrap.appendChild(textarea);
+                } else {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.placeholder = field.placeholder || '';
+                    input.addEventListener('input', (e) => {
+                        fieldValues[field.name] = e.target.value;
+                    });
+                    fieldWrap.appendChild(input);
+                }
+
+                form.appendChild(fieldWrap);
+            });
+
+            const submitBtn = document.createElement('button');
+            submitBtn.type = 'submit';
+            submitBtn.className = 'hitl-submit';
+            submitBtn.textContent = '确认提交';
+            form.appendChild(submitBtn);
+
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'hitl-status';
+            statusDiv.style.display = 'none';
+            form.appendChild(statusDiv);
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                // Clear previous errors
+                form.querySelectorAll('.hitl-error-text').forEach(el => el.remove());
+                form.querySelectorAll('.hitl-field-error').forEach(el => el.classList.remove('hitl-field-error'));
+
+                // Validate required fields
+                const missing = [];
+                fields.forEach((field, idx) => {
+                    if (!field.required) return;
+                    const v = fieldValues[field.name];
+                    const empty = v === undefined || v === null || v === ''
+                        || (Array.isArray(v) && v.length === 0);
+                    if (empty) {
+                        missing.push(field.label || field.name);
+                        const fw = form.querySelectorAll('.hitl-field')[idx];
+                        if (fw) {
+                            const ctrl = fw.querySelector('select, input, textarea, .hitl-upload-btn');
+                            if (ctrl) ctrl.classList.add('hitl-field-error');
+                            const err = document.createElement('div');
+                            err.className = 'hitl-error-text';
+                            err.textContent = '必填';
+                            fw.appendChild(err);
+                        }
+                    }
+                });
+                if (missing.length > 0) {
+                    statusDiv.style.display = 'block';
+                    statusDiv.style.color = 'var(--danger)';
+                    statusDiv.textContent = `请填写: ${missing.join('、')}`;
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                statusDiv.style.display = 'block';
+                statusDiv.style.color = '';
+                statusDiv.textContent = '提交中...';
+
+                try {
+                    const url = new URL('/human-input', window.location.origin);
+                    if (sessionId) url.searchParams.set('session_id', sessionId);
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tool_call_id: toolCallId, values: fieldValues }),
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        statusDiv.textContent = '已提交，继续处理中...';
+                        statusDiv.style.color = 'var(--success)';
+                        form.querySelectorAll('input, textarea, button').forEach(el => el.disabled = true);
+                    } else {
+                        statusDiv.textContent = '提交失败: ' + (result.error || '未知错误');
+                        statusDiv.style.color = 'var(--danger)';
+                        submitBtn.disabled = false;
+                    }
+                } catch (err) {
+                    statusDiv.textContent = '提交失败: ' + err.message;
+                    statusDiv.style.color = 'var(--danger)';
+                    submitBtn.disabled = false;
+                }
+            });
+
+            card.appendChild(form);
+            return card;
+        }
+
+        function createTypingIndicator() {
+            hideWelcome();
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message-wrapper assistant';
+            wrapper.id = 'typing-wrapper';
+
+            const label = document.createElement('div');
+            label.className = 'message-label';
+            label.textContent = 'assistant';
+            wrapper.appendChild(label);
+
+            const div = document.createElement('div');
+            div.className = 'message assistant';
+            div.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+            wrapper.appendChild(div);
+
+            chatContainer.appendChild(wrapper);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return wrapper;
+        }
+
+        function removeTypingIndicator() {
+            const el = document.getElementById('typing-wrapper');
+            if (el) el.remove();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function renderMarkdown(text) {
+            if (window.marked && window.DOMPurify) {
+                return DOMPurify.sanitize(marked.parse(text, { breaks: true, gfm: true }));
+            }
+            return escapeHtml(text).replace(/\n/g, '<br>');
+        }
+
+        function stripThinkTags(text) {
+            return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        }
+
+        function getDisplayableText(text) {
+            const openThink = text.indexOf('<think>');
+            const closeThink = text.indexOf('</think>');
+            if (openThink !== -1 && (closeThink === -1 || closeThink < openThink)) {
+                return text.slice(0, openThink).trim();
+            }
+            const partialOpen = text.indexOf('<think');
+            if (partialOpen !== -1 && (closeThink === -1 || closeThink < partialOpen)) {
+                return text.slice(0, partialOpen).trim();
+            }
+            return stripThinkTags(text);
+        }
+
+        function formatContent(text) {
+            const mainContent = getDisplayableText(text);
+            if (!mainContent) return '';
+            return `<div class="markdown-body">${renderMarkdown(mainContent)}</div>`;
+        }
+
+        function formatContentRaw(text) {
+            const mainContent = getDisplayableText(text);
+            if (!mainContent) return '';
+            return `<div class="markdown-body">${escapeHtml(mainContent).replace(/\n/g, '<br>')}</div>`;
+        }
+
+        function updatePendingHint() {
+            if (pendingQueue.length > 0) {
+                messageInput.placeholder = `排队中 ${pendingQueue.length} 条，任务结束后自动发送…`;
+            } else {
+                messageInput.placeholder = '输入消息...';
+            }
+        }
+
+        function renderToolResult(text) {
+            if (!text) return escapeHtml(text);
+            const trimmed = text.trim();
+
+            // Audio URL
+            if (/^https?:\/\/.*\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i.test(trimmed)) {
+                return `<audio class="result-audio" controls src="${escapeHtml(trimmed)}"></audio>`;
+            }
+            // Video URL
+            if (/^https?:\/\/.*\.(mp4|mov|webm|m3u8)(\?.*)?$/i.test(trimmed)) {
+                return `<video class="result-video" controls preload="metadata" src="${escapeHtml(trimmed)}"></video>`;
+            }
+            // Image URL
+            if (/^https?:\/\/.*\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(trimmed)) {
+                return `<img class="result-image" src="${escapeHtml(trimmed)}" alt="result" loading="lazy">`;
+            }
+            // Link
+            if (/^https?:\/\/.+/i.test(trimmed)) {
+                return `<a class="result-link" href="${escapeHtml(trimmed)}" target="_blank" rel="noopener">&gt; ${escapeHtml(trimmed)}</a>`;
+            }
+            // JSON
+            try {
+                const parsed = JSON.parse(trimmed);
+                const formatted = JSON.stringify(parsed, null, 2);
+                const id = 'code-' + Math.random().toString(36).slice(2, 8);
+                return `
+                    <div class="result-code">
+                        <div class="result-code-header" onclick="document.getElementById('${id}').classList.toggle('collapsed')">
+                            <span>JSON</span>
+                            <span>[-]/[+]</span>
+                        </div>
+                        <div class="result-code-body" id="${id}">${escapeHtml(formatted)}</div>
+                    </div>`;
+            } catch {
+                // not JSON
+            }
+            return escapeHtml(text);
+        }
+
+        function renderPendingBubbles() {
+            if (!pendingBubblesEl) return;
+            pendingBubblesEl.innerHTML = '';
+            pendingQueue.forEach((text, idx) => {
+                const bubble = document.createElement('div');
+                bubble.className = 'pending-bubble';
+                bubble.innerHTML = `
+                    <span class="pending-bubble-text">${escapeHtml(text)}</span>
+                    <span class="pending-bubble-remove" data-idx="${idx}">x</span>
+                `;
+                bubble.querySelector('.pending-bubble-remove').addEventListener('click', () => {
+                    pendingQueue.splice(idx, 1);
+                    renderPendingBubbles();
+                    updatePendingHint();
+                });
+                pendingBubblesEl.appendChild(bubble);
+            });
+            pendingBubblesEl.classList.toggle('has-items', pendingQueue.length > 0);
+        }
+
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            if (isStreaming) {
+                pendingQueue.push(text);
+                messageInput.value = '';
+                updatePendingHint();
+                renderPendingBubbles();
+                sendBtn.disabled = true;
+                return;
+            }
+
+            messageInput.value = '';
+            addMessage('user', escapeHtml(text));
+            isStreaming = true;
+            sendBtn.disabled = true;
+            cancelBtn.style.display = 'inline-block';
+            updatePendingHint();
+
+            const typing = createTypingIndicator();
+            let assistantMsg = null;
+            let currentText = '';
+            let thinkingText = '';
+            let thinkingComplete = false;
+            let displayedText = '';
+            let typeQueue = [];
+            let typingTimer = null;
+            let isTyping = false;
+            let hasError = false;
+            let steps = [];
+            let stepTimers = {};
+            let stepsExpanded = false;
+            let extractedThinkContents = new Set();
+            let usageAdded = false;
+            let currentFinalContent = null;
+
+            // Widget rendering state
+            const widgetFrames = new WeakSet();
+            const VAR_MAPPING = {
+                '--color-background-primary': '--canvas',
+                '--color-background-secondary': '--surface-soft',
+                '--color-text-primary': '--ink',
+                '--color-text-secondary': '--body',
+                '--color-border-primary': '--hairline',
+                '--color-border-secondary': '--hairline',
+                '--color-accent-primary': '--accent',
+            };
+            const FALLBACKS = {
+                '--color-background-primary': '#fdfcfc',
+                '--color-background-secondary': '#f8f7f7',
+                '--color-text-primary': '#201d1d',
+                '--color-text-secondary': '#424245',
+                '--color-border-primary': 'rgba(15,0,0,0.10)',
+                '--color-border-secondary': 'rgba(15,0,0,0.06)',
+                '--color-accent-primary': '#007aff',
+            };
+
+            function buildCssVars() {
+                const rootStyle = getComputedStyle(document.documentElement);
+                const lines = [];
+                for (const [specName, hostName] of Object.entries(VAR_MAPPING)) {
+                    const value = rootStyle.getPropertyValue(hostName).trim() || FALLBACKS[specName];
+                    lines.push(`${specName}: ${value};`);
+                }
+                return lines.join(' ');
+            }
+
+            function registerWidget(iframe) {
+                widgetFrames.add(iframe.contentWindow);
+            }
+
+            function renderAudioPlayers(audioData) {
+                flushRemainingType();
+                const container = document.createElement('div');
+                container.className = 'audio-container';
+                const header = document.createElement('div');
+                header.className = 'audio-header';
+                header.textContent = '[audio] ' + (audioData.prompt || '生成的音乐');
+                container.appendChild(header);
+                const list = document.createElement('div');
+                list.className = 'audio-list';
+                for (let i = 0; i < audioData.urls.length; i++) {
+                    const item = document.createElement('div');
+                    item.className = 'audio-item';
+                    const label = document.createElement('span');
+                    label.textContent = '#' + (i + 1);
+                    label.style.cssText = 'font-size:12px;color:var(--mute);flex-shrink:0;';
+                    const audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = audioData.urls[i];
+                    audio.preload = 'metadata';
+                    item.appendChild(label);
+                    item.appendChild(audio);
+                    list.appendChild(item);
+                }
+                container.appendChild(list);
+                assistantMsg.appendChild(container);
+                smoothScrollToBottom();
+                startNewFinalContent();
+            }
+
+            function handleWidgetMessage(e) {
+                if (!widgetFrames.has(e.source)) return;
+                if (e.data?.type === 'send_prompt') {
+                    // v2 activation: call sendMessage(e.data.text)
+                }
+            }
+
+            window.addEventListener('message', handleWidgetMessage);
+
+            function startNewFinalContent() {
+                if (!assistantMsg) return;
+                const div = document.createElement('div');
+                div.className = 'final-content';
+                assistantMsg.querySelector('.msg-content').appendChild(div);
+                currentFinalContent = div;
+            }
+
+            const WIDGET_CSP = [
+                "default-src 'none'",
+                "script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://esm.sh https://cdn.jsdelivr.net https://unpkg.com",
+                "style-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com",
+                "img-src https: data:",
+                "font-src https://cdnjs.cloudflare.com https://cdn.jsdelivr.net data:",
+                "connect-src 'none'",
+            ].join('; ');
+
+            function renderWidget(widgetData) {
+                flushRemainingType();
+                const container = document.createElement('div');
+                container.className = 'widget-container';
+                const titleEl = document.createElement('div');
+                titleEl.className = 'widget-title';
+                titleEl.textContent = widgetData.title || '';
+                container.appendChild(titleEl);
+                const iframe = document.createElement('iframe');
+                iframe.sandbox = 'allow-scripts';
+                iframe.className = 'widget-iframe';
+                const height = widgetData.height || 400;
+                iframe.style.height = height + 'px';
+                const cssVars = buildCssVars();
+                iframe.srcdoc = [
+                    '<!DOCTYPE html>',
+                    '<meta charset="UTF-8">',
+                    `<meta http-equiv="Content-Security-Policy" content="${WIDGET_CSP}">`,
+                    `<style>:root{${cssVars}} body{margin:0;font-family:var(--font-mono);background:var(--color-background-primary);color:var(--color-text-primary);font-size:14px;}</style>`,
+                    widgetData.html,
+                ].join('');
+                container.appendChild(iframe);
+                iframe.onload = () => smoothScrollToBottom();
+                assistantMsg.appendChild(container);
+                registerWidget(iframe);
+                startNewFinalContent();
+            }
+
+            function extractThinkSteps() {
+                const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
+                let match;
+                while ((match = thinkRegex.exec(currentText)) !== null) {
+                    const thinkContent = match[1];
+                    if (!extractedThinkContents.has(thinkContent)) {
+                        extractedThinkContents.add(thinkContent);
+                        steps.push({ type: 'think', label: '思考过程', detail: thinkContent, status: 'done', isError: false });
+                    }
+                }
+            }
+
+            function ensureAssistantMsg() {
+                if (assistantMsg) return;
+                const typingWrapper = document.getElementById('typing-wrapper');
+                if (typingWrapper) {
+                    typingWrapper.removeAttribute('id');
+                    assistantMsg = typingWrapper.querySelector('.message.assistant');
+                } else {
+                    assistantMsg = addMessage('assistant', '');
+                }
+                assistantMsg.innerHTML = `
+                    <div class="msg-content">
+                        <div class="steps-panel">
+                            <div class="steps-summary">
+                                <span class="steps-summary-text"></span>
+                                <span class="steps-summary-arrow">[+]</span>
+                            </div>
+                            <div class="steps-list"></div>
+                        </div>
+                        <div class="final-content"></div>
+                    </div>
+                    <span class="type-cursor"></span>
+                `;
+                const panel = assistantMsg.querySelector('.steps-panel');
+                panel.querySelector('.steps-summary').addEventListener('click', () => {
+                    stepsExpanded = !stepsExpanded;
+                    panel.classList.toggle('open', stepsExpanded);
+                });
+                currentFinalContent = assistantMsg.querySelector('.final-content');
+            }
+
+            function renderSteps() {
+                if (!assistantMsg) return;
+                const panel = assistantMsg.querySelector('.steps-panel');
+                if (!panel) return;
+                if (steps.length === 0) {
+                    panel.style.display = 'none';
+                    return;
+                }
+                panel.style.display = 'block';
+                const summaryText = panel.querySelector('.steps-summary-text');
+                const list = panel.querySelector('.steps-list');
+
+                const thinkCount = steps.filter(s => s.type === 'think').length;
+                const toolCount = steps.filter(s => s.type === 'tool').length;
+                const runningCount = steps.filter(s => s.status === 'running').length;
+                const doneCount = steps.filter(s => s.status === 'done').length;
+                let summary = '';
+                if (runningCount > 0) {
+                    const total = steps.length;
+                    summary = doneCount > 0 ? `${doneCount}/${total} [x]` : (runningCount === 1 ? '[#] processing...' : `[#] ${runningCount} running...`);
+                } else {
+                    const parts = [];
+                    if (thinkCount > 0) parts.push('think [x]');
+                    if (toolCount > 0) parts.push(`${toolCount} tools`);
+                    summary = parts.join(' | ') || '[x] done';
+                }
+                summaryText.textContent = summary;
+
+                let listHtml = '';
+                for (const step of steps) {
+                    const icon = step.type === 'think' ? '[#]' : '[%]';
+                    const statusClass = step.status === 'running' ? 'running' : '';
+                    const status = step.status === 'running' ? '' : '[x]';
+                    let elapsedHtml = '';
+                    if (step.status === 'running' && step.startTime) {
+                        const elapsed = Math.floor((Date.now() - step.startTime) / 1000);
+                        elapsedHtml = `<span class="step-elapsed">${elapsed}s</span>`;
+                    }
+                    let slowHintHtml = '';
+                    if (step.status === 'running' && step.isSlow) {
+                        slowHintHtml = '<span class="step-slow-hint">(slow)</span>';
+                    }
+                    listHtml += `
+                        <div class="step-item">
+                            <span class="step-icon">${icon}</span>
+                            <span class="step-label">${escapeHtml(step.label)}${elapsedHtml}${slowHintHtml}</span>
+                            <span class="step-status ${statusClass}">${status}</span>
+                        </div>`;
+                    if (step.detail) {
+                        const errorClass = step.isError ? 'error' : '';
+                        listHtml += `<div class="step-detail ${errorClass}">${step.renderedDetail || escapeHtml(step.detail)}</div>`;
+                    }
+                }
+                list.innerHTML = listHtml;
+                panel.classList.toggle('open', stepsExpanded);
+            }
+
+            function removeCursor() {
+                if (assistantMsg) {
+                    const cursor = assistantMsg.querySelector('.type-cursor');
+                    if (cursor) cursor.remove();
+                }
+            }
+
+            let scrollRaf = null;
+            let userScrolling = false;
+            let scrollTimeout = null;
+            chatContainer.addEventListener('scroll', () => {
+                userScrolling = true;
+                if (scrollTimeout) clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => { userScrolling = false; }, 1500);
+            });
+            function smoothScrollToBottom() {
+                if (scrollRaf || userScrolling) return;
+                scrollRaf = requestAnimationFrame(() => {
+                    scrollRaf = null;
+                    const nearBottom = chatContainer.scrollHeight - chatContainer.clientHeight - chatContainer.scrollTop < 180;
+                    if (nearBottom) {
+                        chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+                    }
+                });
+            }
+
+            function renderFinalContent(rawMode = false) {
+                if (!assistantMsg || !currentFinalContent) return;
+                const finalDiv = currentFinalContent;
+                if (!finalDiv) return;
+                const html = rawMode
+                    ? formatContentRaw(displayedText)
+                    : formatContent(displayedText);
+                if (!html) {
+                    if (!finalDiv.querySelector('.typing-indicator')) {
+                        finalDiv.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+                    }
+                    return;
+                }
+                finalDiv.innerHTML = html;
+            }
+
+            function flushRemainingType() {
+                if (typingTimer) {
+                    clearTimeout(typingTimer);
+                    typingTimer = null;
+                }
+                while (typeQueue.length > 0) {
+                    displayedText += typeQueue.shift();
+                }
+                isTyping = false;
+                extractThinkSteps();
+                renderSteps();
+                renderFinalContent(false);
+                smoothScrollToBottom();
+            }
+
+            let typeCharsSinceScroll = 0;
+            function runTypeLoop() {
+                if (typeQueue.length === 0) {
+                    isTyping = false;
+                    typingTimer = null;
+                    extractThinkSteps();
+                    renderSteps();
+                    renderFinalContent(false);
+                    smoothScrollToBottom();
+                    return;
+                }
+                displayedText += typeQueue.shift();
+                extractThinkSteps();
+                renderSteps();
+                renderFinalContent(true);
+                typeCharsSinceScroll++;
+                if (typeCharsSinceScroll >= 3) {
+                    typeCharsSinceScroll = 0;
+                    smoothScrollToBottom();
+                }
+                const delay = typeQueue.length <= 2 ? 90 : 45;
+                typingTimer = setTimeout(runTypeLoop, delay);
+            }
+
+            function enqueueType(text) {
+                typeQueue.push(...text.split(''));
+                if (!isTyping) {
+                    isTyping = true;
+                    runTypeLoop();
+                }
+            }
+
+            const url = new URL('/chat/stream', window.location.origin);
+            if (sessionId) url.searchParams.set('session_id', sessionId);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...buildAuthHeaders() },
+                    body: JSON.stringify({ message: text }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+
+                    for (const chunk of lines) {
+                        const dataLine = chunk.split('\n').find(l => l.startsWith('data: '));
+                        if (!dataLine) continue;
+
+                        let data;
+                        try {
+                            data = JSON.parse(dataLine.slice(6));
+                        } catch {
+                            continue;
+                        }
+
+                        if (data.event === 'session_id') {
+                            sessionId = data.session_id;
+                        } else if (data.event === 'thinking_delta') {
+                            ensureAssistantMsg();
+                            thinkingText += data.text;
+                            let thinkStep = steps.find(s => s.type === 'think');
+                            if (!thinkStep) {
+                                thinkStep = { type: 'think', label: 'thinking...', detail: '', status: 'running', isError: false };
+                                steps.push(thinkStep);
+                            }
+                            thinkStep.detail = thinkingText;
+                            thinkStep.label = thinkingComplete ? '思考过程' : 'thinking...';
+                            thinkStep.status = thinkingComplete ? 'done' : 'running';
+                            renderSteps();
+                        } else if (data.event === 'text_delta') {
+                            ensureAssistantMsg();
+                            if (thinkingText && !thinkingComplete) {
+                                thinkingComplete = true;
+                                const thinkStep = steps.find(s => s.type === 'think');
+                                if (thinkStep) {
+                                    thinkStep.label = '思考过程';
+                                    thinkStep.status = 'done';
+                                    renderSteps();
+                                }
+                            }
+                            currentText += data.text;
+                            enqueueType(data.text);
+                        } else if (data.event === 'tool_start') {
+                            ensureAssistantMsg();
+                            const argsStr = JSON.stringify(data.args, null, 2);
+                            const detail = argsStr !== '{}' ? argsStr : '';
+                            const stepIdx = steps.length;
+                            const isSlow = /music|text_to_music/.test(data.tool_name || '');
+                            steps.push({
+                                type: 'tool',
+                                label: data.tool_name,
+                                detail: detail,
+                                status: 'running',
+                                isError: false,
+                                startTime: Date.now(),
+                                isSlow: isSlow,
+                                tool_call_id: data.tool_call_id,
+                            });
+                            stepTimers[stepIdx] = setInterval(() => renderSteps(), 1000);
+                            renderSteps();
+                        } else if (data.event === 'tool_end' && data.display?.widget) {
+                            const toolStep = steps.find(s => s.type === 'tool' && s.tool_call_id === data.tool_call_id);
+                            if (toolStep) {
+                                toolStep.detail = '[widget]';
+                                toolStep.status = 'done';
+                                const tsIdx = steps.indexOf(toolStep);
+                                if (stepTimers[tsIdx]) {
+                                    clearInterval(stepTimers[tsIdx]);
+                                    delete stepTimers[tsIdx];
+                                }
+                                renderSteps();
+                            }
+                            ensureAssistantMsg();
+                            renderWidget(data.display.widget);
+                        } else if (data.event === 'tool_end' && data.display?.audio) {
+                            const toolStep = steps.find(s => s.type === 'tool' && s.tool_call_id === data.tool_call_id);
+                            if (toolStep) {
+                                toolStep.detail = '[audio]';
+                                toolStep.status = 'done';
+                                const tsIdx = steps.indexOf(toolStep);
+                                if (stepTimers[tsIdx]) {
+                                    clearInterval(stepTimers[tsIdx]);
+                                    delete stepTimers[tsIdx];
+                                }
+                                renderSteps();
+                            }
+                            ensureAssistantMsg();
+                            renderAudioPlayers(data.display.audio);
+                        } else if (data.event === 'tool_end') {
+                            const toolStep = steps.find(s => s.type === 'tool' && s.tool_call_id === data.tool_call_id);
+                            if (toolStep) {
+                                const stepIdx = steps.indexOf(toolStep);
+                                if (stepTimers[stepIdx]) {
+                                    clearInterval(stepTimers[stepIdx]);
+                                    delete stepTimers[stepIdx];
+                                }
+                                toolStep.detail = data.result;
+                                toolStep.renderedDetail = renderToolResult(data.result);
+                                toolStep.status = 'done';
+                                toolStep.isError = data.is_error;
+                                renderSteps();
+                            }
+                        } else if (data.event === 'message_end') {
+                            flushRemainingType();
+                            removeCursor();
+                            if (assistantMsg && data.usage && !usageAdded) {
+                                usageAdded = true;
+                                const wrapper = assistantMsg.parentElement;
+                                const usage = document.createElement('div');
+                                usage.className = 'usage-info';
+                                usage.textContent = `${data.usage.total_tokens} tokens | ${data.usage.input_tokens} in | ${data.usage.output_tokens} out`;
+                                wrapper.appendChild(usage);
+                            }
+                        } else if (data.event === 'human_input_required') {
+                            ensureAssistantMsg();
+                            flushRemainingType();
+                            const card = renderHitlCard({
+                                toolCallId: data.tool_call_id,
+                                prompt: data.prompt,
+                                inputSchema: data.input_schema,
+                                sessionId: sessionId,
+                            });
+                            if (currentFinalContent) {
+                                currentFinalContent.appendChild(card);
+                            }
+                            smoothScrollToBottom();
+                        } else if (data.event === 'error') {
+                            hasError = true;
+                            flushRemainingType();
+                            removeCursor();
+                            removeTypingIndicator();
+                            addMessage('error', `[!] ${escapeHtml(data.message)}`);
+                            isStreaming = false;
+                            sendBtn.disabled = !messageInput.value.trim();
+                            cancelBtn.style.display = 'none';
+                            updatePendingHint();
+                            renderPendingBubbles();
+                            Object.values(stepTimers).forEach(t => clearInterval(t));
+                            stepTimers = {};
+                        } else if (data.event === 'tool_update') {
+                            const toolStep = steps.findLast(s => s.type === 'tool' && s.status === 'running');
+                            if (toolStep) {
+                                toolStep.detail = data.result;
+                                toolStep.renderedDetail = renderToolResult(data.result);
+                                renderSteps();
+                            }
+                        } else if (data.event === 'done') {
+                            flushRemainingType();
+                            removeCursor();
+                            isStreaming = false;
+                            sendBtn.disabled = !messageInput.value.trim();
+                            cancelBtn.style.display = 'none';
+                            updatePendingHint();
+                            renderPendingBubbles();
+                            Object.values(stepTimers).forEach(t => clearInterval(t));
+                            stepTimers = {};
+                            // Auto-send queued messages
+                            if (pendingQueue.length > 0) {
+                                const next = pendingQueue.shift();
+                                updatePendingHint();
+                                renderPendingBubbles();
+                                messageInput.value = next;
+                                sendBtn.disabled = false;
+                                sendMessage();
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                hasError = true;
+                flushRemainingType();
+                removeCursor();
+                removeTypingIndicator();
+                addMessage('error', `[!] 连接失败: ${escapeHtml(err.message)}`);
+                cancelBtn.style.display = 'none';
+                Object.values(stepTimers).forEach(t => clearInterval(t));
+                stepTimers = {};
+            } finally {
+                isStreaming = false;
+                sendBtn.disabled = !messageInput.value.trim();
+                cancelBtn.style.display = 'none';
+                updatePendingHint();
+                renderPendingBubbles();
+                flushRemainingType();
+                removeCursor();
+                if (!hasError && !assistantMsg) {
+                    removeTypingIndicator();
+                }
+                // Auto-send queued messages after error/abort
+                if (pendingQueue.length > 0) {
+                    const next = pendingQueue.shift();
+                    updatePendingHint();
+                    renderPendingBubbles();
+                    messageInput.value = next;
+                    sendBtn.disabled = false;
+                    sendMessage();
+                }
+            }
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        messageInput.addEventListener('input', () => {
+            sendBtn.disabled = !messageInput.value.trim();
+        });
+
+        cancelBtn.addEventListener('click', async () => {
+            if (!sessionId) return;
+            try {
+                const url = new URL('/abort', window.location.origin);
+                url.searchParams.set('session_id', sessionId);
+                await fetch(url, { method: 'POST' });
+                cancelBtn.style.display = 'none';
+            } catch (err) {
+                console.error('Abort failed:', err);
+            }
+        });
+
+        newSessionBtn.addEventListener('click', () => {
+            sessionId = null;
+            pendingQueue = [];
+            updatePendingHint();
+            renderPendingBubbles();
+            chatContainer.innerHTML = '';
+            chatContainer.appendChild(welcome);
+        });
+    </script>
+</body>
+</html>

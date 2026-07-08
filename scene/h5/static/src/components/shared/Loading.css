@@ -1,0 +1,36 @@
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  color: var(--ash);
+}
+
+.loading-indicator > span {
+  animation: textPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes textPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.loading-md {
+  padding: 48px 16px;
+  font-size: 13px;
+}
+
+.loading-sm {
+  padding: 24px 8px;
+  font-size: 12px;
+}
+
+.loading-spinner {
+  animation: spin 0.8s linear infinite;
+  will-change: transform;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

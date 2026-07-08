@@ -1,0 +1,108 @@
+/* ── H5 Chat Input Dock — simplified to match prototype ── */
+
+.h5-input-dock {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  background: var(--paper-canvas, var(--canvas));
+  border-top: 2px solid var(--border-passive, var(--hairline));
+}
+
+.h5-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* ── Shared button base ── */
+.h5-input-btn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--border-ink, var(--ink));
+  border-radius: 12px;
+  cursor: pointer;
+  background: var(--paper-card, var(--surface-card));
+  color: var(--ink-muted, var(--mute));
+  transition: background-color 0.2s ease, color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.h5-input-btn:hover {
+  background: var(--paper-warm, var(--surface-soft));
+}
+.h5-input-btn:active {
+  background: var(--paper-inner, var(--surface-soft));
+}
+
+/* ── Plus button ── */
+.h5-input-plus {
+  box-shadow: var(--shadow-card, 2px 2px 0 var(--border-ink, var(--ink)));
+}
+
+/* ── Send button (dark style) ── */
+.h5-input-send {
+  background: var(--ink-primary, var(--ink));
+  color: var(--paper-card, #fff);
+  border-color: var(--ink-primary, var(--ink));
+}
+.h5-input-send:hover:not(:disabled) {
+  background: var(--ink-primary, var(--ink));
+  opacity: 0.9;
+}
+.h5-input-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── Textarea ── */
+.h5-input-textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  max-height: 120px;
+  padding: 10px 16px;
+  line-height: 24px;
+  font-size: 15px;
+  font-family: var(--font-body, "Ma Shan Zheng", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif);
+  color: var(--ink, var(--body));
+  background: var(--paper-card, var(--surface-card));
+  border: 2px solid var(--border-ink, var(--ink));
+  border-radius: 12px;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.h5-input-textarea::placeholder {
+  color: var(--ink-faint, var(--stone));
+}
+
+.h5-input-textarea:focus {
+  border-color: var(--ink-primary, var(--accent));
+}
+
+.h5-input-textarea::selection {
+  background-color: var(--ink-primary, var(--ink));
+  color: var(--paper-card, #fff);
+}
+
+/* ── Scrollbar for textarea ── */
+.h5-input-textarea::-webkit-scrollbar {
+  width: 4px;
+}
+.h5-input-textarea::-webkit-scrollbar-thumb {
+  background: var(--hairline);
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .h5-input-btn,
+  .h5-input-textarea {
+    transition: none;
+  }
+}

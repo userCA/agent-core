@@ -1,0 +1,200 @@
+.steps-panel {
+    margin: 0 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+}
+
+/* Timeline connector on the left */
+.steps-panel::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    top: 8px;
+    bottom: 8px;
+    width: 1px;
+    background: var(--hairline);
+}
+
+/* Each step is its own collapsible block */
+.step-section {
+    position: relative;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: hidden;
+    padding-left: 28px;
+}
+
+.section-summary {
+    width: 100%;
+    padding: 5px 10px 5px 8px;
+    background: var(--surface-soft);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    color: var(--body);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+    touch-action: manipulation;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.section-summary:hover {
+    background: var(--surface-card);
+    border-color: var(--hairline-strong);
+}
+
+.section-summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Status dot on the left timeline */
+.step-section::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 12px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--surface-card);
+    border: 1px solid var(--hairline-strong);
+}
+
+.step-section.active::before {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.step-section.done-ok::before {
+    background: var(--success);
+    border-color: var(--success);
+}
+
+.step-section.done-error::before {
+    background: var(--danger);
+    border-color: var(--danger);
+}
+
+.section-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.section-icon {
+    color: var(--stone);
+    display: flex;
+    align-items: center;
+}
+
+.section-status-text {
+    color: var(--ash);
+    font-size: 11px;
+}
+
+.section-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.section-arrow {
+    font-size: 11px;
+    opacity: 0.55;
+    color: var(--mute);
+}
+
+.section-spinner-icon {
+    animation: spin 0.8s linear infinite;
+    will-change: transform;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Active step accent border only, no glow */
+.step-section.active .section-summary {
+    border-color: var(--accent);
+}
+
+.section-status-icon {
+    font-size: 11px;
+    color: var(--mute);
+    min-width: 16px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.section-detail {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    padding: 0 10px 0 8px;
+    transition: max-height 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 0.25s ease,
+                padding 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    scroll-behavior: smooth;
+}
+
+.section-detail.open {
+    max-height: 60vh;
+    opacity: 1;
+    padding: 4px 10px 8px 8px;
+    overflow-y: auto;
+}
+
+.section-detail::-webkit-scrollbar {
+    width: 4px;
+}
+
+.section-detail::-webkit-scrollbar-thumb {
+    background: var(--hairline);
+    border-radius: 2px;
+}
+
+/* Subtle "waiting for next step" indicator between steps */
+/* Text block within steps panel — aligned with timeline */
+.block-text { padding-left: 28px; }
+
+/* Widget block within steps panel — aligned with timeline, no step chrome */
+.block-widget {
+    padding-left: 28px;
+    position: relative;
+    overflow: visible;
+}
+
+.block-widget::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 12px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--ink);
+    border: 1px solid var(--hairline-strong);
+}
+
+.step-waiting {
+    padding: 4px 10px 4px 36px;
+    font-size: 11px;
+    color: var(--ash);
+    font-family: var(--font-sans);
+    animation: waitPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes waitPulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+}

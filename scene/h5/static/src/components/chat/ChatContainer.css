@@ -1,0 +1,95 @@
+.chat-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+
+.chat-inner {
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 100%;
+}
+
+/* Smooth transition on welcome dismiss */
+.welcome-exit {
+    opacity: 0;
+    transform: translateY(-12px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* New message entry animation — direction varies by role */
+.msg-row {
+    animation: msgEnterBase 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.msg-row-user {
+    animation-name: msgEnterRight;
+}
+
+.msg-row-assistant {
+    animation-name: msgEnterLeft;
+}
+
+@keyframes msgEnterBase {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes msgEnterRight {
+    from { opacity: 0; transform: translateX(16px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes msgEnterLeft {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Scroll-to-bottom button */
+.scroll-to-bottom {
+    position: fixed;
+    bottom: 110px;
+    right: 32px;
+    width: 44px;
+    height: 44px;
+    border: 1.5px solid var(--border-ink);
+    border-radius: 50%;
+    background: var(--paper-card);
+    color: var(--ink-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-card);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+    z-index: var(--z-sticky);
+    animation: btnIn 0.2s ease;
+}
+.scroll-to-bottom:hover {
+    box-shadow: var(--shadow-float);
+    color: var(--ink-primary);
+    border-color: var(--border-ink);
+}
+
+@keyframes btnIn {
+    from { opacity: 0; transform: scale(0.8); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .welcome-exit {
+        opacity: 0;
+        transform: none;
+        transition: opacity 0.01ms ease;
+    }
+    .msg-row,
+    .scroll-to-bottom {
+        animation: none;
+    }
+}

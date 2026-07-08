@@ -1,0 +1,143 @@
+/* Agent Trace Card — reasoning thread with colored timeline nodes */
+
+.trace {
+    background: var(--paper-card);
+    border: 2px solid var(--border-ink);
+    border-radius: 16px;
+    box-shadow: var(--shadow-float, 3px 3px 0 var(--border-ink));
+    overflow: hidden;
+    max-width: 90%;
+    margin-bottom: 4px;
+}
+
+/* ── Trace header ── */
+.trace-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    cursor: pointer;
+    text-align: left;
+    background: var(--paper-warm);
+    border: none;
+    font-family: inherit;
+    transition: background-color 0.2s ease;
+}
+.trace-head:hover { background: var(--paper-inner); }
+
+.trace.collapsed .trace-rail { display: none; }
+
+.trace-rail { padding: 10px 12px; }
+
+.thead-ic {
+    width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    color: var(--ink-primary);
+}
+.thead-label {
+    flex: 1;
+    font-size: 13px; font-weight: 700;
+    color: var(--ink-primary);
+}
+
+/* ── Step item ── */
+.t-step { position: relative; padding-left: 28px; }
+.t-step + .t-step { margin-top: 2px; }
+
+/* Dashed connector between nodes */
+.t-step::before {
+    content: '';
+    position: absolute; left: 10px; top: 4px; bottom: -2px;
+    border-left: 2px dashed rgba(44,62,62,0.30);
+}
+.t-step:last-child::before { display: none; }
+
+/* ── Node circle ── */
+.t-node {
+    position: absolute; left: 1px; top: 3px;
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid var(--border-ink);
+    background: var(--paper-warm);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1;
+    color: var(--ink-primary);
+}
+.t-node.think { background: var(--accent-wisteria); }
+.t-node.tool  { background: var(--accent-sky); }
+.t-node.skill { background: var(--accent-bamboo); }
+.t-node.running { background: var(--paper-surface); }
+.t-node.done  { background: var(--accent-bamboo); }
+.t-node svg { width: 10px; height: 10px; }
+
+/* ── Step header ── */
+.t-head {
+    width: 100%;
+    display: flex; align-items: center; gap: 7px;
+    padding: 3px 2px;
+    cursor: pointer; text-align: left;
+    border: none; background: none; font-family: inherit;
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+}
+.t-head:hover { background: rgba(44,62,62,0.05); }
+
+.t-kind {
+    font-size: 13px; font-weight: 700;
+    color: var(--ink-primary);
+    white-space: nowrap;
+}
+.t-sub {
+    font-size: 12px; color: var(--ink-muted);
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Chevron ── */
+.t-chev {
+    width: 14px; height: 14px;
+    color: var(--ink-muted);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+.t-step.open > .t-head .t-chev { transform: rotate(90deg); }
+.trace-head .t-chev { transform: rotate(90deg); }
+.trace.collapsed .trace-head .t-chev { transform: rotate(0deg); }
+
+/* ── Step body (collapsible) ── */
+.t-body { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+.t-step.open > .t-body { max-height: 600px; }
+
+.t-body-inner {
+    font-size: 12.5px; line-height: 1.65;
+    color: var(--ink-muted);
+    padding: 5px 4px 8px 2px;
+    white-space: pre-wrap; word-break: break-word;
+}
+.t-body-inner.t-error { color: var(--danger, #c0392b); }
+
+/* ── Spinner ── */
+.t-spin {
+    display: block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(44,62,62,0.25);
+    border-top-color: var(--ink-primary);
+    border-radius: 50%;
+    animation: tSpin 0.7s linear infinite;
+}
+.t-node .t-spin { width: 10px; height: 10px; }
+
+@keyframes tSpin { to { transform: rotate(360deg); } }
+
+/* Content blocks below the trace card */
+.trace-content {
+    padding: 8px 12px 12px;
+    border-top: 1px solid rgba(44,62,62,0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .t-spin { animation: none; }
+    .t-body { transition: none; }
+    .t-chev { transition: none; }
+}

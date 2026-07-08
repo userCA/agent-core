@@ -1,0 +1,87 @@
+.h5-auth-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--backdrop);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: var(--z-modal-backdrop);
+}
+
+.h5-auth-panel {
+  background: rgba(240,246,244,0.94);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-top: 1.5px solid var(--border-ink);
+  padding: 20px 16px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  width: 100%;
+  max-width: 430px;
+  max-height: 70vh;
+  overflow-y: auto;
+  box-shadow: 0 -2px 0 rgba(44,62,62,0.1);
+}
+
+.h5-auth-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.h5-auth-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.h5-auth-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.h5-auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.h5-auth-label {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--ash);
+  letter-spacing: 0.04em;
+}
+
+.h5-auth-field input {
+  padding: 10px 12px;
+  border: 2px solid var(--border-ink);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  background: rgba(240,246,244,0.88);
+  color: var(--ink);
+  outline: none;
+}
+
+.h5-auth-field input:focus {
+  border-color: var(--ink-primary);
+  box-shadow: 2px 2px 0 var(--ink-primary);
+}
+
+/* Loading spinner animation */
+@keyframes h5-auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.h5-auth-saving {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.h5-auth-saving svg {
+  animation: h5-auth-spin 1s linear infinite;
+}

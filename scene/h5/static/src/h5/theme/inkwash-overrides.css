@@ -1,0 +1,185 @@
+/* ── Oriental Ink-Wash Overrides ── */
+/* Centralized ink-wash styles: hand-drawn borders, semi-transparent surfaces, corner gradients, wallpaper backgrounds, hard-offset shadows. */
+
+/* ── 1. Hand-drawn border utilities ── */
+.hand-drawn {
+  border: 1.5px solid var(--border-ink);
+  border-radius: var(--radius-md);
+}
+
+.hand-drawn-sm {
+  border: 1px solid var(--border-ink);
+  border-radius: var(--radius-sm);
+}
+
+.hand-drawn-pill {
+  border: 1.5px solid var(--border-ink);
+  border-radius: 9999px;
+}
+
+/* ── 2. Semi-transparent surface overrides ── */
+
+/* Settings page — transparent to let background show */
+.h5-settings-page {
+  background: transparent !important;
+}
+
+/* Settings card — hand-drawn border + hard shadow */
+.h5-settings-card {
+  background: rgba(240,246,244,0.90) !important;
+  border: 1.5px solid var(--border-ink) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* ── 3. Ink corner gradient decoration ── */
+.h5-app-layout::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(ellipse at top left, rgba(44,62,62,0.12) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.h5-app-layout::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 160px;
+  height: 160px;
+  background: radial-gradient(ellipse at bottom right, rgba(44,62,62,0.08) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── 4. Tool panel wallpaper background ── */
+.h5-app-layout .steps-panel,
+.h5-app-layout .section-summary {
+  background: rgba(240,246,244,0.94) !important;
+  border: 1.5px solid var(--border-ink) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* ── 5. Hard-offset shadow for buttons ── */
+.h5-app-layout .btn-primary {
+  box-shadow: var(--shadow-btn) !important;
+}
+.h5-app-layout .btn-primary:active {
+  box-shadow: 1px 1px 0 var(--ink-primary) !important;
+  transform: translateY(1px) !important;
+}
+
+/* ── 6. Confirm dialog / Toast — ink-wash style ── */
+.confirm-dialog {
+  background: rgba(240,246,244,0.94) !important;
+  border: 1.5px solid var(--border-ink) !important;
+  box-shadow: var(--shadow-float) !important;
+}
+
+.toast-item {
+  background: rgba(240,246,244,0.94) !important;
+  border: 1.5px solid var(--border-ink) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* ── 8. Login page — ink-wash atmosphere ── */
+.h5-login {
+  background-color: var(--paper-inner) !important;
+  background-image:
+    linear-gradient(180deg, rgba(212,232,232,0.35) 0%, rgba(240,246,244,0.18) 40%, rgba(212,232,232,0.25) 100%),
+    url('/style_1.jpeg');
+  background-size: cover;
+  background-position: center;
+}
+
+.h5-login-brand {
+  font-family: 'Ma Shan Zheng', cursive !important;
+}
+
+.h5-login-btn {
+  box-shadow: var(--shadow-btn) !important;
+}
+
+/* ── 9. Auth panel — ink-wash style ── */
+.h5-auth-panel {
+  background: rgba(240,246,244,0.94) !important;
+  border-top: 1.5px solid var(--border-ink) !important;
+  box-shadow: 0 -2px 0 rgba(44,62,62,0.1) !important;
+}
+
+/* ── 10. History page — transparent + ink borders ── */
+.h5-history {
+  background: transparent !important;
+}
+
+.h5-history-search {
+  border: 1.5px solid var(--border-ink) !important;
+  background: rgba(240,246,244,0.88) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.h5-history-item {
+  background: rgba(240,246,244,0.85) !important;
+  border: 1px solid var(--border-passive) !important;
+}
+
+.h5-history-item--active {
+  background: rgba(160,196,212,0.22) !important;
+  border-color: var(--accent-sky) !important;
+}
+
+/* ── 11. Removed: CollapsibleInput / FAB no longer used ── */
+
+/* ── 13. Welcome screen — ink-wash ambient ── */
+.welcome-ambient {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 40%, rgba(44,62,62,0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 40% at 30% 70%, rgba(160,196,212,0.05) 0%, transparent 60%) !important;
+}
+
+.welcome-title {
+  font-family: 'Ma Shan Zheng', cursive !important;
+}
+
+.prompt-card {
+  border: 1.5px solid var(--border-ink) !important;
+  box-shadow: var(--shadow-card) !important;
+  background: rgba(240,246,244,0.88) !important;
+}
+
+.scene-tab {
+  border: 1.5px solid var(--border-ink) !important;
+}
+
+.scene-tab.active {
+  box-shadow: var(--shadow-btn) !important;
+}
+
+/* ── 14. Removed: Input box replaced by H5ChatInput.css ── */
+
+/* ── 15. Removed: Quick tags no longer used ── */
+
+/* ── 16. Radix tooltip — ink-wash ── */
+.tooltip-content {
+  background: var(--ink-primary) !important;
+  color: var(--paper-surface) !important;
+  border: 1px solid var(--border-ink) !important;
+}
+
+.tooltip-arrow {
+  fill: var(--ink-primary) !important;
+}
+
+/* ── 17. Markdown body — keep readable font for code ── */
+.markdown-body code {
+  font-family: var(--font-mono) !important;
+}
+
+.markdown-body pre {
+  border: 1.5px solid var(--border-ink) !important;
+  box-shadow: var(--shadow-card) !important;
+}

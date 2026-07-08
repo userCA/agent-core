@@ -1,0 +1,117 @@
+/* ── H5 Compact Header — 3-section layout (prototype match) ── */
+
+.h5-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px;
+  padding-top: calc(4px + env(safe-area-inset-top, 0px));
+  background: rgba(212,232,232,0.82);
+  border-bottom: 2px solid var(--border-passive);
+  flex-shrink: 0;
+  min-height: 48px;
+  z-index: 20;
+}
+
+.h5-header--aux {
+  justify-content: space-between;
+}
+
+/* ── Button base ── */
+.h5-header-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--ink-primary);
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.h5-header-btn:hover {
+  background: rgba(44,62,62,0.05);
+}
+
+.h5-header-btn:active {
+  background: rgba(44,62,62,0.10);
+}
+
+.h5-header-btn:focus-visible {
+  outline: 2px solid var(--ink-primary);
+  outline-offset: 2px;
+}
+
+/* ── Pet avatar button (right) ── */
+.h5-header-pet {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--paper-canvas);
+  border: 2px solid var(--ink-primary);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.h5-header-pet svg {
+  width: 24px;
+  height: 24px;
+}
+
+.h5-header-pet:hover {
+  background: var(--paper-warm);
+}
+
+/* ── Center section: title + status ── */
+.h5-header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.h5-header-title-center {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  line-height: 1.3;
+}
+
+.h5-header-status {
+  font-size: 11px;
+  color: var(--ink-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+}
+
+.h5-header-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-sky);
+  border: 2px solid var(--ink-primary);
+  flex-shrink: 0;
+}
+
+/* ── Spacer for aux pages (balance the back button) ── */
+.h5-header-spacer {
+  width: 40px;
+  flex-shrink: 0;
+}
+
+/* ── Remove old side-menu styles (no longer used) ── */
+/* h5-menu-backdrop, h5-menu-panel, h5-menu-header, etc. — all deprecated */

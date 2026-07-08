@@ -1,0 +1,123 @@
+/* ── Phone-frame container ── */
+/* On desktop the H5 app renders at phone width, centered */
+html.h5-html,
+html.h5-html body {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper-canvas);
+  width: 100%;
+}
+
+html.h5-html body {
+  overflow: hidden;
+}
+
+#root:has(.h5-app-layout) {
+  width: 100%;
+  max-width: 430px;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  border-radius: 40px;
+  border: 1.5px solid var(--border-ink);
+  box-shadow: 1px 1px 0 var(--ink-primary), 0 25px 80px rgba(44,62,62,0.15);
+}
+
+/* ── App shell ─── */
+.h5-app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--paper-inner);
+  background-image:
+    linear-gradient(180deg, rgba(212,232,232,0.35) 0%, rgba(240,246,244,0.18) 40%, rgba(212,232,232,0.25) 100%),
+    url('/style_1.jpeg');
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.h5-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.h5-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.h5-page::-webkit-scrollbar {
+  display: none;
+}
+
+/* H5 chat-container handles its own scroll */
+.h5-app-layout .chat-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ChatInput pinned to bottom of .h5-page */
+.h5-app-layout .chat-input-area {
+  flex-shrink: 0;
+}
+
+/* Settings page: force full width */
+.h5-page--settings {
+  width: 100%;
+  min-width: 100%;
+  align-self: stretch;
+  align-items: stretch;
+}
+
+.h5-page--settings > * {
+  width: 100%;
+  min-width: 100%;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+/* Focus-visible for setting rows */
+.h5-setting-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ── Mobile: remove phone frame, keep background ── */
+@media (max-width: 420px) {
+  #root:has(.h5-app-layout) {
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .h5-page,
+  .h5-page *,
+  .h5-app-layout,
+  .h5-app-layout * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

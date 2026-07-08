@@ -1,0 +1,313 @@
+import React, { useState, useRef, useCallback } from 'react';
+import type { JsonInputSchema } from '../../api/types';
+import { useSessionStore } from '../../stores/session-store';
+import { submitHumanInput } from '../../api/client';
+import { fileToBase64 } from '../../utils/file';
+import { useBridge } from '../../bridge/BridgeContext';
+import './HitlCard.css';
+
+/**
+ * Internal field descriptor — derived from JSON Schema by {@link jsonSchemaToFields}.
+ */
+interface FieldInfo {
+  type: 'text' | 'textarea' | 'select' | 'image_upload' | 'audio_record';
+  name: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  options?: { label: string; value: string }[];
+  max?: number;
+  accept?: string;
+}
+
+/**
+ * Convert a JSON Schema ``{type, properties, required}`` into an array of
+ * {@link FieldInfo} descriptors that the form can render.
+ */
+function jsonSchemaToFields(schema: JsonInputSchema): FieldInfo[] {
+  const requiredSet = new Set(schema.required ?? []);
+  const fields: FieldInfo[] = [];
+
+  for (const [name, raw] of Object.entries(schema.properties ?? {})) {
+    const prop = raw as Record<string, any>;
+    const isRequired = requiredSet.has(name);
+    const label = prop.title || name;
+    const placeholder = prop.description as string | undefined;
+
+    // enum  → select
+    if (Array.isArray(prop.enum)) {
+      fields.push({
+        type: 'select',
+        name,
+        label,
+        required: isRequired,
+        options: prop.enum.map((v: string) => ({ label: v, value: v })),
+      });
+      continue;
+    }
+
+    // format hints
+    const fmt = prop.format as string | undefined;
+    if (fmt === 'image' || fmt === 'image_upload') {
+      fields.push({
+        type: 'image_upload',
+        name,
+        label,
+        required: isRequired,
+        max: prop.maxItems ?? 5,
+        accept: prop.accept ?? 'image/*',
+      });
+      continue;
+    }
+    if (fmt === 'audio' || fmt === 'audio_record') {
+      fields.push({ type: 'audio_record', name, label, required: isRequired });
+      continue;
+    }
+
+    // string length → textarea vs text
+    if (prop.type === 'string') {
+      if ((prop.maxLength ?? 0) > 200 || fmt === 'textarea') {
+        fields.push({ type: 'textarea', name, label, placeholder, required: isRequired });
+      } else {
+        fields.push({ type: 'text', name, label, placeholder, required: isRequired });
+      }
+      continue;
+    }
+
+    // fallback: render as text input
+    fields.push({ type: 'text', name, label, placeholder, required: isRequired });
+  }
+
+  return fields;
+}
+
+interface Props {
+  toolCallId: string;
+  prompt: string;
+  inputSchema: JsonInputSchema;
+  onSubmitted?: () => void;
+}
+
+export default function HitlCard({ toolCallId, prompt, inputSchema, onSubmitted }: Props) {
+  const sessionId = useSessionStore((s) => s.sessionId);
+  const bridge = useBridge();
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Derive renderable fields from JSON Schema once
+  const fields = React.useMemo(() => jsonSchemaToFields(inputSchema), [inputSchema]);
+
+  // Image upload state
+  const [imageFiles, setImageFiles] = useState<Record<string, string[]>>({});
+  const [uploadCounts, setUploadCounts] = useState<Record<string, number>>({});
+
+  // Audio record state
+  const [audioState, setAudioState] = useState<Record<string, { recording: boolean; url: string | null; base64: string | null }>>({});
+
+  const handleTextChange = (name: string, value: string) => {
+    setValues((p) => ({ ...p, [name]: value }));
+    if (errors[name]) setErrors((p) => { const n = { ...p }; delete n[name]; return n; });
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
+    setValues((p) => ({ ...p, [name]: value }));
+  };
+
+  const handleImageUpload = async (field: FieldInfo, files: FileList) => {
+    const existing = imageFiles[field.name] || [];
+    const max = field.max || 5;
+    const remaining = max - existing.length;
+    const toProcess = Array.from(files).slice(0, remaining);
+
+    const dataUris = await Promise.all(toProcess.map(fileToBase64));
+    const all = [...existing, ...dataUris];
+    setImageFiles((p) => ({ ...p, [field.name]: all }));
+    setUploadCounts((p) => ({ ...p, [field.name]: all.length }));
+    setValues((p) => ({ ...p, [field.name]: all }));
+  };
+
+  const removeImage = (fieldName: string, idx: number) => {
+    setImageFiles((p) => {
+      const updated = [...(p[fieldName] || [])];
+      updated.splice(idx, 1);
+      setValues((v) => ({ ...v, [fieldName]: updated }));
+      setUploadCounts((c) => ({ ...c, [fieldName]: updated.length }));
+      return { ...p, [fieldName]: updated };
+    });
+  };
+
+  const handleAudioRecord = async (field: FieldInfo) => {
+    const current = audioState[field.name];
+    if (current?.recording) {
+      // stop
+      const bridgeStop = bridge.stopRecord;
+      if (bridgeStop) {
+        try {
+          const result = await bridgeStop();
+          const url = `data:${result.mimeType};base64,${result.base64}`;
+          setAudioState((p) => ({ ...p, [field.name]: { recording: false, url, base64: result.base64 } }));
+          setValues((v) => ({ ...v, [field.name]: result.base64 }));
+        } catch {
+          setAudioState((p) => ({ ...p, [field.name]: { recording: false, url: null, base64: null } }));
+        }
+      }
+    } else {
+      // start
+      const bridgeStart = bridge.startRecord;
+      if (bridgeStart) {
+        await bridgeStart();
+        setAudioState((p) => ({ ...p, [field.name]: { recording: true, url: null, base64: null } }));
+      }
+    }
+  };
+
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    for (const field of fields) {
+      if (field.required) {
+        const val = values[field.name];
+        if (val === undefined || val === null || val === '') {
+          errs[field.name] = `${field.label} is required`;
+        }
+      }
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+    if (!sessionId) return;
+
+    setSubmitting(true);
+    try {
+      await submitHumanInput(sessionId, toolCallId, values);
+      setSubmitted(true);
+      onSubmitted?.();
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Submit failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className="hitl-card submitted">
+        [x] submitted — waiting for agent...
+      </div>
+    );
+  }
+
+  return (
+    <div className="hitl-card">
+      <div className="hitl-prompt">{prompt}</div>
+      <form onSubmit={handleSubmit}>
+        {fields.map((field) => (
+          <div key={field.name} className={`hitl-field ${errors[field.name] ? 'has-error' : ''}`}>
+            <label htmlFor={`hitl-${field.name}`}>
+              {field.label}
+              {field.required && <span className="required"> *</span>}
+            </label>
+
+            {field.type === 'select' && (
+              <select
+                id={`hitl-${field.name}`}
+                value={(values[field.name] as string) || ''}
+                onChange={(e) => handleSelectChange(field.name, e.target.value)}
+              >
+                <option value="">-- choose --</option>
+                {field.options?.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            )}
+
+            {field.type === 'textarea' && (
+              <textarea
+                id={`hitl-${field.name}`}
+                value={(values[field.name] as string) || ''}
+                onChange={(e) => handleTextChange(field.name, e.target.value)}
+                placeholder={field.placeholder}
+                rows={4}
+              />
+            )}
+
+            {field.type === 'text' && (
+              <input
+                id={`hitl-${field.name}`}
+                type="text"
+                value={(values[field.name] as string) || ''}
+                onChange={(e) => handleTextChange(field.name, e.target.value)}
+                placeholder={field.placeholder}
+              />
+            )}
+
+            {field.type === 'image_upload' && (
+              <div className="image-upload-area">
+                <label className="upload-btn" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(`hitl-${field.name}`)?.click(); } }}>
+                  {uploadCounts[field.name]
+                    ? `[+] selected ${uploadCounts[field.name]}/${field.max || 5}`
+                    : `[+] choose images (max ${field.max || 5})`}
+                  <input
+                    id={`hitl-${field.name}`}
+                    type="file"
+                    accept={field.accept || 'image/*'}
+                    multiple
+                    hidden
+                    onChange={(e) => {
+                      if (e.target.files) handleImageUpload(field, e.target.files);
+                    }}
+                  />
+                </label>
+                <div className="thumb-grid">
+                  {(imageFiles[field.name] || []).map((dataUri, idx) => (
+                    <div key={idx} className="thumb-item">
+                      <img src={dataUri} alt={`upload ${idx + 1}`} />
+                      <button type="button" className="thumb-remove" onClick={() => removeImage(field.name, idx)} aria-label={`删除图片 ${idx + 1}`}>
+                        [x]
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {field.type === 'audio_record' && (
+              <div className="audio-record-area">
+                <button
+                  type="button"
+                  className={`btn record-btn ${audioState[field.name]?.recording ? 'recording' : ''}`}
+                  onMouseDown={() => handleAudioRecord(field)}
+                  onMouseUp={() => handleAudioRecord(field)}
+                  onTouchStart={() => handleAudioRecord(field)}
+                  onTouchEnd={() => handleAudioRecord(field)}
+                  aria-label={audioState[field.name]?.recording ? '停止录音' : '按住录音'}
+                >
+                  {audioState[field.name]?.recording ? '[!] recording...' : '[rec] hold to record'}
+                </button>
+                {audioState[field.name]?.url && (
+                  <audio controls src={audioState[field.name].url!} />
+                )}
+              </div>
+            )}
+
+            {errors[field.name] && (
+              <div className="field-error">{errors[field.name]}</div>
+            )}
+          </div>
+        ))}
+
+        {submitError && <div className="submit-error">[!] {submitError}</div>}
+
+        <button type="submit" className="btn btn-primary" disabled={submitting}>
+          {submitting ? '[#] submitting...' : 'submit'}
+        </button>
+      </form>
+    </div>
+  );
+}

@@ -1,0 +1,280 @@
+/* Mobile responsive overrides — loaded after tokens.css */
+/* Breakpoints: --bp-phone: 480px, --bp-tablet: 768px, --bp-wide: 1024px */
+
+/* ---- Phone (≤768px) ---- */
+@media (max-width: 768px) {
+    body {
+        font-size: 16px;
+    }
+
+    /* Header */
+    .app-header {
+        padding: 10px 16px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .logo pre {
+        font-size: 11px;
+    }
+
+    .header-actions {
+        gap: 4px;
+    }
+
+    .header-actions .btn {
+        padding: 5px 10px;
+        font-size: 11px;
+    }
+
+    .status-badge {
+        font-size: 10px;
+        padding: 3px 8px;
+    }
+
+    /* Chat container */
+    .chat-container {
+        padding: 12px 16px;
+    }
+
+    .chat-inner {
+        max-width: 100%;
+    }
+
+    /* Messages */
+    .bubble {
+        padding: 10px 12px;
+        font-size: 15px;
+    }
+
+    .bubble-user {
+        max-width: 85%;
+    }
+
+    .user-text {
+        font-size: 15px;
+    }
+
+    /* Input area */
+    .chat-input-area {
+        padding: 8px 16px 12px;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .chat-textarea {
+        font-size: 16px;
+        padding: 8px 12px;
+        min-height: 36px;
+    }
+
+    .send-btn {
+        padding: 8px 16px;
+        font-size: 12px;
+    }
+
+    /* Steps panel */
+    .section-summary {
+        font-size: 11px;
+        padding: 6px 10px;
+    }
+
+    .tool-step {
+        font-size: 11px;
+    }
+
+    /* HITL card */
+    .hitl-card {
+        padding: 12px;
+    }
+
+    .hitl-field input[type="text"],
+    .hitl-field textarea,
+    .hitl-field select {
+        font-size: 16px;
+        padding: 8px 10px;
+    }
+
+    /* Auth modal */
+    .auth-modal {
+        width: calc(100% - 32px);
+        max-width: 400px;
+        padding: 16px;
+    }
+
+    /* Welcome */
+    .welcome {
+        min-height: 200px;
+        padding: 32px 16px;
+    }
+
+    .welcome-logo {
+        font-size: 11px;
+    }
+
+    .example-chip {
+        font-size: 11px;
+        padding: 6px 12px;
+    }
+
+    /* Widget */
+    .widget-container iframe {
+        height: 300px !important;
+    }
+}
+
+/* ---- Small phone (≤480px) ---- */
+@media (max-width: 480px) {
+    .app-header {
+        padding: 8px 12px;
+    }
+
+    .chat-container {
+        padding: 8px 12px;
+    }
+
+    .bubble-user {
+        max-width: 90%;
+    }
+
+    .chat-input-area {
+        padding: 6px 12px 10px;
+        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .welcome {
+        padding: 24px 12px;
+        min-height: 160px;
+    }
+
+    .welcome-logo {
+        font-size: 10px;
+    }
+
+    .auth-modal {
+        width: calc(100% - 16px);
+        padding: 12px;
+    }
+
+    .header-actions .btn {
+        padding: 4px 8px;
+        font-size: 10px;
+    }
+}
+
+/* ---- Tablet (769px–1023px) ---- */
+@media (min-width: 769px) and (max-width: 1023px) {
+    .chat-container {
+        padding: 16px 24px;
+    }
+
+    .chat-inner {
+        max-width: 90%;
+    }
+
+    .bubble-user {
+        max-width: 75%;
+    }
+
+    .chat-input-area {
+        padding: 12px 24px 16px;
+    }
+
+    .app-header {
+        padding: 12px 20px;
+    }
+
+    .welcome {
+        padding: 40px 24px;
+    }
+}
+
+/* ---- Landscape phone (short height) ---- */
+@media (max-height: 500px) and (orientation: landscape) {
+    .app-header {
+        padding: 6px 16px;
+        min-height: auto;
+    }
+
+    .chat-container {
+        padding: 8px 16px;
+    }
+
+    .chat-input-area {
+        padding: 6px 16px 8px;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .chat-textarea {
+        min-height: 32px;
+    }
+
+    .welcome {
+        min-height: 120px;
+        padding: 16px;
+    }
+
+    .welcome-logo {
+        font-size: 9px;
+    }
+
+    .companion-bubble-speech {
+        max-width: 120px;
+    }
+}
+
+/* Touch optimizations */
+@media (hover: none) and (pointer: coarse) {
+    .btn, .example-chip, .section-summary, .upload-btn {
+        min-height: 44px; /* iOS HIG minimum touch target */
+    }
+
+    /* Sidebar interactive elements */
+    .sidebar-toggle-btn,
+    .session-delete,
+    .sidebar-toggle-btn-mini {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    /* Input area icon buttons */
+    .input-clear-btn,
+    .action-btn,
+    .model-pick,
+    .more-popover button {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    /* Message action buttons */
+    .msg-action-btn {
+        min-height: 44px;
+        padding: 8px 12px;
+    }
+
+    /* Page back button */
+    .page-back {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .thumb-remove {
+        min-height: unset;
+        width: 24px;
+        height: 24px;
+    }
+
+    .chat-textarea {
+        min-height: 40px;
+    }
+}
+
+/* Safe area for notched devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .chat-input-area {
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .app-header {
+        padding-top: calc(12px + env(safe-area-inset-top, 0px));
+    }
+}
