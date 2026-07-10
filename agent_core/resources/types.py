@@ -32,6 +32,7 @@ class Skill:
     content: str
     source: SourceInfo
     disable_model_invocation: bool = False
+    tools: list[str] = field(default_factory=list)
 
 
 @dataclass

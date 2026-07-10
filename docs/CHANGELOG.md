@@ -1,5 +1,48 @@
 # Changelog
 
+## 2026-07-10 17:30 — Skill Action SSE 增强 + 推理卡片独立视觉样式 + 布局优化
+
+**需求**：
+- H5 页面消息输出过程中，显式标注使用了什么 Skill（之前 Skill 是 system prompt 中的指令文本，完全不可见）
+- 推理卡片（TraceCard）与普通消息气泡需有明显视觉区分
+- 推理卡片内容过于拥挤，需参考原型优化间距
+- Skill 完成后副标题不应丢失描述信息
+
+**方案**：
+- 新增 `skill.started` / `skill.completed` 两种 action 事件类型，后端事件命名为 `SkillStart` / `SkillEnd`（遵循 `{Entity}{Start|End}` 模式）
+- Skill 类型新增 `tools` 字段，建立 tool_name → skill 映射，当 LLM 调用关联工具时自动触发 skill 激活事件
+- TraceCard 时间线新增绿色 skill 节点（复用已有的 `.t-node.skill` 样式）
+- 推理卡片始终使用 `bubble-trace-only` 类，脱离普通气泡容器
+- `.bubble-trace-only .msg-content > .trace`（特异性 0,3,0）恢复独立 trace 外观（2px 墨色边框 + 3px 阴影）
+- TraceCard 完成后显示 `block.detail` 摘要（最长 60 字符），而非简单的"完成"
+- 步骤间距从 2px 增至 6px，rail padding 增至 12px，提升呼吸感
+
+**改动范围**：
+| 文件 | 改动 |
+|------|------|
+| `agent_core/resources/types.py` | Skill dataclass 新增 `tools: list[str]` 字段 |
+| `agent_core/resources/skills.py` | 解析 frontmatter 中的 `tools` 逗号分隔列表 |
+| `agent_core/core/events.py` | 新增 `SkillStart` / `SkillEnd` 事件类型并加入 `AgentEvent` union |
+| `scene/h5/chat_assistant.py` | 构建 `tool_to_skill` 映射，`_on_agent_event` 拦截 ToolExecutionStart 注入 SkillStart/End；AgentEnd 兆底清理 `_active_skills` |
+| `scene/h5/events.py` | SSE 转换层处理 SkillStart/SkillEnd → `skill.started`/`skill.completed` |
+| `scene/h5/static/src/api/types.ts` | ActionEvent 注释文档补充 skill action 类型 |
+| `scene/h5/static/src/stores/chat-store.ts` | `MessageBlock.type` 添加 `'skill'` |
+| `scene/h5/static/src/hooks/useSSE.ts` | 处理 `skill.started`/`skill.completed` action，_Block 支持 skill 类型；`skill.completed` 使用 `findLast` 匹配最后一个 running block |
+| `scene/h5/static/src/components/chat/TraceCard.tsx` | stepBlocks 过滤添加 skill；完成后显示 detail 摘要而非"完成" |
+| `scene/h5/static/src/components/chat/TraceCard.css` | 步骤间距 6px、rail padding 12px、t-kind flex-shrink:0、t-sub line-height:1.4 |
+| `scene/h5/static/src/components/chat/MessageBubble.tsx` | 推理卡片始终使用 `bubble-trace-only` 类 |
+| `scene/h5/static/src/components/chat/MessageBubble.css` | `.bubble-trace-only` 透明容器 + `.msg-content > .trace` 恢复独立外观 + rail padding 覆盖 |
+| `scene/h5/static/src/components/chat/StreamingMessage.tsx` | TraceCard 拆到独立 `bubble-trace-only` 容器 |
+| `docs/api-event-spec-v1.md` | Section 5 新增 skill.started/skill.completed 规范定义 |
+
+**影响**：
+- 后端 Skill 类型新增可选字段 `tools`，不影响现有 skill
+- 后端 agent 事件流新增 SkillStart/SkillEnd 事件，前端可据此渲染技能节点
+- TraceCard 时间线中 skill 节点显示为绿色，位于 tool 节点之前
+- 推理卡片与普通消息气泡有明显视觉区分（2px 粗边框 + 3px 阴影 vs 1.5px 浅色边框）
+- 推理卡片完成后显示有意义摘要，步骤间距更宽松
+
+---
 ## 2026-06-30 — 多模态消息支持 + 微信风格输入交互重构
 
 **需求**：

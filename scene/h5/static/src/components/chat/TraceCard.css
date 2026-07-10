@@ -47,7 +47,7 @@
 
 .trace.collapsed .trace-rail { display: none; }
 
-.trace-rail { padding: 10px 12px; }
+.trace-rail { padding: 12px 12px 10px; }
 
 .thead-ic {
     width: 18px; height: 18px;
@@ -57,13 +57,13 @@
 }
 .thead-label {
     flex: 1;
-    font-size: 13px; font-weight: 700;
+    font-size: 13.5px; font-weight: 700;
     color: var(--ink-primary);
 }
 
 /* ── Step item ── */
 .t-step { position: relative; padding-left: 28px; }
-.t-step + .t-step { margin-top: 2px; }
+.t-step + .t-step { margin-top: 6px; }
 
 /* Dashed connector between nodes */
 .t-step::before {
@@ -87,6 +87,7 @@
 .t-node.tool  { background: var(--accent-sky); }
 .t-node.skill { background: var(--accent-bamboo); }
 .t-node.running { background: var(--paper-surface); }
+.t-node.skill.running { background: var(--accent-bamboo); opacity: 0.7; }
 .t-node.done  { background: var(--accent-bamboo); }
 .t-node svg { width: 10px; height: 10px; }
 
@@ -94,7 +95,7 @@
 .t-head {
     width: 100%;
     display: flex; align-items: center; gap: 7px;
-    padding: 3px 2px;
+    padding: 4px 4px;
     cursor: pointer; text-align: left;
     border: none; background: none; font-family: inherit;
     border-radius: 8px;
@@ -106,11 +107,13 @@
     font-size: 13px; font-weight: 700;
     color: var(--ink-primary);
     white-space: nowrap;
+    flex-shrink: 0;
 }
 .t-sub {
     font-size: 12px; color: var(--ink-muted);
     flex: 1; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    line-height: 1.4;
 }
 
 /* ── Chevron ── */

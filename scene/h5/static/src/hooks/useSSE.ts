@@ -45,7 +45,7 @@ async function filesToContentBlocks(files: File[]): Promise<ContentBlockInput[]>
 }
 
 interface _Block {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'file';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'file' | 'skill';
   content?: string;
   toolName?: string;
   toolCallId?: string;
@@ -85,7 +85,7 @@ export function useSSE() {
     setStreamBlocks(blocks.map(b => ({
       type: b.type === 'file' ? 'text' : b.type as MessageBlock['type'],
       text: b.type === 'text' ? b.content : undefined,
-      label: b.type === 'tool' ? b.toolName : undefined,
+      label: b.type === 'tool' ? b.toolName : b.type === 'skill' ? b.toolName : undefined,
       detail: b.type === 'video' ? b.videoUrl : b.type === 'image' ? b.imageUrl : b.type === 'file' ? b.fileUrl : b.content,
       isError: b.isError,
       status: b.status,
@@ -256,6 +256,22 @@ export function useSSE() {
           // progress updates — currently no-op in UI
           break;
         
+        case 'skill.started': {
+          blocks.push({
+            type: 'skill',
+            content: ae.skillDescription || ae.skillName || ae.skillId,
+            toolName: ae.skillName || ae.skillId,
+            status: 'running',
+          });
+          break;
+        }
+
+        case 'skill.completed': {
+          const sb = [...blocks].reverse().find(blk => blk.type === 'skill' && blk.toolName === ae.skillId && blk.status === 'running');
+          if (sb) sb.status = 'done';
+          break;
+        }
+
         case 'step.start':
         case 'step.end':
           // Future: step visualization
@@ -390,6 +406,8 @@ export function useSSE() {
           msgBlocks.push({ type: 'think', detail: c });
         } else if (b.type === 'tool') {
           msgBlocks.push({ type: 'tool', label: b.toolName, detail: c, isError: b.isError });
+        } else if (b.type === 'skill') {
+          msgBlocks.push({ type: 'skill', label: b.toolName, detail: b.content });
         } else if (b.type === 'widget') {
           msgBlocks.push({ type: 'widget', widget: b.widget });
         } else if (b.type === 'video') {

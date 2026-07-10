@@ -17,6 +17,8 @@ from agent_core.core.events import (
     MessageEnd,
     MessageStart,
     MessageUpdate,
+    SkillEnd,
+    SkillStart,
     TextDelta,
     ThinkingDelta,
     ToolExecutionEnd,
@@ -304,6 +306,32 @@ def agent_event_to_sse_json(
                 "prompt": evt.prompt,
                 "inputSchema": evt.input_schema,
                 "timeoutSeconds": 300,
+            },
+        }
+
+    # -- SkillStart ------------------------------------------------------------
+    if isinstance(evt, SkillStart):
+        close_evt = tracker.close() if tracker else None
+        result: dict[str, Any] = {
+            "sse_event": "action",
+            "data": {
+                "actionType": "skill.started",
+                "skillId": evt.skill_name,
+                "skillName": evt.skill_name,
+                "skillDescription": evt.skill_description,
+            },
+        }
+        if close_evt is not None:
+            return [close_evt, result]
+        return result
+
+    # -- SkillEnd --------------------------------------------------------------
+    if isinstance(evt, SkillEnd):
+        return {
+            "sse_event": "action",
+            "data": {
+                "actionType": "skill.completed",
+                "skillId": evt.skill_name,
             },
         }
 

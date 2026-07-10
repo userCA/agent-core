@@ -127,13 +127,48 @@
     background: rgba(245,250,248,0.95);
 }
 
-/* Split cards — reasoning and content as separate bubbles */
+/* Split cards — reasoning card adopts .trace standalone styling (prototype-matched) */
 .bubble-trace-only {
-    border-radius: 16px 16px 4px 4px;
-    margin-bottom: -1px;
-    padding-bottom: 8px;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
 }
 
+.bubble-trace-only:hover {
+    background: transparent !important;
+    border-color: transparent !important;
+}
+
+/* Counter .bubble .trace stripping — restore standalone trace card appearance */
+/* Note: .trace is inside .msg-content, so use descendant selector (not >) */
+.bubble-trace-only .msg-content > .trace {
+    background: rgba(240, 246, 244, 0.90);
+    border: 2px solid var(--border-ink);
+    border-radius: 16px;
+    box-shadow: 3px 3px 0 rgba(44,62,62,0.15);
+    margin-bottom: 4px;
+    max-width: 100%;
+}
+
+.bubble-trace-only .msg-content > .trace > .trace-head {
+    background: rgba(220, 232, 228, 0.92);
+    padding: 9px 12px;
+    border-radius: 16px 16px 0 0;
+}
+
+.bubble-trace-only .msg-content > .trace > .trace-head:hover {
+    background: var(--paper-inner);
+}
+
+/* Restore trace-rail padding inside standalone trace card (counter .bubble .trace-rail) */
+.bubble-trace-only .msg-content > .trace .trace-rail {
+    padding: 12px 12px 10px;
+}
+
+/* Content bubble below reasoning — rounded bottom corners, slight top overlap */
 .bubble-content-only {
     border-radius: 4px 4px 16px 16px;
     padding-top: 8px;

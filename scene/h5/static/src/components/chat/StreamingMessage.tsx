@@ -113,9 +113,16 @@ export default function StreamingMessage() {
     <div className="msg-row msg-row-assistant">
       <MoonAvatar />
       <div className="msg-col msg-col-assistant">
-        <div className={`bubble bubble-assistant streaming-bubble${!isStreaming ? ' fade-out' : ''}`}>
-          {streamBlocks.length > 0 && <TraceCard blocks={streamBlocks} />}
+        {/* Trace card rendered standalone (outside bubble) for distinct visual treatment */}
+        {streamBlocks.length > 0 && (
+          <div className={`bubble bubble-assistant bubble-trace-only${!isStreaming ? ' fade-out' : ''}`}>
+            <div className="msg-content">
+              <TraceCard blocks={streamBlocks} />
+            </div>
+          </div>
+        )}
 
+        <div className={`bubble bubble-assistant streaming-bubble${!isStreaming ? ' fade-out' : ''}`}>
           {streamBlocks.length > 0 ? (
             <div className="final-content streaming hidden" />
           ) : (

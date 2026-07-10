@@ -119,7 +119,7 @@ export default function MessageBubble({ message }: Props) {
   }
 
   // assistant — split reasoning steps and content into separate cards
-  const stepBlocks = blocks?.filter(b => b.type === 'think' || b.type === 'tool') || [];
+  const stepBlocks = blocks?.filter(b => b.type === 'think' || b.type === 'tool' || b.type === 'skill') || [];
   const contentBlocks = blocks?.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image') || [];
   const hasSteps = stepBlocks.length > 0;
   const hasContent = contentBlocks.length > 0 || !!content;
@@ -135,9 +135,9 @@ export default function MessageBubble({ message }: Props) {
     >
       <MoonAvatar />
       <div className="msg-col msg-col-assistant">
-        {/* Reasoning card — only step blocks */}
+        {/* Reasoning card — always uses bubble-trace-only for standalone trace styling */}
         {hasSteps && (
-          <div className={`bubble bubble-assistant${splitCards ? ' bubble-trace-only' : ''}`}>
+          <div className="bubble bubble-assistant bubble-trace-only">
             <div className="msg-content">
               <TraceCard blocks={stepBlocks} />
             </div>

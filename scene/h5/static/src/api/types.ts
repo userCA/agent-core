@@ -70,6 +70,13 @@ export interface ErrorDetail {
 }
 
 // ---- Action events ---------------------------------------------------
+// tool_call.started:    { actionType, toolCallId, name, arguments }
+// tool_call.completed:  { actionType, toolCallId, result }
+// tool_call.progress:   { actionType, toolCallId, output }
+// skill.started:        { actionType, skillId, skillName }
+// skill.completed:      { actionType, skillId }
+// step.start / step.end { actionType, stepId, stepName, type? }
+// human_input.*:        { actionType, toolCallId, prompt, inputSchema }
 
 export interface ActionEvent {
   actionType: string;

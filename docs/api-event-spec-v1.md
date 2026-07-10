@@ -444,6 +444,32 @@ Agent 特有事件（工具调用、任务步骤、人机交互），统一到 `
 
 > Step 是比 tool_call **更高粒度**的任务阶段。一个 Step 内可能包含多次工具调用和文本输出，前端可据此渲染步骤条/进度条。前端可根据 `type` 决定渲染方式（`tool_calls` 显示折叠面板，`message_creation` 显示文本流）。
 
+#### skill.started — 技能激活
+```json
+{
+  "actionType": "skill.started",
+  "skillId": "image-generation",
+  "skillName": "当用户要求生成图片、创建插画、制作海报、设计头像、画图等视觉内容时，使用此技能。"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `skillId` | string | 技能唯一标识（对应 SKILL.md 的 name） |
+| `skillName` | string | 技能描述（用于前端展示） |
+
+> Skill 是 System Prompt 中的指令文本，当 LLM 调用了与 Skill 关联的工具时触发 `skill.started`。一个 Skill 在一次对话轮次中只触发一次 started，即使关联多个工具被多次调用。
+
+#### skill.completed — 技能完成
+```json
+{
+  "actionType": "skill.completed",
+  "skillId": "image-generation"
+}
+```
+
+> `skill.completed` 在对话轮次结束（message.end）时统一发送，关闭所有已激活的 Skill。
+
 ### 5.2 工具生命周期状态机
 
 ```
@@ -997,4 +1023,5 @@ data: [DONE]
 | — | `action` (actionType=tool_call.arguments_delta) | **新增** 工具参数流式（Optional） |
 | — | `action` (actionType=human_input.submitted) | **新增** 用户输入确认 |
 | — | `action` (actionType=step.start/step.end) | **新增** 任务步骤生命周期（含 stepId + type） |
+| — | `action` (actionType=skill.started/skill.completed) | **新增** 技能激活/完成生命周期 |
 | — | `state` (type=state.snapshot/state.delta) | **新增** Agent 状态同步（Merge Patch） |

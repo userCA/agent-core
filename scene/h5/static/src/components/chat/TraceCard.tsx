@@ -26,7 +26,7 @@ const CheckNode = ({ size = 10 }: { size?: number }) => (
 
 export default function TraceCard({ blocks }: Props) {
   // Separate step blocks (think/tool) from content blocks (text/widget/video/image)
-  const stepBlocks = blocks.filter(b => b.type === 'think' || b.type === 'tool');
+  const stepBlocks = blocks.filter(b => b.type === 'think' || b.type === 'tool' || b.type === 'skill');
   const contentBlocks = blocks.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image');
 
   const [traceOpen, setTraceOpen] = useState(true);
@@ -112,8 +112,9 @@ export default function TraceCard({ blocks }: Props) {
       <div className="trace-rail">
         {stepBlocks.map((block, i) => {
           const isThink = block.type === 'think';
-          const nodeClass = isThink ? 'think' : 'tool';
-          const kindLabel = isThink ? '思考' : (block.label || '工具');
+          const isSkill = block.type === 'skill';
+          const nodeClass = isThink ? 'think' : isSkill ? 'skill' : 'tool';
+          const kindLabel = isThink ? '思考' : isSkill ? (block.label || '技能') : (block.label || '工具');
           const isRunning = block.status === 'running';
           const isOpen = openSteps.has(i);
 
@@ -130,7 +131,9 @@ export default function TraceCard({ blocks }: Props) {
               >
                 <span className="t-kind">{kindLabel}</span>
                 <span className="t-sub">
-                  {isRunning ? (block.detail?.slice(0, 40) || '处理中…') : '完成'}
+                  {isRunning
+                    ? (block.detail?.slice(0, 40) || '处理中…')
+                    : (block.detail ? (block.detail.length > 60 ? block.detail.slice(0, 60) + '…' : block.detail) : '完成')}
                 </span>
                 <Chevron />
               </button>

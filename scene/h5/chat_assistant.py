@@ -9,13 +9,16 @@ from typing import Any, Awaitable, Callable
 from agent_core.core.agent import Agent
 from agent_core.core.content import ImageContent
 from agent_core.core.events import (
+    AgentEnd,
     AgentEvent,
-    MessageEnd,
     MessageUpdate,
+    SkillEnd,
+    SkillStart,
     TextDelta,
     ToolCallDelta,
     ToolExecutionEnd,
     ToolExecutionStart,
+    TurnEnd,
 )
 from agent_core.core.state import AgentState
 from agent_core.providers.auth import AuthSource
@@ -116,6 +119,13 @@ class ChatAssistant:
         self._session_unsub: Callable[[], None] | None = None
         self._handlers: list[EventHandler] = []
         self._extensions = extensions or []
+
+        # Build tool_name -> Skill mapping for skill activation tracking
+        self._tool_to_skill: dict[str, Skill] = {}
+        for skill in self._skills:
+            for tool_name in skill.tools:
+                self._tool_to_skill[tool_name] = skill
+        self._active_skills: set[str] = set()
 
     @classmethod
     async def create(
@@ -504,6 +514,34 @@ class ChatAssistant:
         return f"{skill_block}\n\n{args}" if args else skill_block
 
     async def _on_agent_event(self, evt: AgentEvent) -> None:
+        # Inject SkillStart when a tool associated with a skill is called
+        if isinstance(evt, ToolExecutionStart):
+            skill = self._tool_to_skill.get(evt.tool_name)
+            if skill and skill.name not in self._active_skills:
+                self._active_skills.add(skill.name)
+                skill_start = SkillStart(
+                    skill_name=skill.name,
+                    skill_description=skill.description,
+                )
+                for handler in list(self._handlers):
+                    result = handler(skill_start)
+                    if asyncio.iscoroutine(result):
+                        await result
+
+        # Inject SkillEnd for all active skills at turn end
+        if isinstance(evt, TurnEnd) and self._active_skills:
+            for skill_name in list(self._active_skills):
+                skill_end = SkillEnd(skill_name=skill_name)
+                for handler in list(self._handlers):
+                    result = handler(skill_end)
+                    if asyncio.iscoroutine(result):
+                        await result
+            self._active_skills.clear()
+
+        # Safety cleanup: clear any remaining active skills on AgentEnd
+        if isinstance(evt, AgentEnd) and self._active_skills:
+            self._active_skills.clear()
+
         for handler in list(self._handlers):
             result = handler(evt)
             if asyncio.iscoroutine(result):

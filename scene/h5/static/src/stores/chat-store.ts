@@ -7,7 +7,7 @@ import { extractThinkSteps, getDisplayableText } from '../utils/think';
 /* ------------------------------------------------------------------ */
 
 export interface MessageBlock {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'skill';
   text?: string;
   label?: string;
   detail?: string;

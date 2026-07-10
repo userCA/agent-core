@@ -99,6 +99,19 @@ class HumanInputRequired(_EventBase):
     input_schema: dict[str, Any]
 
 
+class SkillStart(_EventBase):
+    """Emitted when a skill is activated (tool associated with a skill is called)."""
+    type: Literal["skill_start"] = "skill_start"
+    skill_name: str
+    skill_description: str = ""
+
+
+class SkillEnd(_EventBase):
+    """Emitted when a skill's lifecycle completes (at turn end)."""
+    type: Literal["skill_end"] = "skill_end"
+    skill_name: str
+
+
 AgentEvent = Annotated[
     Union[
         AgentStart,
@@ -112,6 +125,8 @@ AgentEvent = Annotated[
         ToolExecutionUpdate,
         ToolExecutionEnd,
         HumanInputRequired,
+        SkillStart,
+        SkillEnd,
     ],
     Field(discriminator="type"),
 ]

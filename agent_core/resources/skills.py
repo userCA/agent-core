@@ -85,6 +85,12 @@ def load_skill_from_file(file_path: str, diagnostics: ResourceDiagnostics) -> Sk
     if not frontmatter.get("description") or str(frontmatter.get("description", "")).strip() == "":
         return None
 
+    # Parse optional tools field (comma-separated tool names)
+    raw_tools = frontmatter.get("tools", "")
+    tools: list[str] = []
+    if raw_tools:
+        tools = [t.strip() for t in str(raw_tools).split(",") if t.strip()]
+
     return Skill(
         name=name,
         description=frontmatter["description"],
@@ -96,4 +102,5 @@ def load_skill_from_file(file_path: str, diagnostics: ResourceDiagnostics) -> Sk
             base_dir=skill_dir,
         ),
         disable_model_invocation=frontmatter.get("disable-model-invocation") is True,
+        tools=tools,
     )
