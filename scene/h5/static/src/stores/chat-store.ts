@@ -7,7 +7,7 @@ import { extractThinkSteps, getDisplayableText } from '../utils/think';
 /* ------------------------------------------------------------------ */
 
 export interface MessageBlock {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image';
   text?: string;
   label?: string;
   detail?: string;
@@ -17,6 +17,8 @@ export interface MessageBlock {
   videoUrl?: string;
   videoSize?: string;
   videoSeconds?: string;
+  imageUrl?: string;
+  imageMeta?: { width?: number; height?: number; format?: string; size?: string };
 }
 
 export interface ChatMessage {
@@ -28,6 +30,7 @@ export interface ChatMessage {
   audios?: AudioDisplay[];
   usage?: Usage | null;
   toolCallId?: string;
+  attachments?: string[];
   timestamp: number;
 }
 
@@ -253,14 +256,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
             if ((toolName === 'generate_video' || toolName === 'check_video_status') && content) {
               const videoMatch = content.match(/https?:\/\/\S+\.mp4\b/);
               if (videoMatch) {
-                const sizeMatch = content.match(/分辨率\**:\s*(\S+)/);
-                const secMatch = content.match(/时长\**:\s*([\d.]+)s/);
+                const sizeMatch = content.match(/\u5206\u8fa8\u7387\**:\s*(\S+)/);
+                const secMatch = content.match(/\u65f6\u957f\**:\s*([\d.]+)s/);
                 currentAssistant.blocks.push({
                   type: 'video',
                   videoUrl: videoMatch[0],
                   videoSize: sizeMatch?.[1],
                   videoSeconds: secMatch?.[1],
                 });
+              }
+            }
+            // If image generation tool, reconstruct image blocks from persisted result
+            if ((toolName === 'generate_image' || toolName === 'generate_images' || toolName === 'edit_image') && content) {
+              const imgMatches = [...content.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)];
+              for (const m of imgMatches) {
+                const url = m[1];
+                if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) {
+                  currentAssistant.blocks.push({
+                    type: 'image',
+                    imageUrl: url,
+                    detail: url,
+                  });
+                }
               }
             }
             // Replace args with result content

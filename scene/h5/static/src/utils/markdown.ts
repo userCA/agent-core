@@ -1,25 +1,27 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/github.css';
 import { getDisplayableText } from './think';
 
 const renderer = new marked.Renderer();
-renderer.code = (code: unknown) => {
-  const { text, lang } = code as { text: string; lang?: string };
-  const language = lang || 'text';
-  const safeCode = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+renderer.code = (code: string, infostring?: string) => {
+  const language = (infostring || '').match(/^\S*/)?.[0] || 'text';
+  let highlighted: string;
+  if (language && language !== 'text' && hljs.getLanguage(language)) {
+    highlighted = hljs.highlight(code || '', { language }).value;
+  } else {
+    highlighted = hljs.highlightAuto(code || '').value;
+  }
 
   return `<div class="code-block-wrapper">
-    <div class="code-block-header">
-      <span class="code-lang">${language}</span>
+    <div class="code-block-bar">
+      ${language && language !== 'text' ? `<span class="code-lang-label">${language}</span>` : '<span></span>'}
       <button class="code-copy-btn" type="button" aria-label="复制代码">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 13v4"/><path d="M12 17h.01"/></svg>
-        <span class="copy-label">复制</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       </button>
     </div>
-    <pre><code class="language-${language}">${safeCode}</code></pre>
+    <pre><code class="hljs language-${language}">${highlighted}</code></pre>
   </div>`;
 };
 

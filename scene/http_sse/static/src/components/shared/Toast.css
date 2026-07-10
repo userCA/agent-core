@@ -1,4 +1,4 @@
-.toast-container {
+.toast-viewport {
   position: fixed;
   top: 16px;
   right: 16px;
@@ -7,7 +7,15 @@
   flex-direction: column;
   gap: 8px;
   max-width: 360px;
+  width: 100%;
   pointer-events: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.toast-viewport > * {
+  pointer-events: auto;
 }
 
 .toast-item {
@@ -74,7 +82,7 @@
 }
 
 @media (max-width: 640px) {
-  .toast-container {
+  .toast-viewport {
     top: 12px;
     right: 12px;
     left: 12px;

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSkillStore } from '../../stores/skill-store';
 import TooltipWrap from '../shared/TooltipWrap';
 import type { EvolutionProposal, EvolutionAuditEntry } from '../../api/client';
+import './EvolutionPanel.css';
 
 interface Props { skillName: string }
 

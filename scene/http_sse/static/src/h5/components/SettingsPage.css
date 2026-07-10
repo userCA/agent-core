@@ -166,7 +166,7 @@
   width: 100%;
   text-align: center;
   padding: 40px 20px;
-  color: var(--ash);
+  color: var(--body);
   font-size: 12px;
   font-family: var(--font-mono);
 }

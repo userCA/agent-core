@@ -1,30 +1,21 @@
 import React from 'react';
 import { useChatStore } from '../../stores/chat-store';
-import { useSessionStore } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
-import { useCompanionStore } from '../../stores/companion-store';
-import { bonesToAvatarConfig, buildAvatarSVG } from '../../components/companion/SvgAvatarComposer';
 import './CompactHeader.css';
 
 interface Props {
   onAbort?: () => void;
+  onCompanionOpen?: () => void;
+  onNewChat?: () => void;
 }
 
-export default function CompactHeader({ onAbort }: Props) {
+export default function CompactHeader({ onAbort, onCompanionOpen, onNewChat }: Props) {
   const isStreaming = useChatStore((s) => s.isStreaming);
+  const hasMessages = useChatStore((s) => s.messages.length > 0);
   const h5ActiveTab = useUIStore((s) => s.h5ActiveTab);
   const setH5ActiveTab = useUIStore((s) => s.setH5ActiveTab);
-  const sessionId = useSessionStore((s) => s.sessionId);
-  const sessions = useSessionStore((s) => s.sessions);
-  const bones = useCompanionStore((s) => s.bones);
 
-  const currentSession = sessions.find((s) => s.session_id === sessionId);
-  const isChat = h5ActiveTab === 'chat';
-  const title = isChat && currentSession ? currentSession.title : '咪兔';
-
-  // Build pixel avatar from companion bones
-  const avatarConfig = bonesToAvatarConfig(bones as Record<string, unknown> | null);
-  const petSvg = buildAvatarSVG(avatarConfig);
+  const title = '咪兔';
 
   const isAuxPage = h5ActiveTab === 'settings' || h5ActiveTab === 'history' || h5ActiveTab === 'companion';
 
@@ -48,7 +39,7 @@ export default function CompactHeader({ onAbort }: Props) {
 
   return (
     <header className="h5-header">
-      {/* Left: book-open → history */}
+      {/* Left: history only */}
       <button
         className="h5-header-btn"
         onClick={() => setH5ActiveTab('history')}
@@ -60,34 +51,48 @@ export default function CompactHeader({ onAbort }: Props) {
         </svg>
       </button>
 
-      {/* Center: title + online dot */}
-      <div className="h5-header-center">
+      {/* Center: title (click to open companion) + online dot */}
+      <button
+        className="h5-header-center h5-header-title-btn"
+        onClick={onCompanionOpen ?? (() => setH5ActiveTab('companion'))}
+        aria-label="宠物资料"
+        title="查看咪兔资料"
+      >
         <h1 className="h5-header-title-center">{title}</h1>
         <span className="h5-header-status">
           <span className="h5-header-dot" />
           在线
         </span>
-      </div>
+      </button>
 
-      {/* Right: pet avatar → companion / abort when streaming */}
-      {isStreaming ? (
-        <button
-          className="h5-header-btn h5-header-pet"
-          onClick={onAbort}
-          aria-label="停止生成"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-          </svg>
-        </button>
-      ) : (
-        <button
-          className="h5-header-btn h5-header-pet"
-          onClick={() => setH5ActiveTab('companion')}
-          aria-label="宠物资料"
-          dangerouslySetInnerHTML={{ __html: petSvg || '' }}
-        />
-      )}
+      {/* Right: new-chat / abort when streaming */}
+      <div className="h5-header-right">
+        {isStreaming ? (
+          <button
+            className="h5-header-btn"
+            onClick={onAbort}
+            aria-label="停止生成"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+            </svg>
+          </button>
+        ) : (
+          hasMessages && (
+            <button
+              className="h5-header-btn"
+              onClick={onNewChat}
+              aria-label="新建会话"
+              title="新建会话"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9"/>
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+              </svg>
+            </button>
+          )
+        )}
+      </div>
     </header>
   );
 }

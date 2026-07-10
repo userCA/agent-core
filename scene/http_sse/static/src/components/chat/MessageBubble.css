@@ -140,6 +140,7 @@
     font-family: var(--font-sans);
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    min-height: 36px;
 }
 
 .msg-action-btn:hover {

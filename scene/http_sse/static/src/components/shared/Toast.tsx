@@ -41,7 +41,7 @@ export default function ToastContainer() {
           </Toast.Close>
         </Toast.Root>
       ))}
-      <Toast.Viewport className="toast-viewport" />
+      <Toast.Viewport className="toast-viewport" aria-live="polite" aria-label="通知" />
     </Toast.Provider>
   );
 }

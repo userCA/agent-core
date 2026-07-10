@@ -64,6 +64,13 @@
     color: var(--ink);
 }
 
+@media (hover: none) {
+    .input-clear-btn {
+        opacity: 0.6;
+        pointer-events: auto;
+    }
+}
+
 .chat-textarea {
     display: block;
     width: 100%;
@@ -108,8 +115,8 @@
 }
 
 .inline-toolbar .action-btn {
-    min-width: 32px;
-    min-height: 32px;
+    min-width: 44px;
+    min-height: 44px;
     color: var(--ash);
 }
 
@@ -326,7 +333,7 @@
     font-family: var(--font-sans);
     cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease;
-    height: 32px;
+    height: 40px;
 }
 .model-pick:hover {
     border-color: var(--hairline-strong);

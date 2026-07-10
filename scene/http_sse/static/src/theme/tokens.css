@@ -42,6 +42,29 @@
     --pastel-yellow-bg: #FBF3DB;
     --pastel-yellow-text: #956400;
 
+    /* Evolution panel — dark lab aesthetic */
+    --evo-bg: #080d14;
+    --evo-bg-mid: #0e1621;
+    --evo-bg-end: #0b1119;
+    --evo-success: #22c55e;
+    --evo-success-bright: #4ade80;
+    --evo-success-soft: #86efac;
+    --evo-danger: #ef4444;
+    --evo-danger-bright: #f87171;
+    --evo-danger-soft: #fca5a5;
+    --evo-warning: #f59e0b;
+    --evo-warning-bright: #fbbf24;
+    --evo-info: #3b82f6;
+    --evo-info-bright: #60a5fa;
+    --evo-text: rgba(255, 255, 255, 0.7);
+    --evo-text-muted: rgba(255, 255, 255, 0.5);
+    --evo-text-dim: rgba(255, 255, 255, 0.3);
+    --evo-text-faint: rgba(255, 255, 255, 0.2);
+    --evo-text-ghost: rgba(255, 255, 255, 0.15);
+    --evo-text-zero: rgba(255, 255, 255, 0.08);
+    --evo-border: rgba(255, 255, 255, 0.08);
+    --evo-border-strong: rgba(255, 255, 255, 0.12);
+
     /* z-index scale */
     --z-base: 1;
     --z-dropdown: 10;
@@ -312,5 +335,18 @@ body {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+    }
+
+    /* Explicitly silence decorative continuous animations that are not load-state indicators. */
+    .header-companion-float,
+    .final-content.streaming::after,
+    .thinking-dot,
+    .orbit-dots i,
+    .status-dot.pulse::after,
+    .logo-float,
+    .companionZzzFloat,
+    .evo-orb,
+    .evo-pulse-anim {
+        animation: none !important;
     }
 }

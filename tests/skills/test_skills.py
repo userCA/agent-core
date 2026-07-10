@@ -1,17 +1,24 @@
-"""Tests for skill discovery, loading, and formatting."""
+"""Tests for legacy skill discovery, loading, and formatting.
+
+These tests cover the deprecated ``agent_core.skills`` module.
+The production skill system lives in ``agent_core.resources.skills``.
+"""
 
 from __future__ import annotations
 
 import os
 import tempfile
+import warnings
 
-from agent_core.skills import (
-    Skill,
-    format_skills_for_prompt,
-    load_skill_from_file,
-    load_skills,
-    load_skills_from_dir,
-)
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    from agent_core.skills import (
+        Skill,
+        format_skills_for_prompt,
+        load_skill_from_file,
+        load_skills,
+        load_skills_from_dir,
+    )
 
 
 def test_load_skill_from_file():

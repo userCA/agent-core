@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { useSessionStore } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useToastStore } from '../../stores/toast-store';
@@ -12,6 +12,7 @@ export default function AuthPanel() {
   const authModalOpen = useUIStore((s) => s.authModalOpen);
   const setAuthModalOpen = useUIStore((s) => s.setAuthModalOpen);
   const addToast = useToastStore((s) => s.addToast);
+  const reducedMotion = useReducedMotion();
 
   const [values, setValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
@@ -33,6 +34,14 @@ export default function AuthPanel() {
     }
   };
 
+  const backdropTransition = reducedMotion ? { duration: 0 } : { duration: 0.15 };
+  const panelTransition = reducedMotion
+    ? { duration: 0 }
+    : ({ type: 'spring' as const, stiffness: 400, damping: 35 });
+  const tapTransition = reducedMotion
+    ? { duration: 0 }
+    : ({ type: 'spring' as const, stiffness: 500, damping: 30 });
+
   return (
     <AnimatePresence>
       {authModalOpen && (
@@ -42,7 +51,7 @@ export default function AuthPanel() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
+          transition={backdropTransition}
         >
           <motion.div
             className="h5-auth-panel"
@@ -50,7 +59,7 @@ export default function AuthPanel() {
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
-            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+            transition={panelTransition}
           >
             <div className="h5-auth-header">
               <h2 className="h5-auth-title">认证设置</h2>
@@ -59,7 +68,7 @@ export default function AuthPanel() {
                 onClick={handleSave}
                 whileTap={{ scale: saving ? 1 : 0.96 }}
                 disabled={saving}
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                transition={tapTransition}
               >
                 {saving ? (
                   <span className="h5-auth-saving">

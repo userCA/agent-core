@@ -1,13 +1,23 @@
 /* Agent Trace Card — reasoning thread with colored timeline nodes */
 
 .trace {
-    background: var(--paper-card);
+    background: rgba(240, 246, 244, 0.90);
     border: 2px solid var(--border-ink);
     border-radius: 16px;
     box-shadow: var(--shadow-float, 3px 3px 0 var(--border-ink));
     overflow: hidden;
     max-width: 90%;
     margin-bottom: 4px;
+}
+
+/* When trace is inside a bubble, strip its own card styling */
+.bubble .trace {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    max-width: 100%;
+    margin-bottom: 0;
 }
 
 /* ── Trace header ── */
@@ -19,12 +29,21 @@
     padding: 9px 12px;
     cursor: pointer;
     text-align: left;
-    background: var(--paper-warm);
+    background: rgba(220, 232, 228, 0.92);
     border: none;
     font-family: inherit;
     transition: background-color 0.2s ease;
 }
 .trace-head:hover { background: var(--paper-inner); }
+
+/* Inside bubble, trace header is subtle */
+.bubble .trace-head {
+    background: transparent;
+    padding: 6px 0;
+}
+.bubble .trace-head:hover { background: rgba(44,62,62,0.04); }
+
+.bubble .trace-rail { padding: 6px 0 4px; }
 
 .trace.collapsed .trace-rail { display: none; }
 
@@ -134,6 +153,12 @@
 .trace-content {
     padding: 8px 12px 12px;
     border-top: 1px solid rgba(44,62,62,0.12);
+}
+
+/* Inside bubble, no extra border for content section */
+.bubble .trace-content {
+    border-top: none;
+    padding: 4px 0 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -203,15 +203,15 @@ export default function KnowledgePage({ onBack }: Props) {
               <span className="card-title">新建文档</span>
             </div>
             <div className="form-grid">
-              <div className="form-field">
+              <label className="form-field">
                 <span>文档名称</span>
                 <input type="text" value={name} placeholder="例如 product-manual"
                   className={fieldErrors.name ? 'field-invalid' : ''}
                   onChange={(e) => setName(e.target.value)}
                   onBlur={(e) => validateField('name', e.target.value)} />
                 {fieldErrors.name && <span className="field-error">{fieldErrors.name}</span>}
-              </div>
-              <div className="form-field">
+              </label>
+              <label className="form-field">
                 <span>内容</span>
                 <textarea value={content} rows={6}
                   className={fieldErrors.content ? 'field-invalid' : ''}
@@ -219,7 +219,7 @@ export default function KnowledgePage({ onBack }: Props) {
                   onChange={(e) => setContent(e.target.value)}
                   onBlur={(e) => validateField('content', e.target.value)} />
                 {fieldErrors.content && <span className="field-error">{fieldErrors.content}</span>}
-              </div>
+              </label>
             </div>
             <div className="card-form-actions">
               <button className="btn btn-primary" onClick={handleUpload} disabled={uploading || !name.trim() || !content.trim()}>

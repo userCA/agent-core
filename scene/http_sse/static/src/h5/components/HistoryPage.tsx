@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { useSessionStore, type SessionSummary } from '../../stores/session-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useToastStore } from '../../stores/toast-store';
@@ -76,6 +76,22 @@ export default function HistoryPage({ onBack }: Props) {
   const addToast = useToastStore((s) => s.addToast);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const reducedMotion = useReducedMotion();
+
+  const pageTransition = reducedMotion
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 400, damping: 32 };
+  const emptyTransition = reducedMotion ? { duration: 0 } : { delay: 0.2 };
+  const spinnerTransition = reducedMotion
+    ? { duration: 0 }
+    : { duration: 1, repeat: Infinity, ease: 'linear' as const };
+  const tapScale = reducedMotion ? 1 : 0.97;
+  const exitTransition = reducedMotion
+    ? { duration: 0 }
+    : { duration: 0.25, ease: 'easeInOut' as const };
+  const listVars = reducedMotion ? { hidden: {}, show: {} } : listVariants;
+  const itemVars = reducedMotion ? { hidden: {}, show: {} } : itemVariants;
+  const dateVars = reducedMotion ? { hidden: {}, show: {} } : dateLabelVariants;
 
   useEffect(() => {
     loadSessions();
@@ -115,7 +131,7 @@ export default function HistoryPage({ onBack }: Props) {
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+      transition={pageTransition}
     >
       <div className="h5-history-body">
         <div className="h5-history-search">
@@ -142,8 +158,8 @@ export default function HistoryPage({ onBack }: Props) {
           <div className="h5-history-loading">
             <motion.div
               className="h5-history-spinner"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              animate={reducedMotion ? undefined : { rotate: 360 }}
+              transition={spinnerTransition}
             >
               <Icon name="spinner" size={20} />
             </motion.div>
@@ -155,7 +171,7 @@ export default function HistoryPage({ onBack }: Props) {
             className="h5-history-empty"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={emptyTransition}
           >
             <Icon name="message" size={32} aria-label="暂无消息" />
             <p>暂无历史记录</p>
@@ -167,7 +183,7 @@ export default function HistoryPage({ onBack }: Props) {
             className="h5-history-empty"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={emptyTransition}
           >
             <Icon name="search" size={32} aria-label="无搜索结果" />
             <p>未找到匹配的会话</p>
@@ -179,14 +195,14 @@ export default function HistoryPage({ onBack }: Props) {
             <motion.div
               key={dateLabel}
               className="h5-history-group"
-              variants={listVariants}
+              variants={listVars}
               initial="hidden"
               animate="show"
-              exit={{ opacity: 0, height: 0 }}
+              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
             >
               <motion.h3
                 className="h5-history-date"
-                variants={dateLabelVariants}
+                variants={dateVars}
               >
                 {dateLabel}
               </motion.h3>
@@ -198,10 +214,10 @@ export default function HistoryPage({ onBack }: Props) {
                     <motion.div
                       key={s.session_id}
                       className={`h5-history-item ${isActive ? 'h5-history-item--active' : ''}`}
-                      variants={itemVariants}
-                      layout
-                      exit={{ opacity: 0, x: -40, scale: 0.9, transition: { duration: 0.25, ease: 'easeInOut' } }}
-                      whileTap={{ scale: 0.97 }}
+                      variants={itemVars}
+                      layout={!reducedMotion}
+                      exit={{ opacity: 0, x: reducedMotion ? 0 : -40, scale: reducedMotion ? 1 : 0.9, transition: exitTransition }}
+                      whileTap={{ scale: tapScale }}
                     >
                       <button
                         className="h5-history-item-main"

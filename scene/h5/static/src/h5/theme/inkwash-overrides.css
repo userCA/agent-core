@@ -1,6 +1,21 @@
 /* ── Oriental Ink-Wash Overrides ── */
 /* Centralized ink-wash styles: hand-drawn borders, semi-transparent surfaces, corner gradients, wallpaper backgrounds, hard-offset shadows. */
 
+/* ── 0. @font-face Latin subset override ── */
+/* Ma Shan Zheng & ZCOOL KuaiLe are CJK fonts. English text should use clean sans-serif
+   to avoid calligraphic rendering for Latin characters. This hack maps Latin Unicode to
+   system sans-serif, while Chinese characters still render in Ma Shan Zheng. */
+@font-face {
+  font-family: 'Ma Shan Zheng';
+  src: local('Arial'), local('Helvetica Neue'), local('Helvetica'), local('Noto Sans');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'ZCOOL KuaiLe';
+  src: local('Arial'), local('Helvetica Neue'), local('Helvetica'), local('Noto Sans');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* ── 1. Hand-drawn border utilities ── */
 .hand-drawn {
   border: 1.5px solid var(--border-ink);
@@ -31,27 +46,27 @@
   box-shadow: var(--shadow-card) !important;
 }
 
-/* ── 3. Ink corner gradient decoration ── */
-.h5-app-layout::before {
+/* ── 3. Ink-wash full-screen gradient overlays (prototype L543-564) ── */
+/* Chat page gradient — bottom-left ink + top-right sky */
+.h5-page--chat::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 180px;
-  height: 180px;
-  background: radial-gradient(ellipse at top left, rgba(44,62,62,0.12) 0%, transparent 70%);
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    radial-gradient(ellipse at 15% 85%, rgba(44,62,62,0.18), transparent 50%),
+    radial-gradient(ellipse at 85% 15%, rgba(160,196,212,0.15), transparent 45%);
   pointer-events: none;
   z-index: 0;
 }
 
-.h5-app-layout::after {
+/* History page gradient — top-right ink + bottom-left plum */
+.h5-page--history::before {
   content: '';
   position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 160px;
-  height: 160px;
-  background: radial-gradient(ellipse at bottom right, rgba(44,62,62,0.08) 0%, transparent 70%);
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    radial-gradient(ellipse at 80% 15%, rgba(44,62,62,0.16), transparent 50%),
+    radial-gradient(ellipse at 20% 90%, rgba(196,160,160,0.12), transparent 45%);
   pointer-events: none;
   z-index: 0;
 }
@@ -90,7 +105,7 @@
 .h5-login {
   background-color: var(--paper-inner) !important;
   background-image:
-    linear-gradient(180deg, rgba(212,232,232,0.35) 0%, rgba(240,246,244,0.18) 40%, rgba(212,232,232,0.25) 100%),
+    linear-gradient(135deg, rgba(160,196,212,0.35) 0%, rgba(212,232,232,0.50) 40%, rgba(184,168,200,0.20) 70%, rgba(212,232,232,0.60) 100%),
     url('/style_1.jpeg');
   background-size: cover;
   background-position: center;
@@ -179,7 +194,13 @@
   font-family: var(--font-mono) !important;
 }
 
-.markdown-body pre {
+/* Markdown code blocks — ink-wash border on wrapper, not pre */
+.markdown-body .code-block-wrapper {
   border: 1.5px solid var(--border-ink) !important;
   box-shadow: var(--shadow-card) !important;
+}
+
+.markdown-body .code-block-wrapper > pre {
+  border: none !important;
+  box-shadow: none !important;
 }

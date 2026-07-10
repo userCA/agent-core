@@ -25,7 +25,7 @@
 
 .h5-quick-tag {
   flex-shrink: 0;
-  padding: 4px 12px;
+  padding: 8px 14px;
   border-radius: 9999px;
   font-family: var(--font-mono);
   font-size: 11px;
@@ -36,7 +36,7 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s ease, color 0.15s ease;
-  min-height: 28px;
+  min-height: 44px;
   display: flex;
   align-items: center;
 }
@@ -69,6 +69,9 @@
 
 /* ── Reference input styles ── */
 .container-ia-chat {
+  --h5-input-left-gap: 120px;   /* space for the left upload icons */
+  --h5-input-right-gap: 54px;   /* space for the right voice/send button */
+  --h5-input-focus-left-gap: 48px; /* space for the left file attachment icon */
   position: relative;
   display: flex;
   align-items: center;
@@ -85,12 +88,13 @@
 }
 
 .container-upload-files .upload-file {
-  margin: 4px;
-  padding: 2px;
+  margin: -2px;
+  padding: 8px;
   cursor: pointer;
   transition: color 0.5s;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -100,11 +104,11 @@
 }
 
 .input-text {
-  max-width: calc(100% - 140px);
+  max-width: calc(100% - var(--h5-input-left-gap) - var(--h5-input-right-gap));
   width: 100%;
-  margin-left: 120px;
+  margin-left: var(--h5-input-left-gap);
   padding: 0.75rem 1rem;
-  padding-right: 46px;
+  padding-right: var(--h5-input-right-gap);
   border-radius: 50px;
   border: none;
   outline: none;
@@ -129,8 +133,8 @@
 
 .input-text:focus-within,
 .input-text:valid {
-  max-width: calc(100% - 50px);
-  margin-left: 42px;
+  max-width: calc(100% - var(--h5-input-focus-left-gap) - var(--h5-input-right-gap));
+  margin-left: var(--h5-input-focus-left-gap);
 }
 
 .input-text:focus-within ~ .container-upload-files,
@@ -192,7 +196,11 @@
   left: 0;
   transform: translateX(-20px) translateY(-50%) scale(1);
   display: flex;
-  padding: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   color: var(--ash);
   background-color: var(--surface-card);
   border-radius: 50px;
@@ -215,10 +223,12 @@
   top: 50%;
   right: 0.25rem;
   transform: translateX(0) translateY(-50%) scale(1);
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: flex;
-  padding: 6px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: none;
   outline: none;
   cursor: pointer;

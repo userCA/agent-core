@@ -108,7 +108,6 @@ export default function Sidebar() {
   return (
     <motion.aside
       className={`sidebar${collapsed ? ' sidebar-collapsed' : ''}`}
-      layout
     >
       <AnimatePresence>
         {!collapsed && (

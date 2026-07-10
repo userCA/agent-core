@@ -42,7 +42,7 @@ class LLMSummaryCompactor:
         *,
         summarize_fn: SummarizeFn | None = None,
         threshold: float = 0.8,
-        keep_recent: int = 4,
+        keep_recent: int = 10,
     ) -> None:
         self._summarize_fn = summarize_fn
         self._threshold = threshold

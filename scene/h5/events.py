@@ -7,6 +7,7 @@ The *sse_event* value maps to the SSE ``event:`` channel field
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -24,15 +25,24 @@ from agent_core.core.events import (
     ToolCallDelta,
 )
 
+# Tool names that produce image output
+_IMAGE_TOOL_NAMES = frozenset({"generate_image", "generate_images", "edit_image"})
+
 
 class _ContentTracker:
     """Track content-block lifecycle (start → delta×N → done)."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, message_id: str = "msg_0") -> None:
         self._counter = 0
         self._open_type: str | None = None
         self._open_id: str | None = None
         self._open_index: int = -1
+        # Image URLs emitted as content blocks — used to strip markdown duplicates
+        self._image_urls: set[str] = set()
+        # Buffer for partial markdown across streaming deltas
+        self._strip_buffer: str = ""
+        # Message ID for consistent message.end (must match message.start)
+        self.message_id: str = message_id
 
     # -- helpers ---------------------------------------------------------------
 
@@ -76,6 +86,7 @@ class _ContentTracker:
         }
         self._open_type = None
         self._open_id = None
+        self._open_index = -1
         return result
 
     def delta(self, block_type: str, text: str) -> dict[str, Any] | list[dict[str, Any]]:
@@ -111,10 +122,73 @@ class _ContentTracker:
             },
         }
 
+    def emit_snapshot(self, block_type: str, url: str, meta: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        """Emit a snapshot-mode content block (start + done) for non-streaming media."""
+        close_evt = self.close()  # close any open text/thinking block
+        cid = self._next_id()
+        idx = self._counter - 1
+        start: dict[str, Any] = {
+            "sse_event": "content",
+            "data": {
+                "type": block_type,
+                "contentId": cid,
+                "index": idx,
+                "phase": "start",
+                "content": "",
+            },
+        }
+        done_data: dict[str, Any] = {
+            "type": block_type,
+            "contentId": cid,
+            "index": idx,
+            "phase": "done",
+            "content": url,
+        }
+        if meta:
+            done_data["meta"] = meta
+        done: dict[str, Any] = {"sse_event": "content", "data": done_data}
+        if close_evt is not None:
+            return [close_evt, start, done]
+        return [start, done]
 
-def create_tracker() -> _ContentTracker:
+    def record_image_url(self, url: str) -> None:
+        """Record an image URL so that duplicate markdown references can be stripped."""
+        self._image_urls.add(url)
+
+    def strip_image_markdown(self, text: str) -> str:
+        """Remove ![...](url) patterns referencing known image URLs.
+
+        Uses an internal buffer to handle partial markdown that spans
+        multiple streaming deltas (e.g. ``![im`` + ``age](url)``).
+        """
+        if not self._image_urls:
+            return text
+        # Prepend buffered partial from previous delta
+        combined = self._strip_buffer + text
+        self._strip_buffer = ""
+        for url in self._image_urls:
+            escaped = re.escape(url)
+            combined = re.sub(rf'!\[[^\]]*\]\({escaped}\)\s*', '', combined)
+        # Keep tail that might be an incomplete ![...](url) pattern
+        safe_end = len(combined)
+        if '![' in combined:
+            last_open = combined.rfind('![')
+            # Check if the pattern is still open (no closing ')' after it)
+            after = combined[last_open:]
+            if '](' in after and ')' not in after.split('](', 1)[1]:
+                safe_end = last_open
+            elif '](' not in after:
+                safe_end = last_open
+        self._strip_buffer = combined[safe_end:]
+        result = combined[:safe_end]
+        if not result.strip() or result.strip() in (":", "：", "。"):
+            return ""
+        return result
+
+
+def create_tracker(*, message_id: str = "msg_0") -> _ContentTracker:
     """Create an independent tracker instance for one SSE stream."""
-    return _ContentTracker()
+    return _ContentTracker(message_id=message_id)
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +222,12 @@ def agent_event_to_sse_json(
     if isinstance(evt, MessageUpdate):
         delta = evt.delta
         if isinstance(delta, TextDelta):
-            return tracker.delta("text", delta.text) if tracker else None
+            if tracker:
+                stripped = tracker.strip_image_markdown(delta.text)
+                if not stripped:
+                    return None
+                return tracker.delta("text", stripped)
+            return None
         if isinstance(delta, ThinkingDelta):
             return tracker.delta("thinking", delta.text) if tracker else None
         if isinstance(delta, ToolCallDelta):
@@ -190,14 +269,30 @@ def agent_event_to_sse_json(
         }
         if hasattr(evt.result, "display") and evt.result.display:
             result_payload["display"] = evt.result.display
-        return {
+
+        events: list[dict[str, Any]] = []
+
+        # Emit image content blocks for image generation tools
+        if evt.tool_name in _IMAGE_TOOL_NAMES and not evt.is_error and tracker:
+            image_urls, image_meta = _extract_image_info(evt.result)
+            for url in image_urls:
+                tracker.record_image_url(url)
+                meta = dict(image_meta) if image_meta else {}
+                meta["name"] = url.rsplit("/", 1)[-1] if "/" in url else "image.png"
+                meta["format"] = _guess_format(url)
+                meta["progress"] = 100
+                snap_events = tracker.emit_snapshot("image", url, meta)
+                events.extend(snap_events)
+
+        events.append({
             "sse_event": "action",
             "data": {
                 "actionType": "tool_call.completed",
                 "toolCallId": evt.tool_call_id,
                 "result": result_payload,
             },
-        }
+        })
+        return events if len(events) > 1 else events[0]
 
     # -- HumanInputRequired ----------------------------------------------------
     if isinstance(evt, HumanInputRequired):
@@ -234,19 +329,31 @@ def agent_event_to_sse_json(
                 "cache_write_tokens": getattr(u, "cache_write_tokens", 0),
             }
 
-        stop_reason = "end_turn"
-        if hasattr(msg, "stop_reason"):
-            stop_reason = msg.stop_reason or "end_turn"
+        # Map internal stop_reason to spec StopReason values
+        _STOP_REASON_MAP: dict[str, str] = {
+            "stop": "end_turn",
+            "end_turn": "end_turn",
+            "tool_use": "tool_use",
+            "length": "max_tokens",
+            "content_filter": "error",
+            "error": "error",
+            "aborted": "cancelled",
+        }
+        raw_stop = getattr(msg, "stop_reason", None) or "stop"
+        stop_reason = _STOP_REASON_MAP.get(raw_stop, "end_turn")
+
+        end_data: dict[str, Any] = {
+            "type": "message.end",
+            "messageId": tracker.message_id if tracker else "msg_0",
+            "stopReason": stop_reason,
+            "completedAt": int(time.time()),
+        }
+        if usage is not None:
+            end_data["usage"] = usage
 
         events.append({
             "sse_event": "message",
-            "data": {
-                "type": "message.end",
-                "messageId": getattr(msg, "id", "msg_0"),
-                "stopReason": stop_reason,
-                "completedAt": int(time.time()),
-                "usage": usage,
-            },
+            "data": end_data,
         })
         return events
 
@@ -301,3 +408,46 @@ def _extract_result_text(result: Any) -> str:
     if hasattr(result, "text"):
         return result.text
     return str(result)
+
+
+def _extract_image_info(result: Any) -> tuple[list[str], dict[str, Any] | None]:
+    """Extract image URLs and metadata from a ToolResult."""
+    urls: list[str] = []
+    meta: dict[str, Any] | None = None
+    if result is None:
+        return urls, meta
+    # Check details dict (used by AgnesImageTool)
+    if hasattr(result, "details") and isinstance(result.details, dict):
+        detail_urls = result.details.get("urls", [])
+        if detail_urls:
+            urls.extend(detail_urls)
+        size = result.details.get("size", "")
+        if size:
+            meta = {"size": size}
+            m = re.match(r"(\d+)\s*x\s*(\d+)", str(size))
+            if m:
+                meta["width"] = int(m.group(1))
+                meta["height"] = int(m.group(2))
+    # Check content list for ImageContent items
+    if hasattr(result, "content"):
+        for item in result.content:
+            if hasattr(item, "type") and item.type == "image" and hasattr(item, "data"):
+                if item.data not in urls:
+                    urls.append(item.data)
+    # Fallback: scan text content for markdown image URLs
+    if not urls and hasattr(result, "content"):
+        for item in result.content:
+            if hasattr(item, "text"):
+                for m in re.finditer(r'!\[[^\]]*\]\(([^)]+)\)', item.text):
+                    u = m.group(1)
+                    if u.startswith(('http://', 'https://', '/')) and u not in urls:
+                        urls.append(u)
+    return urls, meta
+
+
+def _guess_format(url: str) -> str:
+    """Guess image format from URL."""
+    for ext in ("png", "jpg", "jpeg", "gif", "webp", "svg"):
+        if f".{ext}" in url.lower():
+            return ext
+    return "png"

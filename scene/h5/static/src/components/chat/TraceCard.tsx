@@ -25,9 +25,9 @@ const CheckNode = ({ size = 10 }: { size?: number }) => (
 );
 
 export default function TraceCard({ blocks }: Props) {
-  // Separate step blocks (think/tool) from content blocks (text/widget/video)
+  // Separate step blocks (think/tool) from content blocks (text/widget/video/image)
   const stepBlocks = blocks.filter(b => b.type === 'think' || b.type === 'tool');
-  const contentBlocks = blocks.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video');
+  const contentBlocks = blocks.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image');
 
   const [traceOpen, setTraceOpen] = useState(true);
   const [openSteps, setOpenSteps] = useState<Set<number>>(new Set());
@@ -76,6 +76,12 @@ export default function TraceCard({ blocks }: Props) {
               <video controls preload="metadata" aria-label="生成的视频"
                 style={{ width: '100%', maxHeight: 480, aspectRatio: '16/9', borderRadius: 'var(--radius-sm)', background: '#000' }}
                 src={b.videoUrl} />
+            </div>
+          );
+          if (b.type === 'image' && b.imageUrl) return (
+            <div key={i} className="block-image">
+              <img src={b.imageUrl} alt="生成的图片" loading="lazy"
+                style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 'var(--radius-sm)', display: 'block' }} />
             </div>
           );
           return null;
@@ -149,6 +155,12 @@ export default function TraceCard({ blocks }: Props) {
                 <video controls preload="metadata" aria-label="生成的视频"
                   style={{ width: '100%', maxHeight: 480, aspectRatio: '16/9', borderRadius: 'var(--radius-sm)', background: '#000' }}
                   src={b.videoUrl} />
+              </div>
+            );
+            if (b.type === 'image' && b.imageUrl) return (
+              <div key={i} className="block-image">
+                <img src={b.imageUrl} alt="生成的图片" loading="lazy"
+                  style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 'var(--radius-sm)', display: 'block' }} />
               </div>
             );
             return null;

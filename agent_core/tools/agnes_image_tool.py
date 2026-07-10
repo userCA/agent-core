@@ -110,9 +110,12 @@ class AgnesImageTool(Tool):
             # Output image URLs wrapped in markdown for inline rendering in chat.
             # These become part of the assistant's response and persist across session reloads.
             md = "\n\n".join(f"![生成图片]({u})" for u in urls)
+            # Build display payload for v1 SSE image content blocks
+            display_images = [{"url": u, "size": size} for u in urls]
             return ToolResult(
                 content=[TextContent(text=md)],
                 details={"urls": urls, "size": size, "usage": data.get("usage", {})},
+                display={"image": display_images[0] if len(display_images) == 1 else display_images},
             )
 
         except httpx.HTTPStatusError as e:

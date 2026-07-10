@@ -24,7 +24,30 @@ export async function* parseSSEStream(
 
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      // Process any remaining data in buffer before exiting
+      if (buffer.trim()) {
+        let channel = '';
+        const lines = buffer.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            channel = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            const raw = line.slice(6);
+            if (raw === '[DONE]') return;
+            if (raw) {
+              try {
+                const data = JSON.parse(raw) as SSEEvent;
+                yield { sseEvent: channel || 'message', data };
+              } catch {
+                // ignore malformed JSON
+              }
+            }
+          }
+        }
+      }
+      break;
+    }
 
     buffer += decoder.decode(value, { stream: true });
     const parts = buffer.split('\n\n');

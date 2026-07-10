@@ -160,23 +160,30 @@ export default function ChannelsPage({ onBack }: Props) {
             </div>
             <div className="form-grid">
               <div className="form-field">
-                <span>标识 *</span>
-                <input value={form.id} onChange={e => setForm({ ...form, id: e.target.value })}
+                <label htmlFor="channel-id">标识 *</label>
+                <input id="channel-id" value={form.id} onChange={e => setForm({ ...form, id: e.target.value })}
                   className={fieldErrors.id ? 'field-invalid' : ''}
-                  placeholder="英文标识，如 feishu-vip" disabled={!!editingId || submitting} />
-                {fieldErrors.id && <span className="field-error">{fieldErrors.id}</span>}
+                  placeholder="英文标识，如 feishu-vip" disabled={!!editingId || submitting}
+                  aria-invalid={!!fieldErrors.id}
+                  aria-describedby={fieldErrors.id ? 'channel-id-error' : undefined} />
+                {fieldErrors.id && <span id="channel-id-error" className="field-error">{fieldErrors.id}</span>}
               </div>
               <div className="form-field">
-                <span>名称 *</span>
-                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                <label htmlFor="channel-name">名称 *</label>
+                <input id="channel-name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                   className={fieldErrors.name ? 'field-invalid' : ''}
-                  placeholder="显示名称，如 飞书 VIP" disabled={submitting} />
-                {fieldErrors.name && <span className="field-error">{fieldErrors.name}</span>}
+                  placeholder="显示名称，如 飞书 VIP" disabled={submitting}
+                  aria-invalid={!!fieldErrors.name}
+                  aria-describedby={fieldErrors.name ? 'channel-name-error' : undefined} />
+                {fieldErrors.name && <span id="channel-name-error" className="field-error">{fieldErrors.name}</span>}
               </div>
               <div className="form-field">
-                <span>类型</span>
+                <span id="channel-type-label">类型</span>
                 <div className="form-dropdown">
-                  <button className="form-select" onClick={() => toggleDropdown('type')} type="button" disabled={submitting}>
+                  <button className="form-select" onClick={() => toggleDropdown('type')} type="button" disabled={submitting}
+                    aria-labelledby="channel-type-label"
+                    aria-haspopup="listbox"
+                    aria-expanded={openDropdown === 'type'}>
                     {form.type === 'wechat' ? '微信 (即将支持)' : '飞书 (Lark)'}
                   </button>
                   {openDropdown === 'type' && (
@@ -197,15 +204,17 @@ export default function ChannelsPage({ onBack }: Props) {
                 </div>
               </div>
               <div className="form-field">
-                <span>App ID</span>
-                <input value={form.app_id} onChange={e => setForm({ ...form, app_id: e.target.value })}
+                <label htmlFor="channel-app-id">App ID</label>
+                <input id="channel-app-id" value={form.app_id} onChange={e => setForm({ ...form, app_id: e.target.value })}
                   className={fieldErrors.app_id ? 'field-invalid' : ''}
-                  placeholder="cli_xxxxxxxx" disabled={submitting} />
-                {fieldErrors.app_id && <span className="field-error">{fieldErrors.app_id}</span>}
+                  placeholder="cli_xxxxxxxx" disabled={submitting}
+                  aria-invalid={!!fieldErrors.app_id}
+                  aria-describedby={fieldErrors.app_id ? 'channel-app-id-error' : undefined} />
+                {fieldErrors.app_id && <span id="channel-app-id-error" className="field-error">{fieldErrors.app_id}</span>}
               </div>
               <div className="form-field">
-                <span>App Secret</span>
-                <input type="password" value={form.app_secret} onChange={e => setForm({ ...form, app_secret: e.target.value })}
+                <label htmlFor="channel-app-secret">App Secret</label>
+                <input id="channel-app-secret" type="password" value={form.app_secret} onChange={e => setForm({ ...form, app_secret: e.target.value })}
                   placeholder={editingId ? '留空表示不修改' : '输入密钥'} disabled={submitting} />
               </div>
             </div>

@@ -85,8 +85,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-sm);
   background: transparent;
@@ -128,7 +128,7 @@
   text-align: left;
   transition: background 0.15s ease;
   width: 100%;
-  min-height: 36px;
+  min-height: 44px;
 }
 
 .sidebar-menu-item:hover {
@@ -179,6 +179,9 @@
 }
 
 .sidebar-submenu-item {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   padding: 6px 10px;
   border: none;
   border-radius: var(--radius-sm);
@@ -251,8 +254,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);
@@ -317,7 +320,7 @@
   font-size: 12px;
   font-family: var(--font-sans);
   width: 100%;
-  min-height: 36px;
+  min-height: 44px;
   transition: background 0.15s ease;
 }
 
@@ -346,7 +349,7 @@
   font-family: inherit;
   cursor: pointer;
   text-align: left;
-  min-height: 36px;
+  min-height: 44px;
 }
 
 .session-item-main:focus-visible {
@@ -384,8 +387,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   margin-right: 6px;
   padding: 0;
   border: none;
@@ -393,13 +396,19 @@
   background: transparent;
   color: var(--ash);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
   opacity: 0;
 }
 
 .session-item:hover .session-delete,
 .session-item:focus-within .session-delete {
   opacity: 1;
+}
+
+@media (hover: none) {
+  .session-delete {
+    opacity: 0.7;
+  }
 }
 
 .session-delete:hover {

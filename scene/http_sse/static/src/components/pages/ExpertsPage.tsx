@@ -407,16 +407,19 @@ export default function ExpertsPage({ onBack }: Props) {
                   }}
                 >
                   <div className="expert-item-header">
+                    <TooltipWrap label={isActive ? '停用' : '激活'}>
+                      <button
+                        className="expert-toggle-btn"
+                        type="button"
+                        onClick={() => setPersonaId(isActive ? null : p.id)}
+                        aria-label={isActive ? `停用专家 ${p.name}` : `激活专家 ${p.name}`}
+                        aria-pressed={isActive}
+                      >
+                        <span className="expert-bracket">[{isActive ? '*' : ' '}]</span>
+                      </button>
+                    </TooltipWrap>
                     <Collapsible.Trigger asChild>
                       <button className="expert-item-toggle" type="button">
-                        <TooltipWrap label={isActive ? '停用' : '激活'}>
-                          <span
-                            className="expert-bracket"
-                            onClick={(e) => { e.stopPropagation(); setPersonaId(isActive ? null : p.id); }}
-                          >
-                            [{isActive ? '*' : ' '}]
-                          </span>
-                        </TooltipWrap>
                         <div className="expert-item-info">
                           <span className="expert-item-name">{p.name}</span>
                           <span className="expert-item-desc">{p.description}</span>

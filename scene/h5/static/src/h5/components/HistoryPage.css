@@ -15,9 +15,9 @@
   gap: 8px;
   margin: 8px 12px 12px;
   padding: 8px 12px;
-  border: 1.5px solid var(--border-ink);
+  border: 2px solid var(--border-ink);
   border-radius: var(--radius-sm);
-  background: rgba(240,246,244,0.88);
+  background: rgba(245,250,248,0.88);
   color: var(--ash);
   box-shadow: var(--shadow-card);
 }
@@ -126,11 +126,12 @@
 
 .h5-history-date {
   position: relative;
-  font-size: 12px;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--body);
-  letter-spacing: 0.06em;
+  font-size: 13px;
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+  font-weight: 700;
+  color: var(--ink-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
   padding: 12px 16px 6px 36px;
   margin: 0;
 }
@@ -163,8 +164,9 @@
   margin: 0 12px 4px 36px;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  background: rgba(240,246,244,0.85);
-  border: 1px solid var(--border-passive);
+  background: rgba(240,246,244,0.90);
+  border: 2px solid var(--border-ink);
+  box-shadow: var(--shadow-card);
 }
 
 /* Timeline node dot */
@@ -198,7 +200,7 @@
 /* Active session */
 .h5-history-item--active {
   background: rgba(160,196,212,0.22);
-  border-color: var(--accent-sky);
+  border-color: var(--border-ink);
 }
 
 .h5-history-item--active .h5-history-item-title {
@@ -243,7 +245,7 @@
 .h5-history-item-meta {
   font-size: 12px;
   color: var(--ash);
-  font-family: var(--font-mono);
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
 }
 
 .h5-history-item-delete {

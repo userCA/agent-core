@@ -4,7 +4,7 @@
 /* ---- Phone (≤768px) ---- */
 @media (max-width: 768px) {
     body {
-        font-size: 13px;
+        font-size: 16px;
     }
 
     /* Header */
@@ -44,7 +44,7 @@
     /* Messages */
     .bubble {
         padding: 10px 12px;
-        font-size: 13px;
+        font-size: 15px;
     }
 
     .bubble-user {
@@ -52,7 +52,7 @@
     }
 
     .user-text {
-        font-size: 13px;
+        font-size: 15px;
     }
 
     /* Input area */
@@ -90,7 +90,7 @@
     .hitl-field input[type="text"],
     .hitl-field textarea,
     .hitl-field select {
-        font-size: 13px;
+        font-size: 16px;
         padding: 8px 10px;
     }
 

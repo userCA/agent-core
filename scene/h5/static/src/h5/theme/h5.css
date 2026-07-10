@@ -21,12 +21,13 @@
 
 .h5-app-layout .bubble-user {
     max-width: 72%;
+    min-width: 120px;
 }
 
 .h5-app-layout .bubble-assistant {
     max-width: 92%;
     background: rgba(245,250,248,0.90);
-    border: 1.5px solid var(--border-passive);
+    border: 1.5px solid rgba(44,62,62,0.6);
     border-radius: 16px 16px 16px 4px;
     padding: 10px 14px;
     font-size: 15px;
@@ -40,108 +41,6 @@
 
 .h5-app-layout .msg-label {
     font-size: 10px;
-    margin-bottom: 2px;
-}
-
-/* ── Input area: minimal, just text + send ── */
-.h5-app-layout .chat-input-area {
-    padding: 4px 8px 6px;
-    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
-}
-
-.h5-app-layout .chat-textarea {
-    font-size: 15px;
-    min-height: 34px;
-    padding: 7px 34px 5px 10px;
-    line-height: 1.4;
-}
-
-.h5-app-layout .input-box {
-    border-radius: 18px;
-}
-
-/* Compact mode: single + button + send */
-.h5-app-layout .input-actions--compact {
-    padding: 0 4px 2px;
-    justify-content: space-between;
-}
-
-.h5-app-layout .input-actions--compact .actions-right {
-    margin-left: auto;
-}
-
-.h5-app-layout .input-actions {
-    padding: 2px 6px 4px;
-}
-
-.h5-app-layout .actions-left,
-.h5-app-layout .actions-right {
-    gap: 2px;
-}
-
-.h5-app-layout .action-btn {
-    min-width: 32px;
-    min-height: 32px;
-}
-
-/* Clear button */
-.h5-app-layout .input-clear-btn {
-    top: 5px;
-    right: 4px;
-    min-width: 26px;
-    min-height: 26px;
-}
-
-.h5-app-layout .input-clear-btn svg {
-    width: 9px;
-    height: 9px;
-}
-
-/* Popover & skill panel compact */
-.h5-app-layout .skill-panel {
-    max-height: 120px;
-    padding: 4px;
-    gap: 1px;
-    margin-bottom: 4px;
-}
-
-.h5-app-layout .skill-item {
-    padding: 5px 8px;
-    font-size: 11px;
-    gap: 6px;
-}
-
-.h5-app-layout .more-popover {
-    min-width: 100px;
-    padding: 3px;
-    gap: 1px;
-}
-
-.h5-app-layout .more-popover button {
-    padding: 5px 8px;
-    font-size: 11px;
-    gap: 6px;
-}
-
-.h5-app-layout .model-popover {
-    min-width: 160px;
-}
-
-.h5-app-layout .model-popover button {
-    font-size: 11px;
-}
-
-.h5-app-layout .model-filter {
-    padding: 4px 6px;
-}
-
-.h5-app-layout .model-filter input {
-    font-size: 11px;
-}
-
-.h5-app-layout .pending-hint {
-    font-size: 10px;
-    padding: 1px 6px;
     margin-bottom: 2px;
 }
 
@@ -251,15 +150,16 @@
     margin: 4px 0;
 }
 
+/* Remove outer border when code-block is inside assistant bubble — bubble border suffices */
+.h5-app-layout .bubble-assistant .code-block-wrapper {
+    border: none;
+    box-shadow: none;
+}
+
 .h5-app-layout .code-copy-btn {
     min-height: 36px;
     padding: 4px 10px;
     font-size: 11px;
-}
-
-/* ── Streaming cursor ── */
-.h5-app-layout .streaming-cursor {
-    font-size: 15px;
 }
 
 /* ── Page header (skills/settings) ── */
@@ -326,16 +226,6 @@
     min-width: 0;
 }
 
-.h5-app-layout .page-filter-row {
-    flex-wrap: wrap;
-    gap: 3px;
-}
-
-.h5-app-layout .filter-tab {
-    padding: 3px 8px;
-    font-size: 11px;
-}
-
 /* ── Cards: single-column, compact ── */
 .h5-app-layout .card-grid {
     grid-template-columns: 1fr;
@@ -361,90 +251,6 @@
     padding: 2px 6px;
 }
 
-/* ── Tags ── */
-.h5-app-layout .tag-cloud {
-    gap: 4px;
-}
-
-.h5-app-layout .tag {
-    font-size: 10px;
-    padding: 2px 8px;
-}
-
-/* ── Connector items ── */
-.h5-app-layout .connector-item-header {
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 8px 10px;
-    font-size: 12px;
-}
-
-.h5-app-layout .connector-item-meta {
-    flex-wrap: wrap;
-    gap: 4px;
-    font-size: 10px;
-}
-
-.h5-app-layout .connector-item-tools {
-    padding: 6px 10px 8px;
-}
-
-.h5-app-layout .connector-item-badge {
-    font-size: 9px;
-    padding: 2px 6px;
-}
-
-/* ── Expert items: prevent overflow ── */
-.h5-app-layout .expert-item-info {
-    flex-wrap: wrap;
-    gap: 2px;
-}
-
-.h5-app-layout .expert-item-desc {
-    width: 100%;
-    font-size: 11px;
-}
-
-.h5-app-layout .expert-item-right {
-    gap: 4px;
-}
-
-.h5-app-layout .expert-item-meta {
-    font-size: 10px;
-}
-
-.h5-app-layout .expert-item-actions {
-    gap: 6px;
-    padding-left: 4px;
-}
-
-.h5-app-layout .expert-action-link {
-    font-size: 11px;
-}
-
-.h5-app-layout .expert-active-head {
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.h5-app-layout .expert-active-head-text {
-    font-size: 13px;
-    white-space: normal;
-}
-
-.h5-app-layout .expert-active-desc {
-    font-size: 11px;
-}
-
-/* ── Tool toggles ── */
-.h5-app-layout .tool-toggle-grid {
-    gap: 3px;
-}
-
-.h5-app-layout .tool-toggle {
-    padding: 4px 8px;
-    font-size: 11px;
-}
 
 /* ── Forms ── */
 .h5-app-layout .form-field {
@@ -475,11 +281,6 @@
     transform: translateX(14px);
 }
 
-/* ── Upload status ── */
-.h5-app-layout .upload-status {
-    font-size: 11px;
-    padding: 6px 10px;
-}
 
 /* ── Modal ── */
 .h5-app-layout .modal-content {
@@ -488,30 +289,30 @@
     padding: 16px;
 }
 
-/* ── Expert active card ── */
-.h5-app-layout .expert-active-card {
-    padding: 10px 12px;
+/* ── Tool Drawer — confined to phone frame ── */
+.h5-app-layout .td-overlay {
+    position: absolute;
+}
+.h5-app-layout .td-sheet {
+    position: absolute;
+    max-height: 55%;
 }
 
-/* ── H5ChatInput gradient container overrides ── */
-.h5-chat-options .chat-input-area {
-    padding: 0;
-    border-top: none;
-    background: transparent;
+/* ── Companion Drawer — confined to phone frame ── */
+.h5-app-layout .cd-overlay {
+    position: absolute;
+}
+.h5-app-layout .cd-sheet {
+    position: absolute;
+    max-height: 55%;
 }
 
-.h5-chat-options .input-box {
-    border: none;
-    background: transparent;
-    border-radius: 0;
+/* ── Auth Panel — confined to phone frame ── */
+.h5-app-layout .h5-auth-backdrop {
+    position: absolute;
+}
+.h5-app-layout .h5-auth-panel {
+    max-width: 100%;
 }
 
-.h5-chat-options .input-box:focus-within {
-    box-shadow: none;
-}
 
-.h5-chat-options .chat-textarea {
-    padding: 10px 34px 10px 10px;
-    font-size: 14px;
-    min-height: 44px;
-}

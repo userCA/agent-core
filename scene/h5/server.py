@@ -16,8 +16,9 @@ load_dotenv()
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from agent_core.core.content import ImageContent
 from agent_core.core.events import AgentEnd, AgentEvent
 from agent_core.resources.personas import load_personas
 
@@ -27,10 +28,23 @@ from scene.h5.manager import SessionManager
 from scene.h5.request_context import current_request_headers
 
 
+class ContentBlockInput(BaseModel):
+    """Multimodal content block per spec §9.1."""
+    type: str = Field(..., pattern=r'^(text|image|audio|video|file)$')
+    content: str = Field(..., min_length=1)
+    meta: dict[str, Any] | None = None
+
+
 class ChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, max_length=100_000)
+    message: str = Field(default="", max_length=100_000)
+    content: list[ContentBlockInput] | None = None
     provider: str | None = Field(default=None, max_length=50)
     model: str | None = Field(default=None, max_length=50)
+
+    @field_validator("message", mode="before")
+    @classmethod
+    def _validate_message_or_content(cls, v: Any, info: Any) -> Any:
+        return v if v is not None else ""
 
 
 class KnowledgeDocRequest(BaseModel):
@@ -48,8 +62,18 @@ class HumanInputRequest(BaseModel):
     values: dict[str, Any] = Field(default_factory=dict)
 
 
+class _HumanInputSubmitted:
+    """Synthetic event injected into the SSE stream when HITL input is received."""
+    __slots__ = ("tool_call_id",)
+    def __init__(self, tool_call_id: str) -> None:
+        self.tool_call_id = tool_call_id
+
+
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 manager = SessionManager(cwd=_PROJECT_ROOT, session_store_dir=os.path.join(_PROJECT_ROOT, "sessions"))
+
+# Active SSE stream queues per session — used to inject human_input.submitted events
+_active_streams: dict[str, asyncio.Queue[AgentEvent | None]] = {}
 
 
 @asynccontextmanager
@@ -90,6 +114,49 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Agent Core HTTP SSE Chat", lifespan=lifespan)
 
 
+def _content_blocks_to_images(blocks: list[ContentBlockInput] | None) -> list[ImageContent]:
+    """Convert multimodal ContentBlockInput items to ImageContent for the Agent."""
+    images: list[ImageContent] = []
+    if not blocks:
+        return images
+    _mime_map = {
+        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+        "gif": "image/gif", "webp": "image/webp", "svg": "image/svg+xml",
+        "mp3": "audio/mpeg", "wav": "audio/wav", "ogg": "audio/ogg",
+        "mp4": "video/mp4", "webm": "video/webm",
+    }
+    for block in blocks:
+        if block.type in ("image", "audio", "video"):
+            fmt = (block.meta or {}).get("format", "")
+            mime = _mime_map.get(fmt, f"image/{fmt}" if fmt else "image/png")
+            images.append(ImageContent(data=block.content, mime_type=mime))
+    return images
+
+
+def _classify_error(msg: str) -> dict[str, Any]:
+    """Classify an error message into spec ErrorDetail (type/code/retryable)."""
+    lower = msg.lower()
+    if any(k in lower for k in ("401", "unauthorized", "api key", "auth", "authentication")):
+        return {"type": "authentication_error", "code": "E00002", "retryable": False}
+    if any(k in lower for k in ("404", "not found", "session not")):
+        return {"type": "not_found", "code": "E00003", "retryable": False}
+    if any(k in lower for k in ("model", "502", "bad gateway", "model_error")):
+        return {"type": "model_error", "code": "E00004", "retryable": True}
+    if any(k in lower for k in ("context_length", "context overflow", "413", "too long", "max token")):
+        return {"type": "context_overflow", "code": "E00005", "retryable": True}
+    if any(k in lower for k in ("rate_limit", "429", "too many", "用量上限")):
+        return {"type": "rate_limit", "code": "E00006", "retryable": True}
+    if any(k in lower for k in ("tool", "execution", "tool_error")):
+        return {"type": "tool_execution_error", "code": "E00007", "retryable": False}
+    if any(k in lower for k in ("timeout", "timed out", "504")):
+        return {"type": "timeout", "code": "E00008", "retryable": True}
+    if any(k in lower for k in ("cancel", "abort")):
+        return {"type": "cancelled", "code": "E00010", "retryable": False}
+    if any(k in lower for k in ("overload", "529", "service unavailable")):
+        return {"type": "overloaded", "code": "E00011", "retryable": True}
+    return {"type": "internal_error", "code": "E00009", "retryable": False}
+
+
 def _format_sse(data: dict[str, Any], event: str | None = None) -> str:
     """Format a dict as an SSE frame with optional ``event:`` channel."""
     lines = ""
@@ -111,6 +178,7 @@ def _emit_v1(event_dict: dict[str, Any] | list[dict[str, Any]] | None) -> str:
 async def _event_stream(
     session_id: str | None,
     message: str,
+    content_blocks: list[ContentBlockInput] | None = None,
     persona_id: str | None = None,
     provider_name: str | None = None,
     model_id: str | None = None,
@@ -125,16 +193,20 @@ async def _event_stream(
         companion_uid=companion_uid,
     )
 
-    # Create per-stream content-block tracker
-    tracker = create_tracker()
+    # Create per-stream content-block tracker (message_id must match message.start)
+    _msg_id = f"msg_{sid}"
+    tracker = create_tracker(message_id=_msg_id)
 
     # Send message.start (v1)
     yield _format_sse(
-        {"type": "message.start", "messageId": f"msg_{sid}", "sessionId": sid, "runId": f"run_{int(time.time())}", "createdAt": int(time.time())},
+        {"type": "message.start", "messageId": _msg_id, "sessionId": sid, "runId": f"run_{int(time.time())}", "createdAt": int(time.time())},
         event="message",
     )
 
     queue: asyncio.Queue[AgentEvent | None] = asyncio.Queue()
+
+    # Register queue so /human-input can inject submitted events
+    _active_streams[sid] = queue
 
     def _handler(evt: AgentEvent) -> None:
         queue.put_nowait(evt)
@@ -142,14 +214,20 @@ async def _event_stream(
     unsub = assistant.on_event(_handler)
 
     try:
+        # Convert multimodal content blocks to images for the Agent
+        images = _content_blocks_to_images(content_blocks)
+
         # Run prompt in background to allow streaming
-        run_task = asyncio.create_task(assistant.send_message(message))
+        run_task = asyncio.create_task(
+            assistant.send_message(message, images=images or None)
+        )
 
         # Check for immediate synchronous errors before starting
         agent_error = getattr(assistant._agent.state, "error_message", None)
         if agent_error:
+            err = _classify_error(agent_error)
             yield _format_sse(
-                {"type": "message.error", "messageId": "msg_err", "error": {"type": "agent_error", "code": "init_failed", "retryable": False, "message": agent_error}},
+                {"type": "message.error", "messageId": _msg_id, "error": {**err, "message": agent_error}},
                 event="message",
             )
             return
@@ -162,9 +240,21 @@ async def _event_stream(
                 yield _emit_v1(companion_event_to_v1(cevt))
                 continue
 
-            evt = await asyncio.wait_for(queue.get(), timeout=600.0)
+            try:
+                evt = await asyncio.wait_for(queue.get(), timeout=15.0)
+            except asyncio.TimeoutError:
+                # Send heartbeat to keep connection alive (spec: every 15-30s)
+                yield _format_sse({"type": "heart"}, event="heart")
+                continue
             if evt is None:
                 break
+            # Handle synthetic HITL submitted events (not AgentEvent)
+            if isinstance(evt, _HumanInputSubmitted):
+                yield _format_sse(
+                    {"actionType": "human_input.submitted", "toolCallId": evt.tool_call_id, "status": "accepted"},
+                    event="action",
+                )
+                continue
             sse_out = agent_event_to_sse_json(evt, tracker=tracker)
             if sse_out is not None:
                 yield _emit_v1(sse_out)
@@ -173,17 +263,29 @@ async def _event_stream(
 
         # Ensure the task is completed
         await run_task
+
+        # Check for errors that occurred during agent execution
+        agent_error = getattr(assistant._agent.state, "error_message", None)
+        if agent_error:
+            err = _classify_error(agent_error)
+            err["retryable"] = True  # runtime errors are generally retryable
+            yield _format_sse(
+                {"type": "message.error", "messageId": _msg_id, "error": {**err, "message": agent_error}},
+                event="message",
+            )
     except asyncio.TimeoutError:
         yield _format_sse(
-            {"type": "message.error", "messageId": "msg_err", "error": {"type": "timeout", "code": "request_timeout", "retryable": True, "message": "Request timed out"}},
+            {"type": "message.error", "messageId": _msg_id, "error": {"type": "timeout", "code": "E00008", "retryable": True, "message": "Request timed out"}},
             event="message",
         )
     except Exception as exc:
+        err = _classify_error(str(exc))
         yield _format_sse(
-            {"type": "message.error", "messageId": "msg_err", "error": {"type": "internal_error", "code": type(exc).__name__, "retryable": False, "message": str(exc)}},
+            {"type": "message.error", "messageId": _msg_id, "error": {**err, "message": str(exc)}},
             event="message",
         )
     finally:
+        _active_streams.pop(sid, None)
         unsub()
         yield "data: [DONE]\n\n"
 
@@ -195,8 +297,18 @@ async def chat_stream(request: Request, chat_request: ChatRequest) -> StreamingR
     current_request_headers.set(dict(request.headers))
     headers: dict[str, str] = dict(request.headers)
     companion_uid = headers.get("uid", "")
+    # Validate: at least message or content must be provided
+    if not chat_request.message and not chat_request.content:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=400,
+            content={"code": "E00001", "info": "message or content is required",
+                     "error": {"type": "invalid_request", "code": "missing_parameter", "retryable": False}},
+        )
     return StreamingResponse(
-        _event_stream(session_id, chat_request.message, persona_id=persona_id,
+        _event_stream(session_id, chat_request.message,
+                      content_blocks=chat_request.content,
+                      persona_id=persona_id,
                       provider_name=chat_request.provider, model_id=chat_request.model,
                       companion_uid=companion_uid),
         media_type="text/event-stream",
@@ -216,6 +328,15 @@ async def human_input(request: Request, human_request: HumanInputRequest) -> dic
 
     _, assistant = await manager.get_or_create(session_id)
     accepted = assistant.provide_human_input(human_request.tool_call_id, human_request.values)
+
+    # Emit human_input.submitted event to the active SSE stream (spec §5.1)
+    if accepted:
+        q = _active_streams.get(session_id)
+        if q is not None:
+            q.put_nowait(_HumanInputSubmitted(
+                tool_call_id=human_request.tool_call_id,
+            ))
+
     return {"success": accepted}
 
 
@@ -584,6 +705,9 @@ async def list_models() -> dict[str, Any]:
             "model": os.environ.get("AGENT_MODEL", "gpt-4o"),
         },
         "available": [
+            {"provider": "deepseek", "model": "deepseek-v4-flash", "label": "DeepSeek V4 Flash", "desc": "128K context, fast & cheap"},
+            {"provider": "deepseek", "model": "deepseek-chat", "label": "DeepSeek Chat", "desc": "64K context, general"},
+            {"provider": "deepseek", "model": "deepseek-reasoner", "label": "DeepSeek Reasoner", "desc": "64K context, reasoning"},
             {"provider": "agnes", "model": "agnes-2.0-flash", "label": "Agnes 2.0 Flash", "desc": "256K context, fast agentic"},
             {"provider": "minimax", "model": "minimax-m2.7", "label": "MiniMax M2.7", "desc": "256K context, 4K output"},
             {"provider": "openai", "model": "gpt-4o", "label": "GPT-4o", "desc": "OpenAI flagship"},

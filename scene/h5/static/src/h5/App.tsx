@@ -1,13 +1,15 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { MotionConfig, AnimatePresence, motion } from 'motion/react';
 import { BridgeProvider } from '../bridge/BridgeContext';
 import { useSSE } from '../hooks/useSSE';
+import { useChatStore } from '../stores/chat-store';
 import { useSessionStore } from '../stores/session-store';
 import { useUIStore } from '../stores/ui-store';
 import ChatContainer from '../components/chat/ChatContainer';
 import PendingBubbles from '../components/input/PendingBubbles';
 import H5ChatInput from './components/H5ChatInput';
+import SuggestionPills from './components/SuggestionPills';
 import SkillsPage from '../components/pages/SkillsPage';
 import ToastContainer from '../components/shared/Toast';
 import ConfirmDialog from '../components/shared/ConfirmDialog';
@@ -19,6 +21,7 @@ import LoginPage from './components/LoginPage';
 import SettingsPage from './components/SettingsPage';
 import HistoryPage from './components/HistoryPage';
 import CompanionProfilePage from '../components/pages/CompanionProfilePage';
+import CompanionDrawer from './components/CompanionDrawer';
 import './App.css';
 import './theme/h5.css';
 import './theme/inkwash-overrides.css';
@@ -37,6 +40,16 @@ export default function H5App() {
   const loadModels = useModelStore((s) => s.loadModels);
   const h5ActiveTab = useUIStore((s) => s.h5ActiveTab);
   const setH5ActiveTab = useUIStore((s) => s.setH5ActiveTab);
+  const hasMessages = useChatStore((s) => s.messages.length > 0);
+  const clearChat = useChatStore((s) => s.reset);
+  const setWelcomeVisible = useUIStore((s) => s.setWelcomeVisible);
+  const [companionOpen, setCompanionOpen] = useState(false);
+
+  /** Clear messages and restore welcome screen */
+  const handleNewChat = useCallback(() => {
+    clearChat();
+    setWelcomeVisible(true);
+  }, [clearChat, setWelcomeVisible]);
 
   // Track previous tab for direction-aware slide
   const prevTabRef = useRef(h5ActiveTab);
@@ -64,17 +77,22 @@ export default function H5App() {
       <Tooltip.Provider delayDuration={500} skipDelayDuration={0}>
       <MotionConfig reducedMotion="user">
         <div className="h5-app-layout">
-          <CompactHeader onAbort={abort} />
+          <CompactHeader
+            onAbort={abort}
+            onCompanionOpen={() => setCompanionOpen(true)}
+            onNewChat={handleNewChat}
+          />
           <div className="h5-content">
             <AnimatePresence mode="wait" initial={false}>
               {h5ActiveTab === 'chat' && (
                 <motion.div
                   key="chat"
-                  className="h5-page"
+                  className="h5-page h5-page--chat"
                   {...slideVariants}
                 >
                   <ChatContainer onExampleClick={sendMessage} />
                   <PendingBubbles />
+                  {hasMessages && <SuggestionPills onPick={sendMessage} />}
                   <H5ChatInput onSend={sendMessage} />
                 </motion.div>
               )}
@@ -99,7 +117,7 @@ export default function H5App() {
               {h5ActiveTab === 'history' && (
                 <motion.div
                   key="history"
-                  className="h5-page"
+                  className="h5-page h5-page--history"
                   {...slideVariants}
                 >
                   <HistoryPage onBack={() => setH5ActiveTab('chat')} />
@@ -116,8 +134,9 @@ export default function H5App() {
               )}
             </AnimatePresence>
           </div>
+          <AuthPanel />
+          <CompanionDrawer open={companionOpen} onClose={() => setCompanionOpen(false)} />
         </div>
-        <AuthPanel />
         <ToastContainer />
         <ConfirmDialog />
       </MotionConfig>

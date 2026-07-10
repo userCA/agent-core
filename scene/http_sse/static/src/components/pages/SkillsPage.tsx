@@ -4,6 +4,7 @@ import { useUIStore } from '../../stores/ui-store';
 import { useToastStore } from '../../stores/toast-store';
 import { importSkill } from '../../api/client';
 import * as Switch from '@radix-ui/react-switch';
+import * as Dialog from '@radix-ui/react-dialog';
 import Icon from '../shared/Icon';
 import TooltipWrap from '../shared/TooltipWrap';
 import Loading from '../shared/Loading';
@@ -321,67 +322,77 @@ export default function SkillsPage({ onBack }: Props) {
       </div>
 
       {/* Create skill modal */}
-      {showCreate && (
-        <div className="modal-backdrop" onClick={() => { if (!creating) { setShowCreate(false); } }}>
-          <div className="modal-content" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
-            <h3>创建技能</h3>
-            <div className="auth-field">
-              <span>名称 <span className="required" style={{ color: 'var(--danger)' }}>*</span></span>
-              <input
-                type="text"
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                onBlur={(e) => validateField('name', e.target.value)}
-                placeholder="英文名称，如 my-skill"
-                disabled={creating}
-                autoFocus
-                className={fieldErrors.name ? 'field-invalid' : ''}
-              />
-              {fieldErrors.name && <span className="field-error">{fieldErrors.name}</span>}
-            </div>
-            <div className="auth-field">
-              <span>描述</span>
-              <input
-                type="text"
-                value={createDesc}
-                onChange={(e) => setCreateDesc(e.target.value)}
-                placeholder="可选，简要描述技能用途"
-                disabled={creating}
-              />
-            </div>
-            <div className="auth-field">
-              <span>内容 <span style={{ color: 'var(--danger)' }}>*</span></span>
-              <textarea
-                value={createContent}
-                onChange={(e) => setCreateContent(e.target.value)}
-                onBlur={(e) => validateField('content', e.target.value)}
-                placeholder="粘贴 Markdown 技能描述..."
-                disabled={creating}
-                rows={12}
-                style={{ resize: 'vertical', minHeight: 200 }}
-                className={fieldErrors.content ? 'field-invalid' : ''}
-              />
-              {fieldErrors.content && <span className="field-error">{fieldErrors.content}</span>}
-            </div>
-            <div className="auth-actions">
-              <button
-                className="btn"
-                onClick={() => { if (!creating) { setShowCreate(false); } }}
-                disabled={creating}
-              >
-                取消
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={handleCreate}
-                disabled={creating || !createName.trim() || !createContent.trim()}
-              >
-                {creating ? '创建中...' : '创建'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog.Root open={showCreate} onOpenChange={(open) => { if (!creating) setShowCreate(open); }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="modal-backdrop" />
+          <Dialog.Content
+            className="modal-content"
+            style={{ maxWidth: 560 }}
+            aria-describedby="create-skill-desc"
+          >
+            <Dialog.Title className="modal-title">创建技能</Dialog.Title>
+              <p id="create-skill-desc" className="sr-only">
+                填写技能名称、描述和内容以创建新技能。
+              </p>
+              <label className="auth-field">
+                <span>名称 <span className="required" style={{ color: 'var(--danger)' }}>*</span></span>
+                <input
+                  type="text"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  onBlur={(e) => validateField('name', e.target.value)}
+                  placeholder="英文名称，如 my-skill"
+                  disabled={creating}
+                  autoFocus
+                  className={fieldErrors.name ? 'field-invalid' : ''}
+                />
+                {fieldErrors.name && <span className="field-error">{fieldErrors.name}</span>}
+              </label>
+              <label className="auth-field">
+                <span>描述</span>
+                <input
+                  type="text"
+                  value={createDesc}
+                  onChange={(e) => setCreateDesc(e.target.value)}
+                  placeholder="可选，简要描述技能用途"
+                  disabled={creating}
+                />
+              </label>
+              <label className="auth-field">
+                <span>内容 <span style={{ color: 'var(--danger)' }}>*</span></span>
+                <textarea
+                  value={createContent}
+                  onChange={(e) => setCreateContent(e.target.value)}
+                  onBlur={(e) => validateField('content', e.target.value)}
+                  placeholder="粘贴 Markdown 技能描述..."
+                  disabled={creating}
+                  rows={12}
+                  style={{ resize: 'vertical', minHeight: 200 }}
+                  className={fieldErrors.content ? 'field-invalid' : ''}
+                />
+                {fieldErrors.content && <span className="field-error">{fieldErrors.content}</span>}
+              </label>
+              <div className="auth-actions">
+                <Dialog.Close asChild>
+                  <button
+                    className="btn"
+                    onClick={() => { if (!creating) { setShowCreate(false); } }}
+                    disabled={creating}
+                  >
+                    取消
+                  </button>
+                </Dialog.Close>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleCreate}
+                  disabled={creating || !createName.trim() || !createContent.trim()}
+                >
+                  {creating ? '创建中...' : '创建'}
+                </button>
+              </div>
+            </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

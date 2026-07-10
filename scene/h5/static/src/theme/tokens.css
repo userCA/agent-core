@@ -227,7 +227,7 @@ body {
 .btn-danger:hover { background: var(--danger-bg-subtle); }
 
 /* ---- markdown content ---- */
-.markdown-body { font-size: 14px; line-height: 1.6; word-break: break-word; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+.markdown-body { font-size: 14px; line-height: 1.6; word-break: break-word; }
 .markdown-body p { margin: 8px 0; }
 .markdown-body p:first-child { margin-top: 0; }
 .markdown-body p:last-child { margin-bottom: 0; }
@@ -248,49 +248,77 @@ body {
 }
 .markdown-body pre code { background: none; padding: 0; }
 
-/* ---- code block with copy button ---- */
+/* ---- code block with copy button (compact bar layout) ---- */
 .code-block-wrapper {
+    position: relative;
     margin: 8px 0;
     border: 1px solid var(--hairline);
     border-radius: var(--radius-sm);
     overflow: hidden;
+    background: var(--surface-card);
 }
 
-.code-block-header {
+/* Reset <pre> inside wrapper — no own border/bg/radius/margin */
+.code-block-wrapper > pre {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    margin: 0;
+    padding: 10px 12px;
+    overflow-x: auto;
+    box-shadow: none;
+}
+
+.code-block-wrapper > pre > code {
+    background: none;
+    padding: 0;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+/* Top bar: language left + copy right */
+.code-block-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 10px;
+    padding: 0 8px;
+    height: 28px;
     background: var(--surface-soft);
     border-bottom: 1px solid var(--hairline);
-    font-family: var(--font-mono);
 }
 
-.code-lang {
+.code-lang-label {
     font-size: 11px;
-    color: var(--stone);
-    text-transform: uppercase;
+    font-family: var(--font-mono);
+    color: var(--mute);
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+    user-select: none;
 }
 
 .code-copy-btn {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-sm);
-    background: var(--canvas);
-    color: var(--body);
-    font-size: 11px;
-    font-family: var(--font-mono);
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--mute);
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    opacity: 0.55;
+    transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
     touch-action: manipulation;
 }
 
+.code-block-wrapper:hover .code-copy-btn {
+    opacity: 1;
+}
+
 .code-copy-btn:hover {
-    background: var(--surface-card);
-    border-color: var(--hairline-strong);
+    opacity: 1;
+    background: var(--hairline);
     color: var(--ink);
 }
 
@@ -304,7 +332,7 @@ body {
 }
 
 .code-copy-btn.copied {
-    border-color: var(--success);
+    opacity: 1;
     color: var(--success);
     background: var(--success-bg-subtle);
 }

@@ -47,27 +47,7 @@
   outline-offset: 2px;
 }
 
-/* ── Pet avatar button (right) ── */
-.h5-header-pet {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--paper-canvas);
-  border: 2px solid var(--ink-primary);
-  overflow: hidden;
-  box-shadow: var(--shadow-card);
-}
-
-.h5-header-pet svg {
-  width: 24px;
-  height: 24px;
-}
-
-.h5-header-pet:hover {
-  background: var(--paper-warm);
-}
-
-/* ── Center section: title + status ── */
+/* ── Center section: title + status (clickable to open companion) ── */
 .h5-header-center {
   display: flex;
   flex-direction: column;
@@ -76,8 +56,27 @@
   flex: 1;
 }
 
+/* Clickable title area — opens companion drawer */
+.h5-header-title-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 10px;
+  transition: background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.h5-header-title-btn:hover {
+  background: rgba(44,62,62,0.05);
+}
+
+.h5-header-title-btn:active {
+  background: rgba(44,62,62,0.10);
+}
+
 .h5-header-title-center {
-  font-size: 15px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--ink-primary);
   font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
@@ -86,7 +85,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 180px;
-  line-height: 1.3;
+  line-height: 1.2;
 }
 
 .h5-header-status {
@@ -111,6 +110,14 @@
 .h5-header-spacer {
   width: 40px;
   flex-shrink: 0;
+}
+
+/* ── Right button group (new-chat / abort) ── */
+.h5-header-right {
+  display: flex;
+  align-items: center;
+  min-width: 40px;
+  justify-content: flex-end;
 }
 
 /* ── Remove old side-menu styles (no longer used) ── */

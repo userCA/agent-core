@@ -1,0 +1,61 @@
+/* ── Suggestion Pills — horizontal scroll row matching prototype ── */
+
+.suggestion-pills {
+  flex-shrink: 0;
+  padding: 0 16px 8px;
+  background: rgba(212, 232, 232, 0.82);
+}
+
+.pills-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.pills-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Individual pill — tool-pill style from prototype */
+.pill-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--paper-card);
+  border: 2px solid var(--border-ink);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-card);
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pill-btn:hover {
+  background: var(--paper-warm);
+}
+
+.pill-btn:active {
+  transform: scale(0.96);
+  box-shadow: 1px 1px 0 var(--ink-primary);
+}
+
+.pill-btn svg {
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill-btn {
+    transition: none;
+  }
+}

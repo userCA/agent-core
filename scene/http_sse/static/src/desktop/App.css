@@ -3,7 +3,9 @@
   height: 100vh;
   height: 100dvh;
   width: 100%;
-  overflow: hidden;
+  min-width: 720px;
+  overflow-y: hidden;
+  overflow-x: auto;
 }
 
 .app-main {

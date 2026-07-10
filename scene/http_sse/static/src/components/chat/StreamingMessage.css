@@ -141,3 +141,12 @@
         transform: translateY(-5px) scale(1.1);
     }
 }
+
+@media (prefers-reduced-motion: reduce) {
+    .final-content.streaming::after,
+    .thinking-dot,
+    .orbit-dots i,
+    .status-bar {
+        animation: none;
+    }
+}

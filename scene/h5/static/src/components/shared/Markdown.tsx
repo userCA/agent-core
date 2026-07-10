@@ -16,16 +16,21 @@ export default function Markdown({ text, className }: Props) {
     const codeEl = wrapper?.querySelector('code');
     if (!codeEl) return;
     const codeText = codeEl.textContent || '';
-    navigator.clipboard.writeText(codeText).then(() => {
-      const label = btn.querySelector('.copy-label');
-      if (label) label.textContent = '已复制';
+    const svg = btn.querySelector('svg');
+    const originalSvg = svg ? svg.outerHTML : '';
+    const checkSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+    const showCopied = () => {
+      if (svg) svg.outerHTML = checkSvg;
       btn.classList.add('copied');
       setTimeout(() => {
-        if (label) label.textContent = '复制';
+        const s = btn.querySelector('svg');
+        if (s) s.outerHTML = originalSvg;
         btn.classList.remove('copied');
       }, 1500);
-    }).catch(() => {
-      // Fallback: select and copy manually
+    };
+
+    navigator.clipboard.writeText(codeText).then(showCopied).catch(() => {
       const range = document.createRange();
       range.selectNodeContents(codeEl);
       const sel = window.getSelection();
@@ -34,13 +39,7 @@ export default function Markdown({ text, className }: Props) {
         sel.addRange(range);
         document.execCommand('copy');
         sel.removeAllRanges();
-        const label = btn.querySelector('.copy-label');
-        if (label) label.textContent = '已复制';
-        btn.classList.add('copied');
-        setTimeout(() => {
-          if (label) label.textContent = '复制';
-          btn.classList.remove('copied');
-        }, 1500);
+        showCopied();
       }
     });
   }, []);

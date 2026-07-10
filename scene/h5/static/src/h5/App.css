@@ -17,7 +17,7 @@ html.h5-html body {
 
 #root:has(.h5-app-layout) {
   width: 100%;
-  max-width: 430px;
+  max-width: 390px;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
@@ -33,9 +33,10 @@ html.h5-html body {
   height: 100%;
   width: 100%;
   overflow: hidden;
+  position: relative;
   background-color: var(--paper-inner);
   background-image:
-    linear-gradient(180deg, rgba(212,232,232,0.35) 0%, rgba(240,246,244,0.18) 40%, rgba(212,232,232,0.25) 100%),
+    linear-gradient(135deg, rgba(160,196,212,0.35) 0%, rgba(212,232,232,0.50) 40%, rgba(184,168,200,0.20) 70%, rgba(212,232,232,0.60) 100%),
     url('/style_1.jpeg');
   background-size: cover;
   background-position: center;
@@ -59,6 +60,7 @@ html.h5-html body {
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
+  position: relative;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;

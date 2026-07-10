@@ -30,7 +30,7 @@
     font-family: var(--font-mono);
     font-size: 12px;
     font-weight: 700;
-    color: var(--ink);
+    color: var(--ink-primary);
     line-height: 1.2;
     text-align: center;
     letter-spacing: 0;
@@ -51,18 +51,18 @@
 
 .welcome-title {
     font-family: 'Ma Shan Zheng', cursive;
-    font-size: 32px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 700;
     color: var(--ink);
     margin: 0;
-    letter-spacing: 0.02em;
+    letter-spacing: 1px;
     line-height: 1.1;
 }
 
 .welcome-subtitle {
-    font-family: var(--font-sans);
+    font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
     font-size: 13px;
-    color: var(--stone);
+    color: var(--ink-muted);
     margin: 0;
 }
 
@@ -81,13 +81,13 @@
     align-items: center;
     gap: 5px;
     padding: 6px 14px;
-    border: 1.5px solid var(--border-ink);
+    border: 2px solid var(--border-ink);
     border-radius: var(--radius-md);
     background: rgba(240,246,244,0.88);
     color: var(--body);
     font-size: 12px;
     cursor: pointer;
-    font-family: var(--font-sans);
+    font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
     transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
     touch-action: manipulation;
 }
@@ -103,9 +103,10 @@
 }
 
 .scene-tab.active {
-    background: var(--ink);
-    border-color: var(--ink);
-    color: var(--canvas);
+    background: var(--ink-primary);
+    border-color: var(--ink-primary);
+    color: var(--paper-card);
+    box-shadow: var(--shadow-card);
 }
 
 /* ---- Prompt grid ---- */
@@ -122,13 +123,13 @@
     align-items: center;
     gap: 8px;
     padding: 8px 10px;
-    border: 1.5px solid var(--border-ink);
+    border: 2px solid var(--border-ink);
     border-radius: var(--radius-sm);
     background: rgba(240,246,244,0.88);
     color: var(--ink);
     font-size: 12px;
     cursor: pointer;
-    font-family: var(--font-sans);
+    font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
     text-align: left;
     transition: border-color 0.15s ease, background 0.15s ease;
     touch-action: manipulation;
@@ -158,7 +159,7 @@
 }
 
 .prompt-label {
-    font-weight: 500;
+    font-weight: 700;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

@@ -253,6 +253,8 @@ class ChatAssistant:
                 auth_source = AuthSource.env("MINIMAX_API_KEY")
             elif provider_name == "agnes":
                 auth_source = AuthSource.env("AGNES_API_KEY")
+            elif provider_name == "deepseek":
+                auth_source = AuthSource.env("DEEPSEEK_API_KEY")
             else:
                 auth_source = AuthSource.env("OPENAI_API_KEY")
 
@@ -288,6 +290,33 @@ class ChatAssistant:
                         id="agnes-2.0-flash",
                         context_window=256_000,
                         max_output_tokens=65536,
+                    ),
+                ],
+            )
+        elif provider_name == "deepseek":
+            from agent_core.providers.types import Model
+
+            provider = OpenAIProvider(
+                base_url="https://api.deepseek.com",
+                provider_name="deepseek",
+                models=[
+                    Model(
+                        provider="deepseek",
+                        id="deepseek-v4-flash",
+                        context_window=128_000,
+                        max_output_tokens=8192,
+                    ),
+                    Model(
+                        provider="deepseek",
+                        id="deepseek-chat",
+                        context_window=64_000,
+                        max_output_tokens=8192,
+                    ),
+                    Model(
+                        provider="deepseek",
+                        id="deepseek-reasoner",
+                        context_window=64_000,
+                        max_output_tokens=8192,
                     ),
                 ],
             )
@@ -379,16 +408,21 @@ class ChatAssistant:
 
         return _unsub
 
-    async def send_message(self, text: str) -> None:
+    async def send_message(
+        self,
+        text: str,
+        images: list[ImageContent] | None = None,
+    ) -> None:
         """Send a user message to the assistant.
 
         Supports /skill:name commands which inject skill content into the prompt.
+        When *images* is provided, they are attached as multimodal content blocks.
         """
         expanded = self._expand_skill_command(text)
         if self._session is not None:
-            await self._session.prompt(expanded)
+            await self._session.prompt(expanded, images=images)
         else:
-            await self._agent.prompt(expanded)
+            await self._agent.prompt(expanded, images=images)
 
     async def continue_(self) -> None:
         """Continue the conversation from the current state."""

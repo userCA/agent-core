@@ -98,9 +98,10 @@ export default function StreamingMessage() {
         <MoonAvatar />
         <div className="msg-col msg-col-assistant">
           <div className="bubble bubble-assistant streaming-bubble">
-            <div className="thinking-indicator">
-              <span className="orbit-dots"><i /><i /><i /><i /><i /><i /></span>
-              <span className="status-text">思考中...</span>
+            <div className="typing-dots">
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+              <span className="typing-dot" />
             </div>
           </div>
         </div>

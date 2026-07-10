@@ -69,28 +69,27 @@ function getBondProgress(score: number): number {
   return Math.min(100, Math.max(0, (progress / range) * 100));
 }
 
+const demoBones = {
+  uid: 'demo-uid',
+  breed: 'orange_tabby',
+  rarity: 'common',
+  eye: 'dot',
+  ear: 'cat',
+  accent: 'none',
+  hat: 'none',
+  quirk: 'foodie',
+  shiny: false,
+  color: 'default',
+  stats: { CURIOSITY: 45, SOCIAL: 35, AFFECTION: 68, PLAYFUL: 22, LUCK: 45 },
+  name: '橘子',
+  personality: '佛系吃货',
+  hatched_at: Date.now() - 86400000 * 7,
+};
+
 export default function CompanionProfilePage({ onBack }: Props) {
   const bones = useCompanionStore((s) => s.bones);
   const setActivePage = useUIStore((s) => s.setActivePage);
   const back = onBack ?? (() => setActivePage('chat'));
-
-  // Demo / fallback data
-  const demoBones = {
-    uid: 'demo-uid',
-    breed: 'orange_tabby',
-    rarity: 'common',
-    eye: 'dot',
-    ear: 'cat',
-    accent: 'none',
-    hat: 'none',
-    quirk: 'foodie',
-    shiny: false,
-    color: 'default',
-    stats: { CURIOSITY: 45, SOCIAL: 35, AFFECTION: 68, PLAYFUL: 22, LUCK: 45 },
-    name: '橘子',
-    personality: '佛系吃货',
-    hatched_at: Date.now() - 86400000 * 7,
-  };
 
   const data = bones || demoBones;
   const score = (data.stats?.AFFECTION ?? 50) * 5; // simulated bond score
@@ -129,6 +128,8 @@ export default function CompanionProfilePage({ onBack }: Props) {
           <div className="companion-avatar-wrapper">
             <div
               className="companion-avatar-svg"
+              role="img"
+              aria-label={`${data.name || '宠物'} 头像`}
               dangerouslySetInnerHTML={{ __html: svgString }}
             />
             {data.shiny && (

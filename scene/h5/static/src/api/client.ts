@@ -1,4 +1,4 @@
-import type { SessionMeta } from './types';
+import type { SessionMeta, ContentBlockInput } from './types';
 import type { SSEFrame } from './sse-parser';
 import { API_BASE } from '../config';
 
@@ -9,7 +9,8 @@ import { API_BASE } from '../config';
 function isRetryableError(err: unknown): boolean {
   if (err instanceof Error) {
     if (err.name === 'AbortError' || err.name === 'DOMException') return false;
-    if (err.message.startsWith('HTTP 4')) return false;
+    // Allow retry for rate-limit (429) and server errors (5xx)
+    if (err.message.startsWith('HTTP 4') && !err.message.startsWith('HTTP 429')) return false;
     return true;
   }
   return false;
@@ -37,13 +38,18 @@ export async function* streamChat(
   personaId?: string | null,
   providerId?: string | null,
   modelId?: string | null,
+  content?: ContentBlockInput[],
 ): AsyncGenerator<SSEFrame> {
   const url = new URL(`${API_BASE}/chat/stream`, window.location.origin);
   if (sessionId) url.searchParams.set('session_id', sessionId);
   if (personaId) url.searchParams.set('persona_id', personaId);
 
   const fetchUrl = url.toString();
-  const fetchBody = JSON.stringify({ message, provider: providerId, model: modelId });
+  const body: Record<string, unknown> = { message, provider: providerId, model: modelId };
+  if (content && content.length > 0) {
+    body.content = content;
+  }
+  const fetchBody = JSON.stringify(body);
   console.log('[streamChat] POST %s body=%s', fetchUrl, fetchBody.slice(0, 200));
 
   const response = await withRetry(async () => {
@@ -59,7 +65,22 @@ export async function* streamChat(
     console.log('[streamChat] response status=%s ok=%s', res.status, res.ok);
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+      const detail = text || res.statusText;
+      // Build user-friendly Chinese error message
+      let friendly: string;
+      if (res.status >= 500) {
+        friendly = `服务暂时不可用 (${res.status})，请稍后重试`;
+      } else if (res.status === 429) {
+        friendly = '请求过于频繁，请稍后再试';
+      } else if (res.status >= 400) {
+        friendly = `请求有误 (${res.status})，请检查输入后重试`;
+      } else {
+        friendly = `连接异常 (${res.status}): ${detail}`;
+      }
+      const err = new Error(friendly) as Error & { status: number; detail: string };
+      err.status = res.status;
+      err.detail = detail;
+      throw err;
     }
     return res;
   }, 2, 1000).catch((err) => {
@@ -69,7 +90,10 @@ export async function* streamChat(
 
   // lazy import to avoid circular dependency at module level
   const { parseSSEStream } = await import('./sse-parser');
-  yield* parseSSEStream(response.body!.getReader());
+  if (!response.body) {
+    throw new Error('响应体为空，无法建立SSE连接');
+  }
+  yield* parseSSEStream(response.body.getReader());
 }
 
 export async function abortSession(sessionId: string): Promise<void> {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { useConfirmStore } from '../../stores/confirm-store';
 import Icon from '../shared/Icon';
@@ -14,9 +14,16 @@ export default function ConfirmDialog() {
   const type = useConfirmStore((s) => s.type);
   const close = useConfirmStore((s) => s.close);
   const confirm = useConfirmStore((s) => s.confirm);
+  const actionRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      actionRef.current?.focus();
+    }
+  }, [open]);
 
   return (
-    <AlertDialog.Root open={open}>
+    <AlertDialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) close(); }}>
       <AlertDialog.Portal>
         <AlertDialog.Overlay className="confirm-overlay" />
         <AlertDialog.Content className="confirm-dialog">
@@ -37,6 +44,7 @@ export default function ConfirmDialog() {
             </AlertDialog.Cancel>
             <AlertDialog.Action asChild>
               <button
+                ref={actionRef}
                 className={`confirm-btn ${danger ? 'danger' : 'primary'}`}
                 onClick={confirm}
               >

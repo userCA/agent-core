@@ -52,8 +52,8 @@
   top: 4px;
   right: 4px;
   font-size: 14px;
-  color: #FFD700;
-  text-shadow: 0 0 4px rgba(255, 215, 0, 0.5);
+  color: #B8860B;
+  text-shadow: 0 0 4px rgba(184, 134, 11, 0.35);
   animation: shinyPulse 2s ease-in-out infinite;
   line-height: 1;
 }
@@ -61,6 +61,12 @@
 @keyframes shinyPulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .companion-shiny-badge {
+    animation: none;
+  }
 }
 
 .companion-name-section {

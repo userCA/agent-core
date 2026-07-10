@@ -93,34 +93,7 @@
 }
 
 /* Toast viewport */
-.toast-viewport {
-    position: fixed;
-    top: 16px;
-    right: 16px;
-    z-index: var(--z-toast);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-width: 360px;
-    width: 100%;
-    pointer-events: none;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.toast-viewport > * {
-    pointer-events: auto;
-}
-
-@media (max-width: 640px) {
-    .toast-viewport {
-        top: 12px;
-        right: 12px;
-        left: 12px;
-        max-width: none;
-    }
-}
+/* Viewport styles live in src/components/shared/Toast.css */
 
 /* Toast item state animations */
 .toast-item[data-state="open"] {

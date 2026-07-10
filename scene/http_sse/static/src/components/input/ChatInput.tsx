@@ -173,7 +173,7 @@ export default function ChatInput({ onSend, compact, inlineToolbar }: Props) {
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={isStreaming ? 'queue a message...' : 'type a message'}
+          placeholder={isStreaming ? '排队等待发送…' : '输入消息，按 Enter 发送'}
           rows={1}
           aria-label="消息输入框，按 Enter 发送，Shift+Enter 换行"
         />

@@ -1,6 +1,22 @@
-"""Skill discovery, loading, and formatting for system prompts."""
+"""Skill discovery, loading, and formatting for system prompts.
+
+.. deprecated::
+    This module is superseded by :mod:`agent_core.resources.skills` and
+    :mod:`agent_core.resources.types`, which provide a richer ``Skill`` type
+    (including ``content`` and ``SourceInfo``).  All production code should
+    use the ``resources`` package instead.
+"""
 
 from __future__ import annotations
+
+import warnings as _warnings
+
+_warnings.warn(
+    "agent_core.skills is deprecated; use agent_core.resources.skills / "
+    "agent_core.resources.types instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import os
 import re

@@ -56,7 +56,8 @@
     position: fixed;
     bottom: 110px;
     right: 32px;
-    width: 36px; height: 36px;
+    width: 44px;
+    height: 44px;
     border: 1px solid var(--hairline);
     border-radius: 50%;
     background: var(--canvas);
@@ -88,4 +89,16 @@
 @keyframes btnIn {
     from { opacity: 0; transform: scale(0.8); }
     to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .welcome-exit {
+        opacity: 0;
+        transform: none;
+        transition: opacity 0.01ms ease;
+    }
+    .msg-wrapper,
+    .scroll-to-bottom {
+        animation: none;
+    }
 }

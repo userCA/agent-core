@@ -1,0 +1,282 @@
+/* ── Companion Drawer — bottom sheet matching prototype L928-1034 ── */
+
+/* Overlay */
+.cd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(44, 62, 62, 0.25);
+}
+
+/* Sheet */
+.cd-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 51;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px 20px 0 0;
+  border-top: 2px solid var(--border-ink);
+  background: rgba(212, 232, 232, 0.94);
+  overflow: hidden;
+}
+
+/* Handle */
+.cd-handle {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 8px;
+  cursor: pointer;
+}
+.cd-handle-bar {
+  width: 36px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(44, 62, 62, 0.25);
+  border: 1px solid rgba(44, 62, 62, 0.20);
+}
+
+/* Header: avatar + name + close */
+.cd-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px 16px;
+}
+
+/* Avatar SVG rendered directly — no wrapper div */
+svg.cd-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: block;
+}
+
+.cd-header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cd-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin: 0;
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+}
+
+.cd-subtitle {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin: 0;
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+}
+
+.cd-close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s ease;
+  margin-left: auto;
+}
+.cd-close:hover {
+  background: rgba(44, 62, 62, 0.06);
+}
+
+/* Scrollable body */
+.cd-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.cd-body::-webkit-scrollbar { display: none; }
+
+/* Toast notification */
+.cd-toast {
+  padding: 12px 16px;
+  background: rgba(196, 160, 160, 0.30);
+  border: 2px solid var(--border-ink);
+  border-radius: 14px;
+}
+.cd-toast p {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin: 0;
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+}
+
+/* Card */
+.cd-card {
+  background: var(--paper-card);
+  border: 2px solid var(--border-ink);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+}
+
+.cd-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cd-card-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+}
+
+.cd-icon-plum {
+  fill: var(--accent-plum);
+  color: var(--accent-plum);
+}
+
+.cd-icon-warm {
+  fill: var(--paper-warm);
+  color: var(--ink-primary);
+}
+
+/* Mood progress bar */
+.cd-mood-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cd-progress {
+  flex: 1;
+  height: 12px;
+  background: var(--paper-warm);
+  border: 2px solid var(--border-ink);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.cd-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--accent-plum);
+  transition: width 0.6s ease;
+}
+
+.cd-mood-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+}
+
+/* Activity stats grid */
+.cd-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.cd-stat {
+  text-align: center;
+}
+
+.cd-stat-num {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+}
+
+.cd-stat-label {
+  display: block;
+  font-size: 10px;
+  color: var(--ink-muted);
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+}
+
+/* Thoughts */
+.cd-thoughts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cd-thought {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cd-thought-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.cd-thought p {
+  font-size: 12px;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  margin: 0;
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+}
+
+/* Action buttons */
+.cd-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cd-action-btn {
+  flex: 1;
+  padding: 10px 0;
+  background: var(--paper-card);
+  border: 2px solid var(--border-ink);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  cursor: pointer;
+  font-family: 'Ma Shan Zheng', 'ZCOOL KuaiLe', 'Noto Sans SC', cursive;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+.cd-action-btn:hover {
+  background: var(--paper-warm);
+}
+.cd-action-btn:active {
+  transform: scale(0.95);
+  box-shadow: 1px 1px 0 var(--ink-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-action-btn,
+  .cd-progress-fill {
+    transition: none;
+  }
+}

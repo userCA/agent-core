@@ -90,7 +90,7 @@ export default function AuthModal() {
             exit={{ opacity: 0, scale: 0.95, y: 8 }}
             transition={{ type: 'spring', duration: 0.35, bounce: 0.2 }}
           >
-            <h3>[key] 认证信息</h3>
+            <h3>认证设置</h3>
             {AUTH_KEYS.map((k) => (
               <label key={k} className="auth-field">
                 <span>{k}</span>

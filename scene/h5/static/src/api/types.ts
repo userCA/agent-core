@@ -142,6 +142,15 @@ export interface DisplayPayload {
   widget?: WidgetDisplay;
   audio?: AudioDisplay;
   video?: VideoDisplay;
+  image?: ImageDisplay | ImageDisplay[];
+}
+
+export interface ImageDisplay {
+  url: string;
+  size?: string;
+  width?: number;
+  height?: number;
+  format?: string;
 }
 
 export interface VideoDisplay {
@@ -170,6 +179,21 @@ export interface SessionMeta {
   created_at: string;
   entry_count: number;
   title?: string;
+}
+
+// ---- Chat request content blocks (spec §9.1) -------------------------
+
+export interface ContentBlockInput {
+  type: 'text' | 'image' | 'audio' | 'video' | 'file';
+  content: string;
+  meta?: Record<string, any>;
+}
+
+export interface ChatRequest {
+  message: string;
+  content?: ContentBlockInput[];
+  provider?: string | null;
+  model?: string | null;
 }
 
 // ---- Union -----------------------------------------------------------

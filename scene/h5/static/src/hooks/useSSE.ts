@@ -8,12 +8,44 @@ import { useModelStore } from '../stores/model-store';
 import { useCompanionStore } from '../stores/companion-store';
 import type { SSEFrame } from '../api/sse-parser';
 import type {
-  ContentBlock, MessageStart, MessageEnd, MessageError,
+  ContentBlock, ContentBlockInput, MessageStart, MessageEnd, MessageError,
   ActionEvent, CompanionState, CompanionBubble,
 } from '../api/types';
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const commaIdx = result.indexOf(',');
+      resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function filesToContentBlocks(files: File[]): Promise<ContentBlockInput[]> {
+  const blocks: ContentBlockInput[] = [];
+  for (const file of files) {
+    const b64 = await fileToBase64(file);
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+    const typeMap: Record<string, ContentBlockInput['type']> = {
+      png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', svg: 'image',
+      mp3: 'audio', wav: 'audio', ogg: 'audio',
+      mp4: 'video', webm: 'video',
+    };
+    blocks.push({
+      type: typeMap[ext] || 'file',
+      content: b64,
+      meta: { format: ext, filename: file.name, size: file.size },
+    });
+  }
+  return blocks;
+}
+
 interface _Block {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'file';
   content?: string;
   toolName?: string;
   toolCallId?: string;
@@ -23,11 +55,18 @@ interface _Block {
   videoUrl?: string;
   videoSize?: string;
   videoSeconds?: string;
+  imageUrl?: string;
+  imageMeta?: { width?: number; height?: number; format?: string; size?: string };
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
 }
 
 export function useSSE() {
   const abortRef = useRef<AbortController | null>(null);
   const blocksRef = useRef<_Block[]>([]);
+  const errorShownRef = useRef(false);
+  const _blocksDirtyRef = useRef(false);
 
   const {
     setStreaming, addMessage, setStreamingMessageId,
@@ -38,6 +77,26 @@ export function useSSE() {
 
   const { sessionId, setSessionId, buildAuthHeaders } = useSessionStore();
   const { setWelcomeVisible, setInputValue } = useUIStore();
+
+  // Throttled block sync — only push to React state once per animation frame
+  const _flushPending = useCallback(() => {
+    _blocksDirtyRef.current = false;
+    const blocks = blocksRef.current;
+    setStreamBlocks(blocks.map(b => ({
+      type: b.type === 'file' ? 'text' : b.type as MessageBlock['type'],
+      text: b.type === 'text' ? b.content : undefined,
+      label: b.type === 'tool' ? b.toolName : undefined,
+      detail: b.type === 'video' ? b.videoUrl : b.type === 'image' ? b.imageUrl : b.type === 'file' ? b.fileUrl : b.content,
+      isError: b.isError,
+      status: b.status,
+      videoUrl: b.type === 'video' ? b.videoUrl : undefined,
+      videoSize: b.type === 'video' ? b.videoSize : undefined,
+      videoSeconds: b.type === 'video' ? b.videoSeconds : undefined,
+      widget: b.type === 'widget' ? b.widget : undefined,
+      imageUrl: b.type === 'image' ? b.imageUrl : undefined,
+      imageMeta: b.type === 'image' ? b.imageMeta : undefined,
+    } as MessageBlock)));
+  }, [setStreamBlocks]);
 
   // Track blocks in chronological order from v1 SSE events.
   // Internal _Block model is unchanged — status is derived from phase/actionType.
@@ -56,10 +115,32 @@ export function useSSE() {
     else if (type === 'message.end') {
       const e = evt as MessageEnd;
       setUsage(e.usage);
+      // Detect error stop reason and show toast (error bubble comes from message.error)
+      if (e.stopReason === 'error' && !errorShownRef.current) {
+        errorShownRef.current = true;
+        const errMsg = '服务暂时不可用，请稍后重试';
+        useToastStore.getState().addToast(errMsg, 'error');
+        addMessage({ id: `err-${Date.now()}`, role: 'error', content: errMsg, timestamp: Date.now() });
+      }
     }
     else if (type === 'message.error') {
       const e = evt as MessageError;
-      addMessage({ id: `err-${Date.now()}`, role: 'error', content: e.error.message || e.error.type, timestamp: Date.now() });
+      const rawMsg = e.error.message || e.error.type;
+      // Translate known error patterns to user-friendly Chinese
+      let friendly = rawMsg;
+      if (rawMsg.includes('rate_limit') || rawMsg.includes('429') || rawMsg.includes('用量上限') || rawMsg.includes('用量上限')) {
+        friendly = '请求过于频繁，请稍后再试';
+      } else if (rawMsg.includes('500') || rawMsg.includes('Internal Server Error')) {
+        friendly = '服务暂时不可用，请稍后重试';
+      } else if (rawMsg.includes('timeout') || rawMsg.includes('Timeout')) {
+        friendly = '请求超时，请检查网络后重试';
+      } else if (rawMsg.includes('auth') || rawMsg.includes('API key') || rawMsg.includes('Unauthorized')) {
+        friendly = '认证失败，请检查 API 设置';
+      }
+      if (!errorShownRef.current) {
+        errorShownRef.current = true;
+        addMessage({ id: `err-${Date.now()}`, role: 'error', content: friendly, timestamp: Date.now() });
+      }
     }
     else if (type === 'heart') {
       // no-op
@@ -67,36 +148,95 @@ export function useSSE() {
     else if (type === 'state.snapshot' || type === 'state.delta') {
       // Future: sync agent state
     }
-    else if (type === 'step.start' || type === 'step.end') {
-      // Future: step visualization
-    }
-    // -- Content blocks (type is 'text' / 'thinking' / etc.) --
+    // -- Content blocks (phase field present) --
+    // SSE v1 spec: three-phase lifecycle start → delta×N → done
     else if ((evt as any).phase !== undefined) {
       const cb = evt as ContentBlock;
       if (cb.type === 'text') {
-        if (cb.phase === 'delta') {
-          // Close running think block on first text
+        if (cb.phase === 'start') {
+          // Close running think block when text starts
           const prev = blocks[blocks.length - 1];
           if (prev && prev.type === 'think' && prev.status === 'running') {
             prev.status = 'done';
           }
-          appendText(cb.content);
+          // Create text slot per spec — content is empty
+          blocks.push({ type: 'text', content: '' });
+        } else if (cb.phase === 'delta') {
+          // Append delta to last text block, or create if missing (backward compat)
+          const prev = blocks[blocks.length - 1];
           if (prev && prev.type === 'text') {
-            prev.content += cb.content;
+            prev.content = (prev.content || '') + cb.content;
           } else {
             blocks.push({ type: 'text', content: cb.content });
           }
+          appendText(cb.content);
         }
-        // phase=start / done: no-op (slot created by delta, done is informational)
+        // phase=done: text block complete — no-op (content already assembled via deltas)
       }
       else if (cb.type === 'thinking') {
-        if (cb.phase === 'delta') {
+        if (cb.phase === 'start') {
+          blocks.push({ type: 'think', content: '', status: 'running' });
+        } else if (cb.phase === 'delta') {
           const prev = blocks[blocks.length - 1];
           if (prev && prev.type === 'think' && prev.status === 'running') {
-            prev.content += cb.content;
+            prev.content = (prev.content || '') + cb.content;
           } else {
             blocks.push({ type: 'think', content: cb.content, status: 'running' });
           }
+        } else if (cb.phase === 'done') {
+          const prev = blocks[blocks.length - 1];
+          if (prev && prev.type === 'think' && prev.status === 'running') {
+            prev.status = 'done';
+          }
+        }
+      }
+      // Non-text content blocks (image/audio/video/file/component) — snapshot mode: start + done
+      else if (cb.phase === 'done') {
+        const contentUrl = cb.content || '';
+        if (cb.type === 'image') {
+          // Push as dedicated image block (not markdown text)
+          blocks.push({
+            type: 'image',
+            content: contentUrl,
+            imageUrl: contentUrl,
+            imageMeta: {
+              width: (cb.meta as any)?.width,
+              height: (cb.meta as any)?.height,
+              format: (cb.meta as any)?.format,
+              size: (cb.meta as any)?.size,
+            },
+            status: 'done',
+          } as any);
+          // Do NOT appendText — backend already strips image markdown from text stream
+        } else if (cb.type === 'video') {
+          blocks.push({
+            type: 'video' as any, content: contentUrl,
+            videoUrl: contentUrl,
+            videoSize: (cb.meta as any)?.size,
+            videoSeconds: (cb.meta as any)?.duration ? String((cb.meta as any).duration / 1000) : undefined,
+            status: 'done',
+          } as any);
+        } else if (cb.type === 'audio') {
+          if ((cb.meta as any)?.urls) {
+            addAudio({ urls: (cb.meta as any).urls, task_id: (cb.meta as any)?.task_id });
+          }
+        }
+        else if (cb.type === 'component') {
+          // Widget component — meta carries the widget display data
+          if (cb.meta) {
+            addWidget({ version: 1, html: String(cb.meta.html || ''), title: cb.meta.title as string, height: cb.meta.height as number });
+            blocks.push({ type: 'widget', widget: { version: 1, html: String(cb.meta.html || ''), title: cb.meta.title as string, height: cb.meta.height as number }, status: 'done' });
+          }
+        }
+        else if (cb.type === 'file') {
+          blocks.push({
+            type: 'file',
+            content: contentUrl,
+            fileUrl: contentUrl,
+            fileName: (cb.meta as any)?.name || 'file',
+            fileSize: (cb.meta as any)?.size,
+            status: 'done',
+          });
         }
       }
     }
@@ -115,7 +255,12 @@ export function useSSE() {
         case 'tool_call.progress':
           // progress updates — currently no-op in UI
           break;
-  
+        
+        case 'step.start':
+        case 'step.end':
+          // Future: step visualization
+          break;
+        
         case 'tool_call.completed': {
           const b = blocks.find(blk => blk.toolCallId === ae.toolCallId && blk.type === 'tool');
           const resultOutput = ae.result?.output ?? '';
@@ -123,7 +268,7 @@ export function useSSE() {
           if (b) { b.content = resultOutput; b.status = 'done'; b.isError = isError; }
           if (ae.result?.display?.widget) {
             addWidget(ae.result.display.widget);
-            blocks.push({ type: 'widget', widget: ae.result.display.widget as any, status: 'done' });
+            blocks.push({ type: 'widget', widget: ae.result.display.widget, status: 'done' });
           }
           if (ae.result?.display?.audio) addAudio(ae.result.display.audio);
           // Detect video URL from result output
@@ -153,6 +298,12 @@ export function useSSE() {
           });
           break;
         }
+
+        case 'human_input.submitted': {
+          // User submitted HITL input — dismiss the card
+          setHitlRequest(null);
+          break;
+        }
       }
     }
     // -- Companion events (companionType field) --
@@ -171,26 +322,26 @@ export function useSSE() {
         setBubble({ text: cb.text, ttl_ms: cb.ttlMs });
       }
     }
-  
-    // Sync live blocks to store for StreamingMessage
-    setStreamBlocks(blocksRef.current.map(b => ({
-      type: b.type,
-      text: b.type === 'text' ? b.content : undefined,
-      label: b.type === 'tool' ? b.toolName : undefined,
-      detail: b.type === 'video' ? (b as any).videoUrl : b.content,
-      isError: b.isError,
-      status: b.status as 'running' | 'done' | undefined,
-      videoUrl: b.type === 'video' ? (b as any).videoUrl : undefined,
-      videoSize: b.type === 'video' ? (b as any).videoSize : undefined,
-      videoSeconds: b.type === 'video' ? (b as any).videoSeconds : undefined,
-      widget: b.type === 'widget' ? (b as any).widget : undefined,
-    } as MessageBlock)));
-  }, [appendText, setStreamBlocks, addWidget, addAudio, setHitlRequest, setUsage, addMessage, setSessionId]);
 
-  const _runStream = useCallback(async (text: string) => {
+    // Sync blocks to store (throttled, skip for text deltas — streamText already triggers re-render)
+    const isTextDelta = (type === 'text' && (evt as any).phase === 'delta');
+    if (!isTextDelta) {
+      _blocksDirtyRef.current = true;
+    }
+    if (_blocksDirtyRef.current && !isTextDelta) {
+      if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(_flushPending);
+      } else {
+        _flushPending();
+      }
+    }
+  }, [appendText, _flushPending, addWidget, addAudio, setHitlRequest, setUsage, addMessage, setSessionId]);
+
+  const _runStream = useCallback(async (text: string, files?: File[]) => {
     setStreaming(true);
     resetSteps();
     blocksRef.current = [];
+    errorShownRef.current = false;
     const assistantId = `asst-${Date.now()}`;
     setStreamingMessageId(assistantId);
 
@@ -202,8 +353,9 @@ export function useSSE() {
       const authHeaders = session.buildAuthHeaders();
       const personaId = useSessionStore.getState().personaId;
       const modelStore = useModelStore.getState();
+      const contentBlocks = files && files.length > 0 ? await filesToContentBlocks(files) : undefined;
       const gen = streamChat(text, session.sessionId, authHeaders, controller.signal, personaId,
-        modelStore.currentProvider, modelStore.currentModel);
+        modelStore.currentProvider, modelStore.currentModel, contentBlocks);
 
       for await (const frame of gen) {
         processEvent(frame);
@@ -216,6 +368,9 @@ export function useSSE() {
           await new Promise((r) => setTimeout(r, 0));
         }
       }
+
+      // Final flush of any pending dirty blocks
+      _flushPending();
 
       // Build clean content + self-contained blocks
       const blocks = blocksRef.current;
@@ -236,18 +391,37 @@ export function useSSE() {
         } else if (b.type === 'tool') {
           msgBlocks.push({ type: 'tool', label: b.toolName, detail: c, isError: b.isError });
         } else if (b.type === 'widget') {
-          msgBlocks.push({ type: 'widget', widget: (b as any).widget });
+          msgBlocks.push({ type: 'widget', widget: b.widget });
         } else if (b.type === 'video') {
           msgBlocks.push({
             type: 'video',
-            videoUrl: (b as any).videoUrl,
-            videoSize: (b as any).videoSize,
-            videoSeconds: (b as any).videoSeconds,
-            detail: (b as any).videoUrl,
+            videoUrl: b.videoUrl,
+            videoSize: b.videoSize,
+            videoSeconds: b.videoSeconds,
+            detail: b.videoUrl,
+          });
+        } else if (b.type === 'image') {
+          msgBlocks.push({
+            type: 'image',
+            imageUrl: b.imageUrl,
+            imageMeta: b.imageMeta,
+            detail: b.imageUrl,
           });
         }
       }
-      const content = contentParts.join('').trim() || '(empty)';
+      // Determine content: use text parts, or descriptive placeholder for media-only responses
+      let content = contentParts.join('').trim();
+      if (!content) {
+        const hasMedia = msgBlocks.some(b => b.type === 'image' || b.type === 'video' || b.type === 'widget');
+        content = hasMedia ? '已生成媒体内容' : '(empty)';
+      }
+
+      // Skip adding empty assistant message when there was an error and no content
+      const hasError = blocksRef.current.length === 0 && content === '(empty)';
+      if (hasError) {
+        // Error message was already added by message.error or message.end handler
+        return;
+      }
 
       const finalState = useChatStore.getState();
       addMessage({
@@ -271,17 +445,28 @@ export function useSSE() {
       const pending = dequeuePending();
       if (pending) { setTimeout(() => _runStream(pending), 100); }
     }
-  }, [setStreaming, setStreamingMessageId, addMessage, dequeuePending, processEvent, resetSteps]);
+  }, [setStreaming, setStreamingMessageId, addMessage, dequeuePending, processEvent, resetSteps, _flushPending]);
 
-  const sendMessage = useCallback((text: string) => {
-    if (!text.trim()) return;
+  const sendMessage = useCallback((text: string, files?: File[]) => {
+    if (!text.trim() && (!files || files.length === 0)) return;
     setWelcomeVisible(false);
     setInputValue('');
-    addMessage({ id: `user-${Date.now()}`, role: 'user', content: text, timestamp: Date.now() });
+
+    // Build preview URLs for image files (displayed in user message bubble)
+    const previewUrls = files
+      ?.filter(f => f.type.startsWith('image/'))
+      .map(f => URL.createObjectURL(f)) ?? [];
+    addMessage({
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: text || '(图片)',
+      attachments: previewUrls.length > 0 ? previewUrls : undefined,
+      timestamp: Date.now(),
+    });
 
     const store = useChatStore.getState();
     if (store.isStreaming) { enqueuePending(text); return; }
-    _runStream(text);
+    _runStream(text, files);
   }, [addMessage, enqueuePending, _runStream, setWelcomeVisible, setInputValue]);
 
   const abort = useCallback(async () => {

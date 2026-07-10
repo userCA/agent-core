@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { formatContent } from '../../utils/markdown';
 
 interface Props {
@@ -8,9 +8,8 @@ interface Props {
 
 export default function Markdown({ text, className }: Props) {
   const html = useMemo(() => formatContent(text), [text]);
-  const ref = useRef<HTMLDivElement>(null);
 
-  const handleCopy = useCallback((e: MouseEvent) => {
+  const handleCopy = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const btn = (e.target as HTMLElement).closest('.code-copy-btn') as HTMLButtonElement | null;
     if (!btn) return;
     const wrapper = btn.closest('.code-block-wrapper');
@@ -46,18 +45,11 @@ export default function Markdown({ text, className }: Props) {
     });
   }, []);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.addEventListener('click', handleCopy);
-    return () => el.removeEventListener('click', handleCopy);
-  }, [handleCopy]);
-
   return (
     <div
-      ref={ref}
       className={`markdown-body ${className || ''}`}
       dangerouslySetInnerHTML={{ __html: html }}
+      onClick={handleCopy}
     />
   );
 }

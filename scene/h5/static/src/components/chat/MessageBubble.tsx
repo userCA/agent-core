@@ -61,6 +61,14 @@ export default function MessageBubble({ message }: Props) {
         transition={{ duration: 0.2, ease: 'easeOut' }}
       >
         <div className="msg-col msg-col-user">
+          {/* Image attachments */}
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="user-attachments">
+              {message.attachments.map((url, i) => (
+                <img key={i} src={url} alt={`附件 ${i + 1}`} className="user-attachment-thumb" />
+              ))}
+            </div>
+          )}
           <div className="bubble bubble-user">
             <pre className="user-text">{content}</pre>
           </div>
@@ -82,7 +90,7 @@ export default function MessageBubble({ message }: Props) {
         <MoonAvatar />
         <div className="msg-col msg-col-assistant">
           <div className="bubble bubble-error">
-            <Icon name="alert" size={ICON_SIZES.sm} /> {content}
+            <Icon name="alert" size={ICON_SIZES.sm} style={{ color: 'var(--accent-plum)' }} /> {content}
           </div>
           {timeStr && <span className="msg-time msg-time-assistant">{timeStr}</span>}
         </div>
@@ -110,7 +118,13 @@ export default function MessageBubble({ message }: Props) {
     );
   }
 
-  // assistant
+  // assistant — split reasoning steps and content into separate cards
+  const stepBlocks = blocks?.filter(b => b.type === 'think' || b.type === 'tool') || [];
+  const contentBlocks = blocks?.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image') || [];
+  const hasSteps = stepBlocks.length > 0;
+  const hasContent = contentBlocks.length > 0 || !!content;
+  const splitCards = hasSteps && hasContent;
+
   return (
     <motion.div
       className="msg-row msg-row-assistant"
@@ -121,33 +135,65 @@ export default function MessageBubble({ message }: Props) {
     >
       <MoonAvatar />
       <div className="msg-col msg-col-assistant">
-        <div className="bubble bubble-assistant">
-          <div className="msg-content">
-            {blocks && blocks.length > 0 ? (
-              <TraceCard blocks={blocks} />
-            ) : (
-              <div className="final-content"><Markdown text={content} /></div>
+        {/* Reasoning card — only step blocks */}
+        {hasSteps && (
+          <div className={`bubble bubble-assistant${splitCards ? ' bubble-trace-only' : ''}`}>
+            <div className="msg-content">
+              <TraceCard blocks={stepBlocks} />
+            </div>
+          </div>
+        )}
+
+        {/* Content card — text/widget/video + actions + audio + usage */}
+        {hasContent && (
+          <div className={`bubble bubble-assistant${splitCards ? ' bubble-content-only' : ''}`}>
+            <div className="msg-content">
+              {hasContent && contentBlocks.length > 0 ? (
+                <TraceCard blocks={contentBlocks} />
+              ) : (
+                <div className="final-content"><Markdown text={content} /></div>
+              )}
+            </div>
+            {audios?.map((a, i) => <AudioPlayer key={`a-${i}`} audio={a} />)}
+            <div className="msg-actions">
+              <TooltipWrap label={copied ? '已复制' : '复制'}>
+                <button
+                  className="msg-action-btn"
+                  onClick={handleCopy}
+                  aria-label={copied ? '已复制' : '复制消息内容'}
+                >
+                  <Icon name={copied ? 'check' : 'clipboard'} size={12} />
+                  {copied ? '已复制' : '复制'}
+                </button>
+              </TooltipWrap>
+            </div>
+            {usage && (
+              <div className="usage-info">
+                {usage.input_tokens} 输入 / {usage.output_tokens} 输出
+              </div>
             )}
           </div>
-          {audios?.map((a, i) => <AudioPlayer key={`a-${i}`} audio={a} />)}
-          <div className="msg-actions">
-            <TooltipWrap label={copied ? '已复制' : '复制'}>
-              <button
-                className="msg-action-btn"
-                onClick={handleCopy}
-                aria-label={copied ? '已复制' : '复制消息内容'}
-              >
-                <Icon name={copied ? 'check' : 'clipboard'} size={12} />
-                {copied ? '已复制' : '复制'}
-              </button>
-            </TooltipWrap>
-          </div>
-          {usage && (
-            <div className="usage-info">
-              {usage.input_tokens} 输入 / {usage.output_tokens} 输出
+        )}
+
+        {/* No content but has steps — render actions on last card */}
+        {!hasContent && hasSteps && (
+          <>
+            {audios?.map((a, i) => <AudioPlayer key={`a-${i}`} audio={a} />)}
+            <div className="msg-actions" style={{ marginTop: 4 }}>
+              <TooltipWrap label={copied ? '已复制' : '复制'}>
+                <button
+                  className="msg-action-btn"
+                  onClick={handleCopy}
+                  aria-label={copied ? '已复制' : '复制消息内容'}
+                >
+                  <Icon name={copied ? 'check' : 'clipboard'} size={12} />
+                  {copied ? '已复制' : '复制'}
+                </button>
+              </TooltipWrap>
             </div>
-          )}
-        </div>
+          </>
+        )}
+
         {timeStr && <span className="msg-time msg-time-assistant">{timeStr}</span>}
       </div>
     </motion.div>
