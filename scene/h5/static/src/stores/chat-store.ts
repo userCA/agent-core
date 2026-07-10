@@ -166,7 +166,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadMessages: (rawMessages) => {
     const loaded: ChatMessage[] = [];
     let currentAssistant: ChatMessage | null = null;
-
+    // Track image URLs from tool results to avoid duplication in text blocks
+    const collectedImageUrls = new Set<string>();
+  
     const flushAssistant = () => {
       if (currentAssistant) {
         if (
@@ -178,7 +180,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentAssistant = null;
       }
     };
-
+  
+    /** Strip image markdown from text if URL already exists as an image block */
+    const dedupeImageMarkdown = (text: string): string => {
+      if (collectedImageUrls.size === 0) return text;
+      return text.replace(/!?\[([^\]]*)\]\(([^)]+)\)/g, (match, _alt, url) => {
+        if (collectedImageUrls.has(url)) return '';
+        return match;
+      }).replace(/\n{3,}/g, '\n\n').trim();
+    };
+  
     for (const msg of rawMessages) {
       const role = msg.role as string;
       if (
@@ -188,7 +199,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         role !== 'tool_result'
       )
         continue;
-
+  
       if (role === 'user') {
         flushAssistant();
         const content = extractTextContent(msg.content);
@@ -202,25 +213,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
       } else if (role === 'assistant') {
         const parsed = parseAssistantMessage(msg.content);
         if (parsed.blocks.length === 0) continue;
-
-        if (!currentAssistant) {
-          currentAssistant = {
-            id: `loaded-${Date.now()}-${loaded.length}`,
-            role: 'assistant',
-            content: extractTextContent(msg.content) || '',
-            blocks: parsed.blocks,
-            timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
-          };
-        } else {
-          currentAssistant.blocks = [
-            ...(currentAssistant.blocks || []),
-            ...parsed.blocks,
-          ];
-          currentAssistant.content = extractTextContent([
-            ...((currentAssistant as any)._rawContent || []),
-            ...(Array.isArray(msg.content) ? msg.content : []),
-          ]) || currentAssistant.content;
+  
+        // Deduplicate: strip image markdown from text blocks if URL already in an image block
+        for (const b of parsed.blocks) {
+          if (b.type === 'text' && b.text) {
+            b.text = dedupeImageMarkdown(b.text);
+            if (!b.text.trim()) { b.text = ''; }
+          }
         }
+        // Remove empty text blocks after dedup
+        parsed.blocks = parsed.blocks.filter(b => !(b.type === 'text' && !b.text?.trim()));
+        if (parsed.blocks.length === 0) continue;
+  
+        // Flush previous assistant before starting a new one (matches streaming split behavior)
+        flushAssistant();
+  
+        currentAssistant = {
+          id: `loaded-${Date.now()}-${loaded.length}`,
+          role: 'assistant',
+          content: extractTextContent(msg.content) || '',
+          blocks: parsed.blocks,
+          timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
+        };
       } else if (role === 'tool_result') {
         const content = extractTextContent(msg.content);
         if (currentAssistant?.blocks) {
@@ -268,15 +282,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
             // If image generation tool, reconstruct image blocks from persisted result
             if ((toolName === 'generate_image' || toolName === 'generate_images' || toolName === 'edit_image') && content) {
-              const imgMatches = [...content.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)];
+              const imgMatches = [...content.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)];
               for (const m of imgMatches) {
-                const url = m[1];
+                const url = m[2];
                 if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) {
                   currentAssistant.blocks.push({
                     type: 'image',
                     imageUrl: url,
                     detail: url,
                   });
+                  collectedImageUrls.add(url);
                 }
               }
             }
@@ -289,7 +304,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       }
     }
-
+  
     flushAssistant();
     set({ messages: loaded });
   },

@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-07-10 18:45 — 历史消息加载：修复推理卡片与实时流不一致 + 内容去重
+
+**问题**：
+- 历史消息中推理卡片显示与实时流不一致：Skill 节点丢失，Tool 显示格式不同
+- 生成过程内容被合并到最终输出的消息卡片中（第一轮 assistant 的 "好的！" 文本 + 最终 assistant 的文字都挤在同一个内容卡片）
+
+**根因**：
+- `loadMessages` 将连续的 assistant 消息合并为一条 ChatMessage，导致第一轮文本 + 最终文本 + 重复图片 markdown 都混入同一个内容卡片
+- Skill 事件是运行时注入的 SSE 事件，不存储在 session 消息中，历史加载无法恢复
+
+**方案**：
+- 每个 assistant 消息独立 flush，不再合并（匹配实时流的拆分行为）
+- 图片 URL 去重：跟踪 tool_result 中的图片 URL，后续 assistant 消息中的重复图片 markdown 自动剥离
+
+**改动范围**：
+| 文件 | 改动 |
+|------|------|
+| `scene/h5/static/src/stores/chat-store.ts` | `loadMessages` 重构：每个 assistant 独立 flush + collectedImageUrls 去重 |
+
+**影响**：
+- 历史消息加载后，第一轮 assistant 消息（含 tool_call）显示为独立推理卡片
+- 后续 assistant 消息（最终文本）显示为独立内容卡片，不再重复图片
+- Skill 节点在历史加载中仍不可见（需后端持久化 Skill 事件才能解决）
+
+---
 ## 2026-07-10 17:30 — Skill Action SSE 增强 + 推理卡片独立视觉样式 + 布局优化
 
 **需求**：
