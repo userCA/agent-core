@@ -34,7 +34,7 @@
 | 宠物抽屉 | ✅ 完成 | 头像+心情+活动+想法 |
 | 建议药丸 | ✅ 完成 | 水平滚动 |
 | TraceCard | ✅ 完成 | 推理线程折叠卡片 + image/video/widget 内容块渲染 + skill 节点（绿色）+ 独立视觉样式（2px边框+阴影）+ 完成后摘要显示 |
-| Skill Action 可见性 | ✅ 完成 | skill.started/skill.completed action 事件 + TraceCard 绿色节点 + SKILL.md tools 字段关联 |
+| Skill Action 可见性 | ✅ 完成 | skill.started/skill.completed action 事件 + TraceCard 绿色节点 + SKILL.md tools 字段关联 + 历史消息恢复（tool_to_skill 映射持久化） |
 | Image Content Block | ✅ 完成 | 后端 image content block 发射 + streaming Markdown 去重 + 前端专用图片块渲染 + 会话重载恢复 |
 | StreamingMessage | ✅ 完成 | typing dots + cursor blink |
 | SuggestionPills | ✅ 完成 | 水平滚动建议 |

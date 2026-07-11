@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from typing import Any, Awaitable, Callable
 
 from agent_core.core.agent import Agent
@@ -26,7 +27,7 @@ from agent_core.providers.registry import ModelRegistry
 from agent_core.session.inmemory_store import InMemoryStore
 from agent_core.session.jsonl_store import JsonlStore
 from agent_core.session.session import AgentSession
-from agent_core.session.store import SessionStore
+from agent_core.session.store import CustomEntry, SessionStore
 from agent_core.prompts.builder import SystemPromptBuilder
 from agent_core.resources.loader import ResourceLoader
 from agent_core.resources.personas import Persona
@@ -405,6 +406,21 @@ class ChatAssistant:
         await self._session.start()
         # Wire ChatAssistant handlers into the session event stream
         self._session_unsub = self._session.subscribe(self._on_agent_event)
+
+        # Persist tool_to_skill mapping for history restoration
+        if self._tool_to_skill:
+            mapping = {tool: skill.name for tool, skill in self._tool_to_skill.items()}
+            # Also include descriptions for frontend display
+            descriptions = {skill.name: skill.description for skill in self._tool_to_skill.values()}
+            entry = CustomEntry(
+                custom_type="skill_mapping",
+                data={"tool_to_skill": mapping, "descriptions": descriptions},
+                id=f"skill-map-{int(time.time() * 1000)}",
+            )
+            try:
+                await self._session_store.append_entry(self._session_id, entry)
+            except Exception:
+                pass  # best-effort persistence
 
     def on_event(self, handler: EventHandler) -> Callable[[], None]:
         """Subscribe to agent events. Returns an unsubscribe function."""

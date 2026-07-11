@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-07-10 19:30 — Skill 事件持久化：历史消息恢复推理卡片技能节点
+
+**需求**：历史消息加载时推理卡片缺少 Skill 节点（实时流有，历史没有）
+
+**方案**：在 ChatAssistant.start() 中持久化 tool_to_skill 映射为 CustomEntry，/session API 从 JSONL 加载该映射，前端 loadMessages 将匹配的 tool blocks 转换为 skill blocks
+
+**改动范围**：
+| 文件 | 改动 |
+|------|------|
+| `scene/h5/chat_assistant.py` | start() 中持久化 tool_to_skill + descriptions 为 CustomEntry |
+| `scene/h5/server.py` | /session API 加载 skill_mapping 并返回 |
+| `scene/h5/static/src/stores/chat-store.ts` | loadMessages 接收 skillMapping，flushAssistant 中转换 tool→skill blocks |
+
+**影响**：
+- 历史消息推理卡片现在显示 Skill 节点，与实时流一致
+- tool_result 处理在转换之前执行，保证 widget/video/image 重建不受影响
+
+---
 ## 2026-07-10 18:45 — 历史消息加载：修复推理卡片与实时流不一致 + 内容去重
 
 **问题**：
@@ -22,7 +40,7 @@
 **影响**：
 - 历史消息加载后，第一轮 assistant 消息（含 tool_call）显示为独立推理卡片
 - 后续 assistant 消息（最终文本）显示为独立内容卡片，不再重复图片
-- Skill 节点在历史加载中仍不可见（需后端持久化 Skill 事件才能解决）
+- Skill 节点在历史加载中已支持（见 19:30 条目）
 
 ---
 ## 2026-07-10 17:30 — Skill Action SSE 增强 + 推理卡片独立视觉样式 + 布局优化

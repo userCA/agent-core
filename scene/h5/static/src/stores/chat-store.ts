@@ -75,7 +75,7 @@ interface ChatState {
   setStreamBlocks: (blocks: MessageBlock[]) => void;
   resetSteps: () => void;
   reset: () => void;
-  loadMessages: (rawMessages: Array<{ role: string; content: unknown; timestamp?: number }>) => void;
+  loadMessages: (rawMessages: Array<{ role: string; content: unknown; timestamp?: number }>, skillMapping?: Record<string, string>) => void;
   loadSessionMessages: (sessionId: string) => Promise<void>;
 }
 
@@ -158,19 +158,51 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (!resp.ok) return;
       const data = await resp.json();
       if (data.messages && data.messages.length > 0) {
-        get().loadMessages(data.messages);
+        const mapping = data.skill_mapping as Record<string, unknown> | undefined;
+        const toolToSkill = mapping?.tool_to_skill as Record<string, string> | undefined;
+        const descriptions = mapping?.descriptions as Record<string, string> | undefined;
+        // Merge descriptions into the mapping for loadMessages
+        if (toolToSkill && descriptions) {
+          (toolToSkill as Record<string, unknown>).descriptions = descriptions;
+        }
+        get().loadMessages(data.messages, toolToSkill);
       }
     } catch { /* best-effort */ }
   },
 
-  loadMessages: (rawMessages) => {
+  loadMessages: (rawMessages, skillMapping) => {
     const loaded: ChatMessage[] = [];
     let currentAssistant: ChatMessage | null = null;
     // Track image URLs from tool results to avoid duplication in text blocks
     const collectedImageUrls = new Set<string>();
+    // Skill mapping: tool_name -> skill_name
+    const toolToSkill = skillMapping || {};
   
     const flushAssistant = () => {
       if (currentAssistant) {
+        // Convert tool blocks to skill blocks using persisted mapping (after tool_result processing)
+        if (currentAssistant.blocks && Object.keys(toolToSkill).length > 0) {
+          const seenSkills = new Set<string>();
+          const converted: MessageBlock[] = [];
+          const desc = (skillMapping as Record<string, unknown>)?.descriptions as Record<string, string> | undefined;
+          for (const b of currentAssistant.blocks) {
+            if (b.type === 'tool' && b.label && toolToSkill[b.label]) {
+              const skillName = toolToSkill[b.label];
+              if (!seenSkills.has(skillName)) {
+                seenSkills.add(skillName);
+                converted.push({
+                  type: 'skill',
+                  label: skillName,
+                  detail: desc?.[skillName] || skillName,
+                  status: 'done',
+                });
+              }
+            } else {
+              converted.push(b);
+            }
+          }
+          currentAssistant.blocks = converted;
+        }
         if (
           currentAssistant.content ||
           (currentAssistant.blocks && currentAssistant.blocks.length > 0)
@@ -224,7 +256,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Remove empty text blocks after dedup
         parsed.blocks = parsed.blocks.filter(b => !(b.type === 'text' && !b.text?.trim()));
         if (parsed.blocks.length === 0) continue;
-  
+
         // Flush previous assistant before starting a new one (matches streaming split behavior)
         flushAssistant();
   
