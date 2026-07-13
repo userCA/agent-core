@@ -22,8 +22,8 @@
 | 级别 | 说明 | 需处理 event pattern |
 |------|------|---------------------|
 | **Level 0** | 最小实现（纯文本对话） | 4 种：`heart`, `message.start`, `content`, `message.end` |
-| **Level 1** | + 工具调用 + 错误处理 | Level 0 + `tool_call.*`, `message.error`（约 9 种） |
-| **Level 2** | 完整体验（state/HITL/companion/step） | Level 1 + `state.*`, `human_input.*`, `step.*`, `companion`（约 18 种） |
+| **Level 1** | + 工具调用 + Skill + 错误处理 | Level 0 + `tool_call.*`, `skill.*`, `message.error`（约 11 种） |
+| **Level 2** | 完整体验（state/HITL/companion/step） | Level 1 + `state.*`, `human_input.*`, `step.*`, `companion`（约 20 种） |
 
 前端可根据产品需求从 Level 0 开始渐进实现。
 
@@ -31,7 +31,7 @@
 
 推荐 `onmessage` 单入口 + dispatch 模式（而非多个 addEventListener）：
 
-```javascript
+```
 const es = new EventSource("/v1/sessions/xxx/runs");
 es.onmessage = (e) => {
   if (e.data === "[DONE]") return es.close();
@@ -44,6 +44,9 @@ es.onmessage = (e) => {
     // Level 1
     case "tool_call.started":    /* 工具开始 */ break;
     case "tool_call.completed":  /* 工具完成 */ break;
+    // Level 1 — Skill
+    case "skill.started":        /* 技能激活 (skillId + skillName + skillDescription) */ break;
+    case "skill.completed":      /* 技能完成 (skillId) */ break;
     // Level 2
     case "state.snapshot":       /* 状态快照 */ break;
     case "state.delta":          /* 状态增量 */ break;
@@ -449,16 +452,19 @@ Agent 特有事件（工具调用、任务步骤、人机交互），统一到 `
 {
   "actionType": "skill.started",
   "skillId": "image-generation",
-  "skillName": "当用户要求生成图片、创建插画、制作海报、设计头像、画图等视觉内容时，使用此技能。"
+  "skillName": "image-generation",
+  "skillDescription": "当用户要求生成图片、创建插画、制作海报、设计头像、画图等视觉内容时，使用此技能。"
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `skillId` | string | 技能唯一标识（对应 SKILL.md 的 name） |
-| `skillName` | string | 技能描述（用于前端展示） |
+| `skillName` | string | 技能标识名（与 skillId 相同，用于前端节点标签） |
+| `skillDescription` | string | 技能描述（用于前端展示详情，对应 SKILL.md 的 description） |
 
 > Skill 是 System Prompt 中的指令文本，当 LLM 调用了与 Skill 关联的工具时触发 `skill.started`。一个 Skill 在一次对话轮次中只触发一次 started，即使关联多个工具被多次调用。
+> **skillName 与 skillDescription 分离传递**：前端用 `skillName` 作为 TraceCard 节点标签（简洁），`skillDescription` 作为展开内容（信息完整）。
 
 #### skill.completed — 技能完成
 ```json
@@ -468,9 +474,28 @@ Agent 特有事件（工具调用、任务步骤、人机交互），统一到 `
 }
 ```
 
-> `skill.completed` 在对话轮次结束（message.end）时统一发送，关闭所有已激活的 Skill。
+> `skill.completed` 在 **TurnEnd**（Agent 轮次结束）时统一发送，关闭所有已激活的 Skill。注意不是在 `message.end` 时关闭——生命周期必须完整覆盖工具执行过程，避免过早结束导致技能重复激活。
 
-### 5.2 工具生命周期状态机
+### 5.2 Skill 与 Tool 的分层架构
+
+Skill 和 Tool 是分层概念：
+
+| 层级 | 概念 | 触发方式 | SSE 事件 |
+|------|------|----------|----------|
+| **Skill** | System Prompt 中的指令文本 | 关联工具被调用时自动注入 | `skill.started` / `skill.completed` |
+| **Tool** | Python 可执行函数 | LLM function calling | `tool_call.started` / `tool_call.completed` |
+
+```
+skill.started (image-generation)
+    ↓
+  tool_call.started (generate_image) → ... → tool_call.completed
+    ↓
+skill.completed (image-generation)   ← TurnEnd 时统一关闭
+```
+
+> **历史恢复**：Session JSONL 中持久化了 `skill_mapping`（tool_name → skill_name 映射），`GET /session` 返回 `skill_mapping` 字段，前端据此在历史消息中重建 Skill 节点显示。
+
+### 5.3 工具生命周期状态机
 
 ```
 tool_call.started (arguments 完整 或 null+arguments_delta)
@@ -484,7 +509,7 @@ tool_call.completed
 
 > `human_input.required` 可出现在工具生命周期的**任意阶段**（不仅是 started 之后），工具收到用户输入后继续执行直到 completed。
 
-### 5.3 任务步骤与工具调用的关系
+### 5.4 任务步骤与工具调用的关系
 
 ```
 step.start (s1, "分析需求", type="tool_calls")
@@ -514,7 +539,7 @@ step.end (s2, "编码实现")
 | **更新频率** | 每阶段 2 次（start + end） | 按需（数据变化时） |
 | **是否可选** | 是（简单对话不发） | 是（无状态需求不发） |
 
-### 5.4 Action 公共结构
+### 5.5 Action 公共结构
 
 ```
 interface Action {
@@ -752,10 +777,40 @@ POST /v1/sessions/{session_id}/abort
 
 ```
 GET    /v1/sessions                        列表（分页）
-GET    /v1/sessions/{session_id}/messages   历史消息
+GET    /v1/sessions/{session_id}/messages   历史消息（含 skill_mapping）
 GET    /v1/sessions/{session_id}/export     导出文本
 DELETE /v1/sessions/{session_id}            删除
 ```
+
+#### 历史消息响应中的 skill_mapping
+
+`GET /v1/sessions/{session_id}/messages` 返回 `skill_mapping` 字段，用于历史消息中恢复 Skill 节点显示：
+
+```json
+{
+  "success": true,
+  "session_id": "scene-xxx",
+  "messages": [...],
+  "skill_mapping": {
+    "tool_to_skill": {
+      "generate_image": "image-generation",
+      "edit_image": "image-generation",
+      "web_search": "web-research"
+    },
+    "descriptions": {
+      "image-generation": "当用户要求生成图片、创建插画等视觉内容时，使用此技能。",
+      "web-research": "当用户需要搜索网络信息时使用此技能。"
+    }
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `tool_to_skill` | `Record<string, string>` | tool_name → skill_name 映射 |
+| `descriptions` | `Record<string, string>` | skill_name → skill_description 映射 |
+
+> `skill_mapping` 在 `ChatAssistant.start()` 时持久化到 JSONL。历史加载时前端根据此映射将 tool 块转换为 skill 块显示。当无 Skill 关联时返回空对象 `{}`。
 
 ### 9.5 能力与配置
 
@@ -950,7 +1005,55 @@ data: {"type":"heart"}
 
 ```
 
-### 10.5 多步骤任务（含 Step + State）
+### 10.5 包含 Skill 的工具调用
+
+```
+event: message
+data: {"type":"message.start","messageId":"msg_001","sessionId":"scene-xxx","runId":"run_001","createdAt":1780069413}
+
+event: content
+data: {"type":"text","contentId":"ct_001","index":0,"phase":"start","content":""}
+
+event: content
+data: {"type":"text","contentId":"ct_001","index":0,"phase":"delta","content":"好的，我来帮你生成一张图片。"}
+
+event: content
+data: {"type":"text","contentId":"ct_001","index":0,"phase":"done","content":"好的，我来帮你生成一张图片。"}
+
+event: action
+data: {"actionType":"skill.started","skillId":"image-generation","skillName":"image-generation","skillDescription":"当用户要求生成图片、创建插画、制作海报等视觉内容时，使用此技能。"}
+
+event: action
+data: {"actionType":"tool_call.started","toolCallId":"call_img01","name":"generate_image","arguments":{"prompt":"一只可爱的猫咪","size":"1024x1024"}}
+
+event: action
+data: {"actionType":"tool_call.completed","toolCallId":"call_img01","result":{"output":"![生成图片](http://cdn.example.com/cat.png)","isError":false,"display":null}}
+
+event: action
+data: {"actionType":"skill.completed","skillId":"image-generation"}
+
+event: content
+data: {"type":"text","contentId":"ct_002","index":1,"phase":"start","content":""}
+
+event: content
+data: {"type":"text","contentId":"ct_002","index":1,"phase":"delta","content":"图片已生成完毕！"}
+
+event: content
+data: {"type":"text","contentId":"ct_002","index":1,"phase":"done","content":"图片已生成完毕！"}
+
+event: message
+data: {"type":"message.end","messageId":"msg_001","stopReason":"end_turn","completedAt":1780069425,"usage":{"input_tokens":600,"output_tokens":80,"cache_read_tokens":400,"cache_write_tokens":0}}
+
+data: [DONE]
+
+```
+
+> **Skill 事件时序要点**：
+> - `skill.started` 在关联的 `tool_call.started` **之前**发送
+> - `skill.completed` 在 **TurnEnd** 时统一发送（所有活跃 Skill 一起关闭），位于 `message.end` 之前
+> - 一个 Skill 在同一轮次中只触发一次 `skill.started`，即使多个关联工具被调用
+
+### 10.6 多步骤任务（含 Step + State）
 
 ```
 event: message
@@ -1023,5 +1126,6 @@ data: [DONE]
 | — | `action` (actionType=tool_call.arguments_delta) | **新增** 工具参数流式（Optional） |
 | — | `action` (actionType=human_input.submitted) | **新增** 用户输入确认 |
 | — | `action` (actionType=step.start/step.end) | **新增** 任务步骤生命周期（含 stepId + type） |
-| — | `action` (actionType=skill.started/skill.completed) | **新增** 技能激活/完成生命周期 |
+| — | `action` (actionType=skill.started/skill.completed) | **新增** 技能激活/完成生命周期（含 skillId + skillName + skillDescription） |
 | — | `state` (type=state.snapshot/state.delta) | **新增** Agent 状态同步（Merge Patch） |
+| — | REST `skill_mapping` 响应字段 | **新增** 历史消息 Skill 恢复映射（tool_to_skill + descriptions） |

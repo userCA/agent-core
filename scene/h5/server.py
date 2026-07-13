@@ -24,8 +24,6 @@ from agent_core.resources.personas import load_personas
 
 from scene.h5.events import agent_event_to_sse_json, companion_event_to_v1, create_tracker
 from agent_core.tools.mcp_tool import add_mcp_server_to_json, remove_mcp_server_from_json
-from agent_core.session.jsonl_store import JsonlStore
-from agent_core.session.store import CustomEntry
 from scene.h5.manager import SessionManager
 from scene.h5.request_context import current_request_headers
 
@@ -381,16 +379,7 @@ async def get_session(request: Request) -> dict[str, Any]:
             pass
 
     # Load skill mapping from JSONL for history restoration
-    skill_mapping: dict[str, Any] = {}
-    try:
-        store = JsonlStore(manager._store_dir)
-        snapshot = await store.load_session(session_id)
-        for entry in reversed(snapshot.entries):
-            if isinstance(entry, CustomEntry) and entry.custom_type == "skill_mapping":
-                skill_mapping = entry.data or {}
-                break
-    except Exception:
-        pass  # best-effort: session may not exist on disk
+    skill_mapping = await manager.load_skill_mapping(session_id)
 
     return {
         "success": True,

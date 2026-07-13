@@ -26,7 +26,11 @@ class JsonlStore:
         self._dir.mkdir(parents=True, exist_ok=True)
 
     def _path(self, session_id: str) -> Path:
-        return self._dir / f"{session_id}.jsonl"
+        """Resolve the JSONL file path, guarding against path traversal via session_id."""
+        path = (self._dir / f"{session_id}.jsonl").resolve()
+        if not str(path).startswith(str(self._dir.resolve())):
+            raise ValueError(f"Invalid session_id: path traversal detected")
+        return path
 
     async def create_session(self, session_id: str, header: SessionHeader) -> None:
         path = self._path(session_id)

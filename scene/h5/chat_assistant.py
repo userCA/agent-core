@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import time
 from typing import Any, Awaitable, Callable
+
+logger = logging.getLogger(__name__)
 
 from agent_core.core.agent import Agent
 from agent_core.core.content import ImageContent
@@ -127,6 +130,7 @@ class ChatAssistant:
             for tool_name in skill.tools:
                 self._tool_to_skill[tool_name] = skill
         self._active_skills: set[str] = set()
+        self._skill_mapping_persisted = False
 
     @classmethod
     async def create(
@@ -407,8 +411,8 @@ class ChatAssistant:
         # Wire ChatAssistant handlers into the session event stream
         self._session_unsub = self._session.subscribe(self._on_agent_event)
 
-        # Persist tool_to_skill mapping for history restoration
-        if self._tool_to_skill:
+        # Persist tool_to_skill mapping for history restoration (once per session)
+        if self._tool_to_skill and not self._skill_mapping_persisted:
             mapping = {tool: skill.name for tool, skill in self._tool_to_skill.items()}
             # Also include descriptions for frontend display
             descriptions = {skill.name: skill.description for skill in self._tool_to_skill.values()}
@@ -419,8 +423,9 @@ class ChatAssistant:
             )
             try:
                 await self._session_store.append_entry(self._session_id, entry)
-            except Exception:
-                pass  # best-effort persistence
+                self._skill_mapping_persisted = True
+            except Exception as exc:
+                logger.warning("Failed to persist skill_mapping for %s: %s", self._session_id, exc)
 
     def on_event(self, handler: EventHandler) -> Callable[[], None]:
         """Subscribe to agent events. Returns an unsubscribe function."""
