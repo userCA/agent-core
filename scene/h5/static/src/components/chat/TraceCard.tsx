@@ -25,9 +25,12 @@ const CheckNode = ({ size = 10 }: { size?: number }) => (
 );
 
 export default function TraceCard({ blocks }: Props) {
-  // Separate step blocks (think/tool) from content blocks (text/widget/video/image)
-  const stepBlocks = blocks.filter(b => b.type === 'think' || b.type === 'tool' || b.type === 'skill');
-  const contentBlocks = blocks.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image');
+  // Separate step blocks (think/tool/skill) from content blocks (text/widget/video/image)
+  // Use turnPhase when available, fallback to type-based detection
+  const isStep = (b: MessageBlock) =>
+    b.turnPhase ? b.turnPhase === 'intermediate' : (b.type === 'think' || b.type === 'tool' || b.type === 'skill');
+  const stepBlocks = blocks.filter(isStep);
+  const contentBlocks = blocks.filter(b => !isStep(b));
 
   const [traceOpen, setTraceOpen] = useState(true);
   const [openSteps, setOpenSteps] = useState<Set<number>>(new Set());

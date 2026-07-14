@@ -122,24 +122,23 @@ export default function StreamingMessage() {
           </div>
         )}
 
-        <div className={`bubble bubble-assistant streaming-bubble${!isStreaming ? ' fade-out' : ''}`}>
-          {streamBlocks.length > 0 ? (
-            <div className="final-content streaming hidden" />
-          ) : (
+        {/* Streaming text bubble — only render when there's actual text content or HITL */}
+        {(currentText.length > 0 || audios.length > 0 || hitlRequest) && (
+          <div className={`bubble bubble-assistant streaming-bubble${!isStreaming ? ' fade-out' : ''}`}>
             <div ref={contentRef} className="final-content streaming" />
-          )}
 
-          {audios.map((a, i) => <AudioPlayer key={`a-${i}`} audio={a} />)}
+            {audios.map((a, i) => <AudioPlayer key={`a-${i}`} audio={a} />)}
 
-          {hitlRequest && (
-            <HitlCard
-              toolCallId={hitlRequest.toolCallId}
-              prompt={hitlRequest.prompt}
-              inputSchema={hitlRequest.inputSchema}
-              onSubmitted={() => setHitlRequest(null)}
-            />
-          )}
-        </div>
+            {hitlRequest && (
+              <HitlCard
+                toolCallId={hitlRequest.toolCallId}
+                prompt={hitlRequest.prompt}
+                inputSchema={hitlRequest.inputSchema}
+                onSubmitted={() => setHitlRequest(null)}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

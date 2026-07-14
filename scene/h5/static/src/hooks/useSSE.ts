@@ -51,6 +51,7 @@ interface _Block {
   toolCallId?: string;
   status?: 'running' | 'done';
   isError?: boolean;
+  turnPhase?: 'intermediate' | 'final';
   widget?: any;
   videoUrl?: string;
   videoSize?: string;
@@ -67,6 +68,9 @@ export function useSSE() {
   const blocksRef = useRef<_Block[]>([]);
   const errorShownRef = useRef(false);
   const _blocksDirtyRef = useRef(false);
+  const turnStartIdxRef = useRef(0);
+  // Current phase for blocks being created — ensures between-turn blocks (tool execution) get tagged
+  const currentTurnPhaseRef = useRef<'intermediate' | 'final'>('intermediate');
 
   const {
     setStreaming, addMessage, setStreamingMessageId,
@@ -89,6 +93,7 @@ export function useSSE() {
       detail: b.type === 'video' ? b.videoUrl : b.type === 'image' ? b.imageUrl : b.type === 'file' ? b.fileUrl : b.content,
       isError: b.isError,
       status: b.status,
+      turnPhase: b.turnPhase,
       videoUrl: b.type === 'video' ? b.videoUrl : undefined,
       videoSize: b.type === 'video' ? b.videoSize : undefined,
       videoSeconds: b.type === 'video' ? b.videoSeconds : undefined,
@@ -111,10 +116,21 @@ export function useSSE() {
     if (type === 'message.start') {
       const e = evt as MessageStart;
       setSessionId(e.sessionId);
+      // Mark turn boundary — blocks from this index belong to the new turn
+      turnStartIdxRef.current = blocksRef.current.length;
+      // New LLM turn always starts as intermediate until message.end says otherwise
+      currentTurnPhaseRef.current = 'intermediate';
     }
     else if (type === 'message.end') {
       const e = evt as MessageEnd;
       setUsage(e.usage);
+      // Back-tag current turn's blocks based on stopReason
+      const phase: 'intermediate' | 'final' = e.stopReason === 'end_turn' ? 'final' : 'intermediate';
+      for (let i = turnStartIdxRef.current; i < blocks.length; i++) {
+        blocks[i].turnPhase = phase;
+      }
+      // Update current phase — blocks created between turns (tool execution) inherit this
+      currentTurnPhaseRef.current = phase;
       // Detect error stop reason and show toast (error bubble comes from message.error)
       if (e.stopReason === 'error' && !errorShownRef.current) {
         errorShownRef.current = true;
@@ -247,7 +263,7 @@ export function useSSE() {
         case 'tool_call.started': {
           blocks.push({
             type: 'tool', content: JSON.stringify(ae.arguments),
-            toolName: ae.name, toolCallId: ae.toolCallId, status: 'running',
+            toolName: ae.name || ae.toolCallId || 'tool', toolCallId: ae.toolCallId, status: 'running',
           });
           break;
         }
@@ -339,6 +355,11 @@ export function useSSE() {
       }
     }
 
+    // Tag any untagged blocks (e.g. tool execution results between turns)
+    for (let i = 0; i < blocks.length; i++) {
+      if (!blocks[i].turnPhase) blocks[i].turnPhase = currentTurnPhaseRef.current;
+    }
+
     // Sync blocks to store (throttled, skip for text deltas — streamText already triggers re-render)
     const isTextDelta = (type === 'text' && (evt as any).phase === 'delta');
     if (!isTextDelta) {
@@ -358,6 +379,8 @@ export function useSSE() {
     resetSteps();
     blocksRef.current = [];
     errorShownRef.current = false;
+    turnStartIdxRef.current = 0;
+    currentTurnPhaseRef.current = 'intermediate';
     const assistantId = `asst-${Date.now()}`;
     setStreamingMessageId(assistantId);
 
@@ -395,42 +418,52 @@ export function useSSE() {
       }
 
       const contentParts: string[] = [];
-      const msgBlocks: import('../stores/chat-store').MessageBlock[] = [];
+      const intermediateBlocks: import('../stores/chat-store').MessageBlock[] = [];
+      const finalBlocks: import('../stores/chat-store').MessageBlock[] = [];
 
       for (const b of blocks) {
         const c = b.content || '';
+        let mb: import('../stores/chat-store').MessageBlock | null = null;
         if (b.type === 'text') {
           contentParts.push(c);
-          msgBlocks.push({ type: 'text', text: c });
+          mb = { type: 'text', text: c };
         } else if (b.type === 'think') {
-          msgBlocks.push({ type: 'think', detail: c });
+          mb = { type: 'think', detail: c };
         } else if (b.type === 'tool') {
-          msgBlocks.push({ type: 'tool', label: b.toolName, detail: c, isError: b.isError });
+          mb = { type: 'tool', label: b.toolName, detail: c, isError: b.isError };
         } else if (b.type === 'skill') {
-          msgBlocks.push({ type: 'skill', label: b.toolName, detail: b.content });
+          mb = { type: 'skill', label: b.toolName, detail: b.content };
         } else if (b.type === 'widget') {
-          msgBlocks.push({ type: 'widget', widget: b.widget });
+          mb = { type: 'widget', widget: b.widget };
         } else if (b.type === 'video') {
-          msgBlocks.push({
+          mb = {
             type: 'video',
             videoUrl: b.videoUrl,
             videoSize: b.videoSize,
             videoSeconds: b.videoSeconds,
             detail: b.videoUrl,
-          });
+          };
         } else if (b.type === 'image') {
-          msgBlocks.push({
+          mb = {
             type: 'image',
             imageUrl: b.imageUrl,
             imageMeta: b.imageMeta,
             detail: b.imageUrl,
-          });
+          };
+        }
+        if (mb) {
+          // Route by turnPhase: intermediate → trace card, final → content card
+          if (b.turnPhase === 'intermediate') {
+            intermediateBlocks.push(mb);
+          } else {
+            finalBlocks.push(mb);
+          }
         }
       }
-      // Determine content: use text parts, or descriptive placeholder for media-only responses
+      // Content text comes from final text blocks only
       let content = contentParts.join('').trim();
       if (!content) {
-        const hasMedia = msgBlocks.some(b => b.type === 'image' || b.type === 'video' || b.type === 'widget');
+        const hasMedia = finalBlocks.some(b => b.type === 'image' || b.type === 'video' || b.type === 'widget');
         content = hasMedia ? '已生成媒体内容' : '(empty)';
       }
 
@@ -441,10 +474,12 @@ export function useSSE() {
         return;
       }
 
+      const allBlocks = [...intermediateBlocks, ...finalBlocks];
       const finalState = useChatStore.getState();
       addMessage({
         id: assistantId, role: 'assistant', content,
-        blocks: msgBlocks.length > 0 ? msgBlocks : undefined,
+        blocks: allBlocks.length > 0 ? allBlocks : undefined,
+        intermediateBlocks: intermediateBlocks.length > 0 ? intermediateBlocks : undefined,
         widgets: finalState.widgets.length > 0 ? [...finalState.widgets] : undefined,
         audios: finalState.audios.length > 0 ? [...finalState.audios] : undefined,
         usage: finalState.usage,
@@ -459,7 +494,10 @@ export function useSSE() {
       setStreaming(false);
       setStreamingMessageId(null);
       abortRef.current = null;
-      setTimeout(() => { resetSteps(); }, 350);
+      // Clear text immediately so finalized message appears without delay
+      useChatStore.setState({ currentText: '' });
+      // Defer remaining cleanup (blocks/widgets/audios) for fade-out
+      setTimeout(() => { resetSteps(); }, 260);
       const pending = dequeuePending();
       if (pending) { setTimeout(() => _runStream(pending), 100); }
     }

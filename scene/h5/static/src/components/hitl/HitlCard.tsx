@@ -98,7 +98,14 @@ export default function HitlCard({ toolCallId, prompt, inputSchema, onSubmitted 
   const [submitting, setSubmitting] = useState(false);
 
   // Derive renderable fields from JSON Schema once
-  const fields = React.useMemo(() => jsonSchemaToFields(inputSchema), [inputSchema]);
+  // Support both JSON Schema format ({properties, required}) and flat fields array ({fields: [...]})
+  const fields = React.useMemo(() => {
+    const raw = inputSchema as any;
+    if (Array.isArray(raw?.fields)) {
+      return raw.fields as FieldInfo[];
+    }
+    return jsonSchemaToFields(inputSchema);
+  }, [inputSchema]);
 
   // Image upload state
   const [imageFiles, setImageFiles] = useState<Record<string, string[]>>({});

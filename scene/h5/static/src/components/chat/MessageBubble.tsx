@@ -119,8 +119,16 @@ export default function MessageBubble({ message }: Props) {
   }
 
   // assistant — split reasoning steps and content into separate cards
-  const stepBlocks = blocks?.filter(b => b.type === 'think' || b.type === 'tool' || b.type === 'skill') || [];
-  const contentBlocks = blocks?.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image') || [];
+  // Use turnPhase-based split (streaming messages) with type-based fallback (history messages)
+  const { intermediateBlocks } = message;
+  const stepBlocks = intermediateBlocks
+    || blocks?.filter(b => b.type === 'think' || b.type === 'tool' || b.type === 'skill')
+    || [];
+  const contentBlocks = intermediateBlocks
+    ? (blocks?.filter(b => b.turnPhase !== 'intermediate') || [])
+      // Also catch non-step blocks from intermediate (e.g. widgets from tool results)
+      .concat(intermediateBlocks.filter(b => b.type !== 'think' && b.type !== 'tool' && b.type !== 'skill'))
+    : (blocks?.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image') || []);
   const hasSteps = stepBlocks.length > 0;
   const hasContent = contentBlocks.length > 0 || !!content;
   const splitCards = hasSteps && hasContent;

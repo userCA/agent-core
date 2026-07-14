@@ -1,5 +1,75 @@
 # Changelog
 
+## 2026-07-14 13:15 — TraceCard 工具名称 fallback 修复
+
+**问题**：TraceCard 中部分工具步骤显示为通用“工具”字样，而非实际工具名
+
+**根因**：`tool_call.started` 创建 block 时 `toolName` 直接取自 `ae.name`，若 SSE 事件未携带 name 字段，`toolName` 为 undefined，`_flushPending` 映射到 `label` 也为空，TraceCard 回退显示“工具”
+
+**方案**：在 `useSSE.ts` 的 `tool_call.started` handler 中添加 fallback 链：`ae.name || ae.toolCallId || 'tool'`，确保 toolName 始终有值
+
+**改动文件**：`scene/h5/static/src/hooks/useSSE.ts`
+
+**影响面**：仅前端 SSE 处理逻辑，无后端变更
+
+---
+
+## 2026-07-14 12:52 — HitlCard 表单渲染修复 + 空白流式气泡消除
+
+**问题**：
+- 确认卡片（HitlCard）无法渲染输入字段，用户无法填写内容
+- 模型回答过程中出现空白消息卡片占位（仅工具步骤无文本时）
+
+**根因**：
+- H5 HitlCard 期望 JSON Schema 格式（`{properties, required}`），但后端 `confirm` 工具发送的是 `{fields: [...]}` 扁平数组格式，`jsonSchemaToFields` 解析 `schema.properties` 为 `undefined`，导致表单字段列表为空
+- `StreamingMessage` 在有 `streamBlocks`（工具步骤）但无流式文本时，仍渲染一个带有 padding 的 streaming-bubble 容器（内部内容被 `hidden` class 隐藏），产生可见的空白卡片
+
+**方案**：
+1. `HitlCard.tsx`：`useMemo` 中先检查 `inputSchema.fields` 是否为数组，若是则直接使用；否则走 JSON Schema 解析（兼容两种格式）
+2. `StreamingMessage.tsx`：streaming-bubble 仅在 `currentText.length > 0 || audios.length > 0 || hitlRequest` 时渲染，消除空白占位
+
+**改动文件**：
+- `scene/h5/static/src/components/hitl/HitlCard.tsx`
+- `scene/h5/static/src/components/chat/StreamingMessage.tsx`
+
+**影响面**：仅前端渲染逻辑，无后端/API 变更
+
+---
+
+## 2026-07-14 09:51 — 基于 stopReason 的中间/最终结果分类 + 流式→归档无闪烁交接
+
+**问题**：
+- 前端按 block type 硬编码分类中间过程与最终结果，同一 type 在不同 turn 中含义不同（如图片可以是工具中间产物，也可以是最终交付物）
+- 流式结束后 TraceCard/Content Card 切换时存在布局跳变（闪烁）
+- 流式→归档交接有 350ms 延迟，导致 100ms 空白期
+
+**根因**：
+- type 映射无法区分同一 type 在不同 turn 中的语义差异，真正的信号在 LLM turn 的 `stopReason` 字段
+- `stopReason: tool_use` 表示中间 turn，`stopReason: end_turn` 表示最终 turn
+- 工具执行事件发生在 turn 之间，默认未标记 turnPhase
+
+**方案**：
+1. `useSSE.ts` 新增 `turnStartIdxRef` 追踪 turn 边界，`currentTurnPhaseRef` 追踪当前阶段
+2. `message.end` 时根据 `stopReason` 回标当前 turn 的所有 blocks
+3. 工具执行期间的 blocks 继承 `currentTurnPhaseRef`（默认为 intermediate）
+4. 归档时按 `turnPhase` 分流为 `intermediateBlocks` / `finalBlocks`
+5. `MessageBubble` 优先使用 `intermediateBlocks`，无此字段时回退到 type 过滤（兼容历史消息）
+6. 流式结束时立即清空 `currentText`，消除 350ms 延迟闪烁
+
+**改动范围**：
+| 文件 | 改动 |
+|------|------|
+| `scene/h5/static/src/stores/chat-store.ts` | MessageBlock 增加 turnPhase，ChatMessage 增加 intermediateBlocks |
+| `scene/h5/static/src/hooks/useSSE.ts` | turn 边界追踪 + stopReason 回标 + 归档分流 + 交接时序优化 |
+| `scene/h5/static/src/components/chat/MessageBubble.tsx` | turnPhase 分流 + type 回退 + 非 step 块捕获 |
+| `scene/h5/static/src/components/chat/TraceCard.tsx` | turnPhase 感知的内部分类 |
+
+**影响**：
+- 多 turn 工具调用场景下，中间过程的文本/图片/工具结果正确收入 TraceCard，仅最终 turn 显示在内容卡片
+- 流式→归档切换无闪烁，交接在 260ms 内完成
+- 历史消息渲染保持向后兼容（type-based 回退）
+
+---
 ## 2026-07-10 19:30 — Skill 事件持久化：历史消息恢复推理卡片技能节点
 
 **需求**：历史消息加载时推理卡片缺少 Skill 节点（实时流有，历史没有）

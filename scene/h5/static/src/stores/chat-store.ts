@@ -13,6 +13,7 @@ export interface MessageBlock {
   detail?: string;
   isError?: boolean;
   status?: 'running' | 'done';
+  turnPhase?: 'intermediate' | 'final';
   widget?: WidgetDisplay;
   videoUrl?: string;
   videoSize?: string;
@@ -26,6 +27,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'tool' | 'error';
   content: string;
   blocks?: MessageBlock[];
+  intermediateBlocks?: MessageBlock[];
   widgets?: WidgetDisplay[];
   audios?: AudioDisplay[];
   usage?: Usage | null;
