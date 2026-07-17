@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -9,6 +10,20 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from agent_core.core.messages import AgentMessage
 
 ThinkingLevel = Literal["off", "minimal", "low", "medium", "high", "xhigh"]
+
+
+class AgentHarnessPhase(str, Enum):
+    """Explicit lifecycle phase of the AgentHarness.
+
+    Structural operations (prompt, compact, navigateTree) require IDLE.
+    Runtime config setters are allowed in any phase.
+    """
+
+    IDLE = "idle"
+    TURN = "turn"
+    COMPACTION = "compaction"
+    BRANCH_SUMMARY = "branch_summary"
+    RETRY = "retry"
 
 
 class AgentState(BaseModel):
@@ -20,7 +35,8 @@ class AgentState(BaseModel):
     tools: list[Any] = Field(default_factory=list)
     messages: list[AgentMessage] = Field(default_factory=list)
 
-    is_streaming: bool = False
+    phase: AgentHarnessPhase = AgentHarnessPhase.IDLE
+    is_streaming: bool = False  # deprecated: use phase instead
     streaming_message: Any | None = None
     error_message: str | None = None
 

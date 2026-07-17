@@ -1,5 +1,39 @@
 # Release Notes
 
+## 2026-07-16 (架构升级)
+
+### AgentHarness 架构完成
+
+- **职责分离**：Agent 现在专注于运行 LLM 循环，所有编排能力（hooks、队列、配置、事件处理）已上移到 AgentHarness
+- **新名称**：AgentSession 已重命名为 AgentHarness，原名称仍可使用以保持兼容
+- **运行时配置**：可通过 harness 动态修改模型、思考级别、工具集，变更在下一轮自动生效
+- **结构化错误**：统一使用 AgentHarnessError，包含明确的错误代码（busy/invalid_state/invalid_argument 等）
+- **队列管理**：steer/follow_up 队列现由 harness 统一管理，支持队列状态事件通知
+
+---
+
+## 2026-07-16 (内部重构)
+
+### Agent 生命周期管理升级
+
+- **Phase 状态机**：Agent 现在使用明确的阶段（idle/turn/compaction/branch_summary/retry）管理生命周期，替代原有的布尔标记
+- **更安全的并发保护**：在 Agent 忙碌时调用 prompt/continue 会收到明确的错误提示，避免状态混乱
+- **事件回调架构**：内部事件系统从生成器模式升级为回调模式，为后续持久化和 Hook 系统奠定基础
+
+### 多轮配置热更新
+
+- **Turn Snapshot**：每轮 LLM 调用前创建不可变配置快照，运行时修改 model/thinking_level/tools 等配置会在下一轮自动生效
+- **Save Point 语义**：工具调用或 steering 消息导致的多轮执行之间，自动刷新配置快照并通知 listeners
+
+### 统一 Hook 系统
+
+- **统一事件分发**：所有 Hook 通过 `agent.hooks` 统一注册和触发，不再分散在多个内部方法中
+- **类型化事件**：每种 Hook 有明确的事件类型和 reducer 语义，行为更可预测
+- **只读观察**：新增 `observe()` API，可在不影响事件流的情况下监听所有 Hook 事件
+- **完全向后兼容**：已有的 Hook 注册 API 无需修改即可正常工作
+
+---
+
 ## 2026-07-14 (v16)
 
 ### 推理过程智能分类

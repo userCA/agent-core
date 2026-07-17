@@ -180,7 +180,7 @@ agent_core/
 - `[test]` — `pytest`, `pytest-asyncio`, `respx`
 - `[all]` — 以上全部
 
-## 编码规范
+**## 编码规范
 
 **权衡：** 这些规范偏向谨慎优先于速度。对于简单任务，自行判断。
 
@@ -263,4 +263,4 @@ agent_core/
 2. **检查 skill 是否需要更新** — 对照变更模式与已有规则，现有规则已覆盖则不追加
 3. **提交** — 按 Conventional Commits 格式写 commit message
 
-此规则对所有提交生效。兜底: 说"收尾"或 `/finish` 手动触发同流程。
+此规则对所有**提交生效。兜底: 说"收尾"或 `/finish` 手动触发同流程。

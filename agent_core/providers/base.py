@@ -17,6 +17,12 @@ def tools_to_provider_format(tools: list[Any]) -> list[dict[str, Any]]:
             out.append(_definition_to_openai(t))
         elif hasattr(t, "model_dump"):
             out.append(_definition_to_openai(t.model_dump()))
+        elif hasattr(t, "definition"):
+            definition = t.definition
+            if hasattr(definition, "model_dump"):
+                out.append(_definition_to_openai(definition.model_dump()))
+            elif isinstance(definition, dict):
+                out.append(_definition_to_openai(definition))
     return out
 
 

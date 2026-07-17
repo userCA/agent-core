@@ -1,5 +1,115 @@
 # Changelog
 
+## 2026-07-17 — AgentHarness 语义补全（P0/P1/P2）
+
+**Spec:** `.qoder/specs/Agent完备Harness演进_task-31c.md`
+
+**P0 — 语义补全：** pending flush 真写 store；setter idle/busy 分岔；active tools 进 snapshot；compact cancel reducer；failure 走 harness 持久化；Settled/Abort 时序对齐。
+
+**P1 — stream + hooks：** `stream_options` 快照与 get/set API；provider hook 管道（request patch / payload transform / response observe）。
+
+**P2 — 职责收敛：** Agent 在有 `_harness` 时 `_handle_event`、`_notify_listeners`、`phase` getter 纯委托；删除 session 遗留 `_on_agent_event`；Harness phase setter 同步 Agent state。
+
+**测试：** `test_harness_lifecycle.py` + `test_pending_writes.py` + `test_harness_stream.py`；core/session 197 passed。
+
+---
+
+## 2026-07-16 — 阶段 B: AgentSession → AgentHarness 职责上移
+
+**问题**：Agent 类同时承担 loop runner 和编排核心两个角色，hooks/phase/queues/listeners/config setters/pending writes 全部集中在 Agent，AgentSession 仅是薄包装
+
+**根因**：对标 TS AgentHarness 架构，所有编排职责应属于 Harness（Session），Agent 应精简为纯 loop runner
+
+**方案**：7 步渐进式职责上移，每步保持向后兼容（Agent 通过 `_harness` 引用委托）：
+1. **B1 Hooks 上移** — Session 拥有 `AgentHooks`，Agent.hooks 代理到 session.hooks，构造函数 hooks 自动合并
+2. **B2 Phase 上移** — Session 拥有 `_phase`，Agent.phase setter 同步 session
+3. **B3 Config Setters + Pending Writes** — Session 拥有 `_pending_writes` + set_model/set_thinking_level/set_tools/set_active_tools，Agent 委托
+4. **B4 Queues 上移** — Session 拥有 `_steering`/`_follow_up` 队列，steer/follow_up/clear_all_queues 委托
+5. **B5 Listeners + Event Handling** — Session 成为事件流唯一入口（`_handle_event`），Agent 的 emit sink 直接路由到 session，subscribe 委托
+6. **B6 Agent 精简** — Agent 作为 loop runner，abort_and_wait 委托，文档更新架构定位
+7. **B7 重命名** — `AgentSession` → `AgentHarness`，保留 `AgentSession = AgentHarness` 别名
+
+**改动文件**：
+- `agent_core/core/agent.py` — 新增 `_harness` 字段，所有编排方法添加委托逻辑
+- `agent_core/session/session.py` — 新增 hooks/phase/queues/pending_writes/listeners/_handle_event，重命名为 AgentHarness
+- `agent_core/session/__init__.py` — 导出 AgentHarness + AgentSession 别名
+
+**影响范围**：Agent、AgentSession/AgentHarness、所有场景层 ChatAssistant
+
+---
+
+## 2026-07-16 — Harness P3: 统一 Hook 系统
+
+**问题**：Agent 的 Hook 系统分散在多个 `_chain_*` 方法中，每个方法独立管理一类 Hook，缺乏统一的注册、分发和 reducer 语义
+
+**根因**：`_before_hooks`、`_after_hooks`、`_transform_hooks`、`_before_agent_start_hooks` 各自维护独立的列表和链式调用逻辑，外部无法统一观察/参与事件，新增 Hook 类型需要添加新的 `_chain_*` 方法
+
+**方案**：
+1. 新建 `AgentHooks` 类，提供 `observe()`（只读）、`on(type, handler)`（参与 reducer）、`emit(event)`（唯一入口）三个 API
+2. 类型化 HookEvent：`ContextHookEvent`（链式 transform）、`BeforeAgentStartHookEvent`（accumulate）、`ToolCallHookEvent`（early exit on block）、`ToolResultHookEvent`（patch 累积）
+3. Agent 的 `_chain_*` 方法委托给 `self.hooks.emit()`，旧 API 完全兼容
+4. 构造函数传入的 `before_tool_call`/`after_tool_call`/`transform_context` 通过 legacy adapter 注册到统一系统
+
+**改动文件**：
+- `agent_core/core/hooks.py` — 新建 AgentHooks + 类型化 HookEvent + reducer 实现
+- `agent_core/core/agent.py` — 集成 hooks，旧 _chain_* 委托 emit，添加 _maybe_await
+- `agent_core/core/__init__.py` — 导出 AgentHooks + HookEvent 类型
+- `tests/core/test_hooks.py` — 14 个 reducer 语义 + observer + 异常测试
+- `tests/core/test_agent.py` — 3 个 Agent 层 hooks 集成测试
+- `tests/tools/test_aigc_creation.py` — 适配统一 hooks 断言
+
+---
+
+## 2026-07-16 — Harness P1: Turn Snapshot + Save Point
+
+**问题**：Agent loop 在多轮执行（工具调用、steering、follow_up）时，各轮之间无法感知运行时配置变更（如 model/thinking_level/system_prompt 修改），且缺乏显式的 save point 语义
+
+**根因**：loop 在整个 run 期间复用同一个 `AgentContext` 和 `AgentLoopConfig`，外部在 turn 间修改 state 后无法被新一轮感知
+
+**方案**：
+1. 新增 `TurnSnapshot` 不可变快照数据类（messages/system_prompt/tools/model/thinking_level）
+2. 新增 `PrepareNextTurn` 回调类型，在 save point 被 loop 调用
+3. loop.py 新增 `_save_point()` 辅助函数：调用 `prepare_next_turn` 刷新 context/config + emit `SavePoint` 事件
+4. Agent 新增 `create_turn_snapshot()` 公共方法 + `_prepare_next_turn()` 私有回调
+5. events.py 新增 `SavePoint` 事件类型
+
+**改动文件**：
+- `agent_core/core/context.py` — TurnSnapshot + PrepareNextTurn 类型
+- `agent_core/core/events.py` — SavePoint 事件
+- `agent_core/core/loop.py` — _save_point 辅助 + prepare_next_turn 调用
+- `agent_core/core/agent.py` — create_turn_snapshot + _prepare_next_turn
+- `agent_core/core/__init__.py` — 导出更新
+- `tests/core/test_agent.py` — TurnSnapshot + SavePoint 测试
+
+**影响面**：core 层，session 层通过 `prepare_next_turn` 回调间接受益
+
+---
+
+## 2026-07-16 — Harness P0: Emit Sink + Phase 状态机
+
+**问题**：Agent loop 使用 async generator (yield) 模式，无法在事件发出后执行异步副作用（如持久化、session flush），且缺乏显式生命周期阶段管理
+
+**根因**：`agent_loop()` 作为 async generator 只能单向 yield 事件，调用方无法在事件发生时同步执行异步操作；`is_streaming: bool` 无法表达 busy/idle/compaction 等多阶段语义
+
+**方案**：
+1. 新增 `AgentHarnessPhase` 枚举（IDLE/TURN/COMPACTION/BRANCH_SUMMARY/RETRY）替代 `is_streaming`
+2. 新增 `run_agent_loop()` 使用 emit-sink 回调模式，旧 `agent_loop()` 保留为兼容薄包装
+3. Agent 类新增 `phase` 属性，`prompt()`/`continue_()` 加 phase 守卫，`_finish_run()` 重置 phase 至 IDLE
+4. `state.phase` 字段同步维护，`is_streaming` 标记为 deprecated
+
+**改动文件**：
+- `agent_core/core/state.py` — AgentHarnessPhase 枚举 + phase 字段
+- `agent_core/core/loop.py` — run_agent_loop emit sink + agent_loop 兼容层
+- `agent_core/core/agent.py` — phase 管理 + emit sink 调用
+- `agent_core/core/__init__.py` — 导出更新
+- `tests/core/test_state.py` — phase 测试
+- `tests/core/test_loop_text.py` — emit sink 测试
+- `tests/core/test_agent.py` — phase 断言
+
+**影响面**：core 层全量，scene/session 层通过兼容层无感知
+
+---
+
 ## 2026-07-14 13:15 — TraceCard 工具名称 fallback 修复
 
 **问题**：TraceCard 中部分工具步骤显示为通用“工具”字样，而非实际工具名

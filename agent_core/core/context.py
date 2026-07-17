@@ -1,4 +1,4 @@
-"""AgentContext / AgentLoopConfig — value snapshots passed into agent_loop."""
+"""AgentContext / AgentLoopConfig / TurnSnapshot — value snapshots passed into agent_loop."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal, Union
 
 from agent_core.core.messages import AgentMessage
+from agent_core.core.stream_options import clone_stream_options
 from agent_core.providers.auth import ProviderAuth
 from agent_core.providers.types import Model
 
@@ -28,6 +29,26 @@ AfterToolCallHook = Callable[
 ]
 MessageDrainer = Callable[[], Awaitable[list[Any]]]
 CompactCallback = Callable[[list[Any]], Awaitable[bool]]
+
+
+@dataclass(frozen=True)
+class TurnSnapshot:
+    """Immutable snapshot of harness config taken at the start of each turn.
+
+    Runtime config setters update the harness but do NOT mutate an in-flight
+    snapshot.  At the save point the loop calls ``prepare_next_turn`` to
+    create a fresh snapshot from the latest harness state.
+    """
+
+    messages: list[AgentMessage] = field(default_factory=list)
+    system_prompt: str = ""
+    tools: list[Any] = field(default_factory=list)
+    model: Model | None = None
+    thinking_level: str = "off"
+    stream_options: dict[str, Any] = field(default_factory=dict)
+
+
+PrepareNextTurn = Callable[[], Awaitable[TurnSnapshot | None]]
 
 
 @dataclass
@@ -62,3 +83,6 @@ class AgentLoopConfig:
     get_steering_messages: MessageDrainer | None = None
     get_follow_up_messages: MessageDrainer | None = None
     human_input_gate: Any | None = None
+    prepare_next_turn: PrepareNextTurn | None = None
+    flush_pending_writes: Callable[[], Awaitable[None]] | None = None
+    stream_options: dict[str, Any] | None = None

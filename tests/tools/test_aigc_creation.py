@@ -295,9 +295,9 @@ def test_session_chains_extension_hooks():
 
     asyncio.run(session.start())
 
-    # Both hooks should be registered
-    assert len(agent._before_hooks) == 2
+    # Both hooks should be registered (scene + extension via unified hooks)
+    assert len(agent.hooks._handlers.get("tool_call", [])) == 2
     # Run the chained hook to verify ordering
     chained = agent._chain_before_hooks()
-    asyncio.run(chained({"tool_call": None, "args": {}}))
+    asyncio.run(chained({"tool_call_id": "t1", "tool_name": "test", "input": {}}))
     assert calls == ["scene", "ext"]

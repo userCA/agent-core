@@ -1,6 +1,7 @@
 import pytest
 
 from agent_core.core.agent import Agent
+from agent_core.core.errors import AgentHarnessError
 from agent_core.core.events import MessageEnd, TextDelta, MessageUpdate, AgentEnd
 from agent_core.core.messages import UserMessage
 from agent_core.core.state import AgentState
@@ -99,7 +100,7 @@ async def test_session_dispose_prevents_prompt():
     await session.start()
     await session.dispose()
 
-    with pytest.raises(RuntimeError, match="disposed"):
+    with pytest.raises(AgentHarnessError, match="disposed"):
         await session.prompt("x")
 
 

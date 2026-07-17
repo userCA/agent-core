@@ -51,3 +51,31 @@
 | `/capabilities` | GET | ✅ | 可用技能 + 工具 |
 | `/connectors` | GET | ✅ | amap + tavily |
 | `/knowledge` | GET | ✅ | 知识文档 |
+
+## Agent Core 架构
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| Emit Sink Loop | ✅ 完成 | `run_agent_loop` 使用 emit 回调替代 async generator，支持异步副作用 |
+| Phase 状态机 | ✅ 完成 | `AgentHarnessPhase`（idle/turn/compaction/branch_summary/retry）替代 is_streaming |
+| Phase Guard | ✅ 完成 | prompt/continue 入口校验 IDLE，防止并发调用 |
+| 兼容层 | ✅ 完成 | `agent_loop` async generator 保留为薄包装，scene/session 层无感知 |
+| Turn Snapshot | ✅ 完成 | 每轮创建不可变 `TurnSnapshot`，运行时配置变更影响下一轮而非当前轮 |
+| Save Point | ✅ 完成 | turn_end 后 flush + refresh snapshot，`SavePoint` 事件通知 listeners |
+| prepareNextTurn | ✅ 完成 | save point 回调刷新 context/model/thinking_level，支持多轮间配置热更新 |
+| 统一 Hook 系统 | ✅ 完成 | `AgentHooks` 类统一注册/分发/reducer，支持 observe + on(type) + emit |
+| Hook Reducer 语义 | ✅ 完成 | context(链式 transform) / before_agent_start(accumulate) / tool_call(early exit) / tool_result(patch) |
+| Hook 兼容层 | ✅ 完成 | 旧 `before_tool_call`/`after_tool_call`/`transform_context` 通过 legacy adapter 无感迁移 |
+| AgentHarness 职责上移 | ✅ 完成 | hooks/phase/queues/setters/listeners/event handling 从 Agent 上移到 AgentHarness |
+| AgentHarness 重命名 | ✅ 完成 | `AgentSession` → `AgentHarness`，保留 `AgentSession` 别名 |
+| Agent 委托架构 | ✅ 完成 | Agent 通过 `_harness` 引用委托所有编排职责，standalone 模式保留完整功能 |
+| Harness Own Events | ✅ 完成 | ModelUpdate/ThinkingLevelUpdate/ToolsUpdate/QueueUpdate/Settled/AbortEvent/ResourcesUpdate |
+| Pending Writes | ✅ 完成 | busy 时排队写操作，save point/agent_end 时 FIFO flush |
+| emitRunFailure | ✅ 完成 | 运行失败走完整事件流 MessageStart→MessageEnd→TurnEnd→AgentEnd |
+| Compact 一等公民 | ✅ 完成 | Agent.compact() 带 Phase Guard + SessionBeforeCompactHookEvent |
+| Pending Flush 真持久化 | ✅ 完成 | idle/busy setter 分岔；`ActiveToolsChangeEntry`；FIFO flush 写 store |
+| Active Tools Snapshot | ✅ 完成 | `set_active_tools` 影响 save point 后下一 turn 工具列表 |
+| Stream Options | ✅ 完成 | `get/set_stream_options` + TurnSnapshot 快照；save point 刷新 |
+| Provider Hooks | ✅ 完成 | before_provider_request/payload + after_provider_response |
+| AgentHarnessError 接线 | ✅ 完成 | normalize + failure 走 harness sink；Settled→Abort 时序 |
+| 职责收敛 (P2) | ✅ 完成 | `_handle_event`/`_notify_listeners`/`phase` 有 harness 时纯委托 |

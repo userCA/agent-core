@@ -1,4 +1,4 @@
-"""Pure async-generator agent loop."""
+"""Agent loop with emit-sink callback (primary) and async-generator (compat)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import asyncio
 import logging
 import random as _random
 import time
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Awaitable, Callable
 
 from agent_core.core.context import AgentContext, AgentLoopConfig
 from agent_core.core.content import TextContent, ToolCallContent
@@ -17,6 +17,7 @@ from agent_core.core.events import (
     MessageEnd,
     MessageStart,
     MessageUpdate,
+    SavePoint,
     TextDelta,
     ToolCallDelta,
     ThinkingDelta,
@@ -24,6 +25,7 @@ from agent_core.core.events import (
     TurnStart,
 )
 from agent_core.core.messages import AssistantMessage, Usage
+from agent_core.core.stream_options import clone_stream_options
 from agent_core.core.tool_runner import execute_tools
 from agent_core.providers.base import tools_to_provider_format
 from agent_core.providers.types import (
@@ -38,21 +40,58 @@ from agent_core.providers.types import (
 
 _log = logging.getLogger(__name__)
 
+# -- Type alias for the emit-sink callback --
+EventSink = Callable[[AgentEvent], Awaitable[None]]
 
-async def agent_loop(
+
+async def _save_point(
+    config: AgentLoopConfig,
+    context: AgentContext,
+    emit: EventSink,
+    turn_count: int,
+) -> None:
+    """Refresh the turn snapshot at the save point.
+
+    Flushes any pending session writes first, then calls
+    ``config.prepare_next_turn`` to obtain a fresh snapshot from the
+    latest harness state.  If a snapshot is returned the context and
+    relevant config fields are updated so the next iteration uses the
+    latest values.  A ``SavePoint`` event is emitted afterward.
+    """
+    if config.flush_pending_writes is not None:
+        await config.flush_pending_writes()
+    if config.prepare_next_turn is not None:
+        snapshot = await config.prepare_next_turn()
+        if snapshot is not None:
+            context.system_prompt = snapshot.system_prompt
+            context.messages = list(snapshot.messages)
+            context.tools = list(snapshot.tools)
+            if snapshot.model is not None:
+                config.model = snapshot.model
+            config.thinking_level = snapshot.thinking_level  # type: ignore[assignment]
+            config.stream_options = clone_stream_options(snapshot.stream_options)
+    await emit(SavePoint(turn_count=turn_count))
+
+
+async def run_agent_loop(
     new_messages: list[Any],
     context: AgentContext,
     config: AgentLoopConfig,
+    emit: EventSink,
     signal: asyncio.Event | None = None,
-) -> AsyncIterator[AgentEvent]:
-    """Drive an agent run: yield user messages → stream LLM → execute tools → repeat."""
+) -> list[Any]:
+    """Drive an agent run via emit-sink callback.
 
-    yield AgentStart()
+    Events are pushed to *emit* as they occur.  Returns the list of new
+    assistant messages produced during the run.
+    """
+
+    await emit(AgentStart())
 
     context.messages.extend(new_messages)
     for msg in new_messages:
-        yield MessageStart(message=msg)
-        yield MessageEnd(message=msg)
+        await emit(MessageStart(message=msg))
+        await emit(MessageEnd(message=msg))
 
     new_assistant_messages: list[Any] = []
     turn_count = 0
@@ -63,7 +102,7 @@ async def agent_loop(
         if config.max_turns is not None and turn_count >= config.max_turns:
             break
 
-        yield TurnStart()
+        await emit(TurnStart())
         turn_count += 1
 
         llm_messages = await config.convert_to_llm(context.messages)
@@ -91,10 +130,7 @@ async def agent_loop(
 
             if retry_count == 0:
                 # First attempt: stream in real-time for responsiveness.
-                # If this attempt fails and we retry, the client may have
-                # seen partial output; that is acceptable because retries
-                # are rare and streaming is the common-case expectation.
-                yield MessageStart(message=assistant)
+                await emit(MessageStart(message=assistant))
                 async for upd in _stream_assistant(
                     config=config,
                     llm_messages=llm_messages,
@@ -104,7 +140,7 @@ async def agent_loop(
                     system_prompt=context.system_prompt,
                     assistant=assistant,
                 ):
-                    yield upd
+                    await emit(upd)
             else:
                 # Retry attempts: buffer to avoid emitting partial failed output.
                 buffered: list[Any] = []
@@ -118,9 +154,9 @@ async def agent_loop(
                     assistant=assistant,
                 ):
                     buffered.append(upd)
-                yield MessageStart(message=assistant)
+                await emit(MessageStart(message=assistant))
                 for upd in buffered:
-                    yield upd
+                    await emit(upd)
 
             should_retry = False
             if (assistant.stop_reason == "error"
@@ -158,7 +194,7 @@ async def agent_loop(
 
             break
 
-        yield MessageEnd(message=assistant)
+        await emit(MessageEnd(message=assistant))
 
         context.messages.append(assistant)
         new_assistant_messages.append(assistant)
@@ -174,13 +210,14 @@ async def agent_loop(
                 human_input_gate=config.human_input_gate,
                 mutation_queue=config.mutation_queue,
             ):
-                yield evt
+                await emit(evt)
 
-        yield TurnEnd(message=assistant, tool_results=tool_result_messages)
+        await emit(TurnEnd(message=assistant, tool_results=tool_result_messages))
 
         if assistant.stop_reason in ("error", "aborted"):
             break
         if tool_result_messages:
+            await _save_point(config, context, emit, turn_count)
             continue
 
         steering: list[Any] = []
@@ -189,8 +226,9 @@ async def agent_loop(
         if steering:
             for msg in steering:
                 context.messages.append(msg)
-                yield MessageStart(message=msg)
-                yield MessageEnd(message=msg)
+                await emit(MessageStart(message=msg))
+                await emit(MessageEnd(message=msg))
+            await _save_point(config, context, emit, turn_count)
             continue
 
         follow_ups: list[Any] = []
@@ -199,13 +237,50 @@ async def agent_loop(
         if follow_ups:
             for msg in follow_ups:
                 context.messages.append(msg)
-                yield MessageStart(message=msg)
-                yield MessageEnd(message=msg)
+                await emit(MessageStart(message=msg))
+                await emit(MessageEnd(message=msg))
+            await _save_point(config, context, emit, turn_count)
             continue
 
         break
 
-    yield AgentEnd(messages=new_assistant_messages)
+    await emit(AgentEnd(messages=new_assistant_messages))
+    return new_assistant_messages
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible async-generator wrapper
+# ---------------------------------------------------------------------------
+
+async def agent_loop(
+    new_messages: list[Any],
+    context: AgentContext,
+    config: AgentLoopConfig,
+    signal: asyncio.Event | None = None,
+) -> AsyncIterator[AgentEvent]:
+    """Backward-compatible async-generator wrapper around :func:`run_agent_loop`.
+
+    .. deprecated::
+        Use :func:`run_agent_loop` with an emit-sink callback instead.
+    """
+    queue: asyncio.Queue[AgentEvent | None] = asyncio.Queue()
+
+    async def _sink(evt: AgentEvent) -> None:
+        await queue.put(evt)
+
+    async def _run() -> None:
+        try:
+            await run_agent_loop(new_messages, context, config, _sink, signal)
+        finally:
+            await queue.put(None)  # sentinel
+
+    task = asyncio.create_task(_run())
+    while True:
+        evt = await queue.get()
+        if evt is None:
+            break
+        yield evt
+    await task  # propagate exceptions
 
 
 async def _stream_assistant(

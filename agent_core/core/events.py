@@ -112,6 +112,67 @@ class SkillEnd(_EventBase):
     skill_name: str
 
 
+class SavePoint(_EventBase):
+    """Emitted at the save point between turns (after turn_end, before next provider request)."""
+    type: Literal["save_point"] = "save_point"
+    turn_count: int = 0
+
+
+# -- Harness own events (config / lifecycle) ---------------------------------
+
+
+class ModelUpdate(_EventBase):
+    """Runtime model changed via set_model()."""
+    type: Literal["model_update"] = "model_update"
+    model: Any = None
+    previous_model: Any = None
+    source: str = "set"
+
+
+class ThinkingLevelUpdate(_EventBase):
+    """Runtime thinking level changed via set_thinking_level()."""
+    type: Literal["thinking_level_update"] = "thinking_level_update"
+    level: str = "off"
+    previous_level: str = "off"
+
+
+class ToolsUpdate(_EventBase):
+    """Runtime tool set or active tools changed."""
+    type: Literal["tools_update"] = "tools_update"
+    tool_names: list[str] = []
+    previous_tool_names: list[str] = []
+    active_tool_names: list[str] = []
+    previous_active_tool_names: list[str] = []
+    source: str = "set"
+
+
+class QueueUpdate(_EventBase):
+    """Steering / follow-up queue changed (enqueue, drain, clear)."""
+    type: Literal["queue_update"] = "queue_update"
+    steer_count: int = 0
+    follow_up_count: int = 0
+
+
+class Settled(_EventBase):
+    """Agent finished a run and all pending writes are flushed."""
+    type: Literal["settled"] = "settled"
+    next_turn_count: int = 0
+
+
+class AbortEvent(_EventBase):
+    """Abort completed — queues cleared, run stopped."""
+    type: Literal["abort"] = "abort"
+    cleared_steer: list[Any] = []
+    cleared_follow_up: list[Any] = []
+
+
+class ResourcesUpdate(_EventBase):
+    """Runtime resources changed via set_resources()."""
+    type: Literal["resources_update"] = "resources_update"
+    resources: Any = None
+    previous_resources: Any = None
+
+
 AgentEvent = Annotated[
     Union[
         AgentStart,
@@ -127,6 +188,14 @@ AgentEvent = Annotated[
         HumanInputRequired,
         SkillStart,
         SkillEnd,
+        SavePoint,
+        ModelUpdate,
+        ThinkingLevelUpdate,
+        ToolsUpdate,
+        QueueUpdate,
+        Settled,
+        AbortEvent,
+        ResourcesUpdate,
     ],
     Field(discriminator="type"),
 ]

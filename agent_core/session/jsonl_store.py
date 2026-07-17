@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_core.session.store import (
+    ActiveToolsChangeEntry,
     CompactionEntry,
     CustomEntry,
     MessageEntry,
@@ -124,6 +125,8 @@ def _deserialize_entry(data: dict[str, Any]) -> SessionEntry:
         return ModelChangeEntry.model_validate(data)
     if entry_type == "thinking_level_change":
         return ThinkingLevelChangeEntry.model_validate(data)
+    if entry_type == "active_tools_change":
+        return ActiveToolsChangeEntry.model_validate(data)
     if entry_type == "custom":
         return CustomEntry.model_validate(data)
     raise ValueError(f"Unknown entry type: {entry_type}")

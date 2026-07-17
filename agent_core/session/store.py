@@ -44,6 +44,12 @@ class ThinkingLevelChangeEntry(BaseModel):
     id: str
 
 
+class ActiveToolsChangeEntry(BaseModel):
+    type: str = "active_tools_change"
+    active_tool_names: list[str]
+    id: str
+
+
 class CustomEntry(BaseModel):
     type: str = "custom"
     custom_type: str
@@ -51,7 +57,14 @@ class CustomEntry(BaseModel):
     id: str
 
 
-SessionEntry = MessageEntry | CompactionEntry | ModelChangeEntry | ThinkingLevelChangeEntry | CustomEntry
+SessionEntry = (
+    MessageEntry
+    | CompactionEntry
+    | ModelChangeEntry
+    | ThinkingLevelChangeEntry
+    | ActiveToolsChangeEntry
+    | CustomEntry
+)
 
 
 class SessionSnapshot(BaseModel):

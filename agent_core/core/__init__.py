@@ -2,8 +2,10 @@
 
 from agent_core.core.agent import Agent
 from agent_core.core.content import ImageContent, TextContent, ToolCallContent
-from agent_core.core.context import AgentContext, AgentLoopConfig
+from agent_core.core.context import AgentContext, AgentLoopConfig, PrepareNextTurn, TurnSnapshot
+from agent_core.core.errors import AgentHarnessError, normalize_harness_error, normalize_hook_error
 from agent_core.core.events import (
+    AbortEvent,
     AgentEnd,
     AgentEvent,
     AgentStart,
@@ -11,16 +13,32 @@ from agent_core.core.events import (
     MessageEnd,
     MessageStart,
     MessageUpdate,
+    ModelUpdate,
+    QueueUpdate,
+    ResourcesUpdate,
+    Settled,
     TextDelta,
     ThinkingDelta,
+    ThinkingLevelUpdate,
     ToolCallDelta,
     ToolExecutionEnd,
     ToolExecutionStart,
     ToolExecutionUpdate,
+    ToolsUpdate,
     TurnEnd,
     TurnStart,
+    SavePoint,
 )
-from agent_core.core.loop import agent_loop
+from agent_core.core.hooks import (
+    AgentHooks,
+    BeforeAgentStartHookEvent,
+    ContextHookEvent,
+    HookEvent,
+    SessionBeforeCompactHookEvent,
+    ToolCallHookEvent,
+    ToolResultHookEvent,
+)
+from agent_core.core.loop import agent_loop, run_agent_loop
 from agent_core.core.messages import (
     AgentMessage,
     AssistantMessage,
@@ -30,38 +48,60 @@ from agent_core.core.messages import (
     Usage,
     UserMessage,
 )
-from agent_core.core.state import AgentState, ThinkingLevel
+from agent_core.core.state import AgentHarnessPhase, AgentState, ThinkingLevel
 
 __all__ = [
+    "AbortEvent",
     "Agent",
     "AgentContext",
     "AgentEnd",
     "AgentEvent",
+    "AgentHarnessError",
+    "AgentHooks",
     "AgentLoopConfig",
+    "AgentHarnessPhase",
     "AgentMessage",
     "AgentStart",
     "AgentState",
     "AssistantMessage",
+    "BeforeAgentStartHookEvent",
+    "ContextHookEvent",
     "CustomMessage",
+    "HookEvent",
     "ImageContent",
     "MessageDelta",
     "MessageEnd",
     "MessageStart",
     "MessageUpdate",
+    "ModelUpdate",
+    "PrepareNextTurn",
+    "QueueUpdate",
+    "ResourcesUpdate",
+    "SavePoint",
+    "SessionBeforeCompactHookEvent",
+    "Settled",
     "StopReason",
     "TextContent",
     "TextDelta",
     "ThinkingDelta",
     "ThinkingLevel",
+    "ThinkingLevelUpdate",
     "ToolCallContent",
     "ToolCallDelta",
+    "ToolCallHookEvent",
     "ToolExecutionEnd",
     "ToolExecutionStart",
     "ToolExecutionUpdate",
+    "ToolResultHookEvent",
     "ToolResultMessage",
+    "ToolsUpdate",
     "TurnEnd",
+    "TurnSnapshot",
     "TurnStart",
     "Usage",
     "UserMessage",
     "agent_loop",
+    "normalize_harness_error",
+    "normalize_hook_error",
+    "run_agent_loop",
 ]

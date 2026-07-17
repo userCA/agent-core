@@ -18,6 +18,10 @@ class PendingMessageQueue:
     def has_items(self) -> bool:
         return bool(self._items)
 
+    @property
+    def item_count(self) -> int:
+        return len(self._items)
+
     def drain(self) -> list[Any]:
         if not self._items:
             return []
