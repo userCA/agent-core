@@ -165,20 +165,20 @@ def test_observer_exception_does_not_propagate():
     assert result is None
 
 
-def test_handler_exception_does_not_propagate():
+def test_handler_exception_raises_hook_error():
+    """Mutation handlers must surface failures as AgentHarnessError(code=hook)."""
+    from agent_core.core.errors import AgentHarnessError
+
     hooks = AgentHooks()
 
     def bad_handler(evt):
         raise ValueError("handler boom")
 
-    def good_handler(evt):
-        return {"messages": ["recovered"]}
-
     hooks.on("context", bad_handler)
-    hooks.on("context", good_handler)
 
-    result = asyncio.run(hooks.emit(ContextHookEvent(messages=[])))
-    assert result["messages"] == ["recovered"]
+    with pytest.raises(AgentHarnessError) as ei:
+        asyncio.run(hooks.emit(ContextHookEvent(messages=[])))
+    assert ei.value.code == "hook"
 
 
 def test_no_handlers_returns_none():

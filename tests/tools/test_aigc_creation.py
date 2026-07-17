@@ -265,11 +265,11 @@ def test_inject_metadata():
 # ---------------------------------------------------------------------------
 
 def test_session_chains_extension_hooks():
-    """AgentSession.start() wires Extension before_tool_call after scene hook."""
+    """AgentHarness.start() wires Extension before_tool_call after scene hook."""
     from agent_core.extensions.base import Extension, ExtensionContext, ExtensionRunner
-    from agent_core.session.session import AgentSession
-    from agent_core.core.agent import Agent
+    from agent_core.session.harness import AgentHarness
     from agent_core.core.state import AgentState
+    from agent_core.session.turn_runtime import chain_before_hooks
     from tests.conftest import FakeProvider, fake_model
     from agent_core.providers.auth import AuthSource
 
@@ -283,21 +283,21 @@ def test_session_chains_extension_hooks():
             return None
 
     provider = FakeProvider()
-    agent = Agent(
+    store = __import__("agent_core.session.inmemory_store", fromlist=["InMemoryStore"]).InMemoryStore()
+    harness = AgentHarness(
         provider=provider,
         auth_source=AuthSource.static(api_key="k"),
+        store=store,
+        session_id="test-chain",
         initial_state=AgentState(model=fake_model()),
         before_tool_call=lambda info: (calls.append("scene"), None)[1],
+        extensions=[_SpyExt()],
     )
 
-    store = __import__("agent_core.session.inmemory_store", fromlist=["InMemoryStore"]).InMemoryStore()
-    session = AgentSession(agent=agent, store=store, session_id="test-chain", extensions=[_SpyExt()])
+    asyncio.run(harness.start())
 
-    asyncio.run(session.start())
-
-    # Both hooks should be registered (scene + extension via unified hooks)
-    assert len(agent.hooks._handlers.get("tool_call", [])) == 2
-    # Run the chained hook to verify ordering
-    chained = agent._chain_before_hooks()
+    assert len(harness.hooks._handlers.get("tool_call", [])) == 2
+    chained = chain_before_hooks(harness.hooks)
+    assert chained is not None
     asyncio.run(chained({"tool_call_id": "t1", "tool_name": "test", "input": {}}))
     assert calls == ["scene", "ext"]

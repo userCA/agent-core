@@ -1,3 +1,3 @@
-from agent_core.session.session import AgentHarness, AgentSession
+from agent_core.session.harness import AgentHarness
 
-__all__ = ["AgentHarness", "AgentSession"]
+__all__ = ["AgentHarness"]

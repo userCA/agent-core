@@ -20,6 +20,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Union
 
+from agent_core.core.errors import normalize_hook_error
+
 _log = logging.getLogger(__name__)
 
 # -- Handler signatures --
@@ -220,9 +222,8 @@ async def _reduce_context(event: ContextHookEvent, handlers: list[HookHandler]) 
     for handler in list(handlers):
         try:
             result = await _await_result(handler, event)
-        except Exception:
-            _log.warning("Context hook handler failed", exc_info=True)
-            continue
+        except Exception as exc:
+            raise normalize_hook_error(exc) from exc
         if result and isinstance(result, dict) and "messages" in result:
             current_messages = result["messages"]
             event.messages = list(current_messages)
@@ -237,13 +238,13 @@ async def _reduce_before_agent_start(
     """Accumulate: chain system_prompt, collect messages."""
     system_prompt = event.system_prompt
     messages: list[Any] = []
+    original_prompt = event.system_prompt
 
     for handler in list(handlers):
         try:
             result = await _await_result(handler, event)
-        except Exception:
-            _log.warning("Before agent start hook handler failed", exc_info=True)
-            continue
+        except Exception as exc:
+            raise normalize_hook_error(exc) from exc
         if result and isinstance(result, dict):
             if result.get("system_prompt"):
                 system_prompt = result["system_prompt"]
@@ -252,7 +253,7 @@ async def _reduce_before_agent_start(
             if result.get("message"):
                 messages.append(result["message"])
 
-    if messages or system_prompt != event.system_prompt:
+    if messages or system_prompt != original_prompt:
         return {"messages": messages, "system_prompt": system_prompt} if messages else {"system_prompt": system_prompt}
     return None
 
@@ -264,9 +265,8 @@ async def _reduce_tool_call(
     for handler in list(handlers):
         try:
             result = await _await_result(handler, event)
-        except Exception:
-            _log.warning("Tool call hook handler failed", exc_info=True)
-            continue
+        except Exception as exc:
+            raise normalize_hook_error(exc) from exc
         if result and isinstance(result, dict) and result.get("block"):
             return result
     return None
@@ -283,9 +283,8 @@ async def _reduce_tool_result(
     for handler in list(handlers):
         try:
             result = await _await_result(handler, event)
-        except Exception:
-            _log.warning("Tool result hook handler failed", exc_info=True)
-            continue
+        except Exception as exc:
+            raise normalize_hook_error(exc) from exc
         if result and isinstance(result, dict):
             if result.get("result") is not None:
                 hr = result["result"]
@@ -312,9 +311,8 @@ async def _reduce_session_before_compact(
     for handler in list(handlers):
         try:
             result = await _await_result(handler, event)
-        except Exception:
-            _log.warning("Session before compact hook handler failed", exc_info=True)
-            continue
+        except Exception as exc:
+            raise normalize_hook_error(exc) from exc
         if result and isinstance(result, dict) and result.get("cancel"):
             return {"cancel": True}
     return None
@@ -332,9 +330,8 @@ async def _reduce_before_provider_request(
         try:
             event.stream_options = clone_stream_options(current)
             result = await _await_result(handler, event)
-        except Exception:
-            _log.warning("Before provider request hook handler failed", exc_info=True)
-            continue
+        except Exception as exc:
+            raise normalize_hook_error(exc) from exc
         if result and isinstance(result, dict) and "stream_options" in result:
             patch = result["stream_options"]
             if isinstance(patch, dict):
@@ -353,9 +350,8 @@ async def _reduce_before_provider_payload(
         try:
             event.payload = dict(current)
             result = await _await_result(handler, event)
-        except Exception:
-            _log.warning("Before provider payload hook handler failed", exc_info=True)
-            continue
+        except Exception as exc:
+            raise normalize_hook_error(exc) from exc
         if result is not None and isinstance(result, dict) and "payload" in result:
             current = dict(result["payload"])
             changed = True

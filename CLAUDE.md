@@ -78,7 +78,6 @@ Vite 开发服务器已配置代理将 `/skills`、`/chat`、`/capabilities` 等
 ```
 agent_core/
 ├── core/           # 纯运行时 — 无 IO 依赖
-│   ├── agent.py    # agent_loop 的状态化包装
 │   ├── loop.py     # 核心异步生成器: 流式 LLM → 执行工具 → 循环
 │   ├── events.py   # AgentEvent 区分联合类型
 │   ├── state.py    # AgentState Pydantic 模型
@@ -105,9 +104,11 @@ agent_core/
 │   ├── truncate.py          # 文本截断工具 (head/tail/lines/bytes)
 │   ├── music.py             # TextToMusicTool — 示例长时间运行工具
 │   └── local/               # 文件系统工具: read, write, edit, ls, find, grep, bash, confirm
-├── session/        # 会话持久化
+├── session/        # 会话持久化与 Harness
+│   ├── harness.py  # AgentHarness: 生产编排 API，直调 run_agent_loop
+│   ├── turn_runtime.py  # 无状态 loop 组装
+│   ├── persistence.py   # Store 读写
 │   ├── store.py    # SessionStore Protocol + SessionEntry 类型
-│   ├── session.py  # AgentSession: 组合 Agent + Store + Extensions
 │   ├── jsonl_store.py
 │   └── inmemory_store.py
 ├── compaction/     # 上下文窗口压缩
@@ -132,7 +133,7 @@ agent_core/
 
 ### 关键架构决策
 
-**异步优先。** 所有公共 API 是协程或异步生成器。核心循环 (`agent_core/core/loop.py`) 是纯异步生成器，产出 `AgentEvent` 对象。`Agent` (`agent_core/core/agent.py`) 是围绕它的薄状态化包装。
+**异步优先。** 所有公共 API 是协程或异步生成器。核心循环 (`agent_core/core/loop.py`) 是纯异步生成器，产出 `AgentEvent` 对象。生产编排由 `AgentHarness` (`agent_core/session/harness.py`) 直接调用 `run_agent_loop`。
 
 **分层单向依赖。** `core` 无 IO 依赖。`session` 依赖 `core`。`extensions` 依赖 `core` 并接入 `session`。绝不在层间引入循环依赖。
 
@@ -149,7 +150,7 @@ agent_core/
 
 **提供者抽象。** `ModelProvider` 是一个 Protocol (`agent_core/providers/base.py`)。所有提供者产出统一的 `StreamEvent` 流。`ModelRegistry` 将提供者名称映射到适配器实例，并通过 `AuthSource` 解析认证。
 
-**会话持久化。** `AgentSession` (`agent_core/session/session.py`) 组合 `Agent` + `SessionStore` + 可选的 `Compactor` + `Extension`。它将每个 `MessageEnd` 事件持久化为 `MessageEntry`，并在上下文达到阈值时自动触发压缩。
+**会话持久化。** `AgentHarness` 组合 `SessionStore` + 可选的 `Compactor` + `Extension`。它将每个 `MessageEnd` 事件持久化为 `MessageEntry`，并在上下文达到阈值时自动触发压缩。
 
 **系统提示词构建。** `SystemPromptBuilder` (`agent_core/prompts/builder.py`) 从基础提示词、活跃工具、指南、上下文文件和 skills 动态组装系统提示词。Skills 从 `~/.pi/agent/skills/` 和 `./.pi/skills/` 中发现。
 

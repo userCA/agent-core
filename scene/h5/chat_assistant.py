@@ -10,7 +10,6 @@ from typing import Any, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
-from agent_core.core.agent import Agent
 from agent_core.core.content import ImageContent
 from agent_core.core.events import (
     AgentEnd,
@@ -26,10 +25,8 @@ from agent_core.core.events import (
 )
 from agent_core.core.state import AgentState
 from agent_core.providers.auth import AuthSource
-from agent_core.providers.registry import ModelRegistry
+from agent_core.session.harness import AgentHarness
 from agent_core.session.inmemory_store import InMemoryStore
-from agent_core.session.jsonl_store import JsonlStore
-from agent_core.session.session import AgentSession
 from agent_core.session.store import CustomEntry, SessionStore
 from agent_core.prompts.builder import SystemPromptBuilder
 from agent_core.resources.loader import ResourceLoader
@@ -100,29 +97,22 @@ EventHandler = Callable[[AgentEvent], Awaitable[None] | None]
 
 
 class ChatAssistant:
-    """High-level chat assistant combining Agent, Session, tools, and skills."""
+    """High-level chat assistant combining AgentHarness, tools, and skills."""
 
     def __init__(
         self,
         *,
-        agent: Agent,
-        session_store: SessionStore | None = None,
-        session_id: str | None = None,
+        harness: AgentHarness,
         skills: list[Skill] | None = None,
         tool_registry: ToolRegistry | None = None,
         cwd: str = "",
-        extensions: list[Any] | None = None,
     ) -> None:
-        self._agent = agent
+        self._harness = harness
         self._tool_registry = tool_registry or ToolRegistry()
         self._skills = skills or []
         self._cwd = cwd or os.getcwd()
-        self._session_store = session_store or InMemoryStore()
-        self._session_id = session_id or _generate_session_id()
-        self._session: AgentSession | None = None
         self._session_unsub: Callable[[], None] | None = None
         self._handlers: list[EventHandler] = []
-        self._extensions = extensions or []
 
         # Build tool_name -> Skill mapping for skill activation tracking
         self._tool_to_skill: dict[str, Skill] = {}
@@ -362,22 +352,10 @@ class ChatAssistant:
         async def _transform_context(llm_messages, signal=None):
             return await _auto_retrieval.transform_context(llm_messages, signal)
 
-        agent = Agent(
-            initial_state=AgentState(
-                system_prompt=prompt.text,
-                model=model,
-                tools=tool_registry.to_definitions(),
-            ),
-            provider=provider,
-            auth_source=auth_source,
-            tool_registry=tool_registry,
-            tool_execution="sequential",
-            before_tool_call=_auth_before_tool_call,
-            transform_context=_transform_context,
-            max_turns=10,
+        resolved_session_id = session_id or _generate_session_id()
+        extensions = _build_memory_extension(
+            memory_backend, memory_config or {}, resolved_session_id
         )
-
-        extensions = _build_memory_extension(memory_backend, memory_config or {}, session_id or "")
 
         # Companion extension — optional, wired when a companion queue is provided
         if companion_queue is not None and companion_uid:
@@ -387,29 +365,41 @@ class ChatAssistant:
                 send_event=companion_queue.put_nowait,
             ))
 
+        harness = AgentHarness(
+            provider=provider,
+            auth_source=auth_source,
+            store=session_store or InMemoryStore(),
+            session_id=resolved_session_id,
+            initial_state=AgentState(
+                system_prompt=prompt.text,
+                model=model,
+                tools=tool_registry.to_definitions(),
+            ),
+            tool_registry=tool_registry,
+            extensions=extensions or None,
+            tool_execution="sequential",
+            before_tool_call=_auth_before_tool_call,
+            transform_context=_transform_context,
+            max_turns=10,
+        )
+
         assistant = cls(
-            agent=agent,
-            session_store=session_store,
-            session_id=session_id,
+            harness=harness,
             skills=skills,
             tool_registry=tool_registry,
             cwd=cwd,
-            extensions=extensions,
         )
         await assistant.start()
         return assistant
 
+    @property
+    def harness(self) -> AgentHarness:
+        return self._harness
+
     async def start(self) -> None:
-        """Start the session and subscribe to agent events."""
-        self._session = AgentSession(
-            agent=self._agent,
-            store=self._session_store,
-            session_id=self._session_id,
-            extensions=self._extensions or None,
-        )
-        await self._session.start()
-        # Wire ChatAssistant handlers into the session event stream
-        self._session_unsub = self._session.subscribe(self._on_agent_event)
+        """Start the harness and subscribe to agent events."""
+        await self._harness.start()
+        self._session_unsub = self._harness.subscribe(self._on_agent_event)
 
         # Persist tool_to_skill mapping for history restoration (once per session)
         if self._tool_to_skill and not self._skill_mapping_persisted:
@@ -422,10 +412,14 @@ class ChatAssistant:
                 id=f"skill-map-{int(time.time() * 1000)}",
             )
             try:
-                await self._session_store.append_entry(self._session_id, entry)
+                await self._harness._persistence.append_entry(entry)
                 self._skill_mapping_persisted = True
             except Exception as exc:
-                logger.warning("Failed to persist skill_mapping for %s: %s", self._session_id, exc)
+                logger.warning(
+                    "Failed to persist skill_mapping for %s: %s",
+                    self._harness.session_id,
+                    exc,
+                )
 
     def on_event(self, handler: EventHandler) -> Callable[[], None]:
         """Subscribe to agent events. Returns an unsubscribe function."""
@@ -450,32 +444,24 @@ class ChatAssistant:
         When *images* is provided, they are attached as multimodal content blocks.
         """
         expanded = self._expand_skill_command(text)
-        if self._session is not None:
-            await self._session.prompt(expanded, images=images)
-        else:
-            await self._agent.prompt(expanded, images=images)
+        await self._harness.prompt(expanded, images=images)
 
     async def continue_(self) -> None:
         """Continue the conversation from the current state."""
-        if self._session is not None:
-            await self._session.continue_()
-        else:
-            await self._agent.continue_()
+        await self._harness.continue_()
 
     def abort(self) -> None:
         """Abort the current operation."""
-        self._agent.abort()
+        self._harness.abort()
 
     def provide_human_input(self, tool_call_id: str, values: dict[str, Any]) -> bool:
         """Resume a tool that is waiting for human input."""
-        return self._agent.provide_human_input(tool_call_id, values)
+        return self._harness.provide_human_input(tool_call_id, values)
 
     @property
     def messages(self) -> list[Any]:
         """Current conversation messages."""
-        if self._session is not None:
-            return self._session.messages
-        return list(self._agent.state.messages)
+        return self._harness.messages
 
     @property
     def skills(self) -> list[Skill]:
@@ -572,5 +558,4 @@ class ChatAssistant:
         if self._session_unsub is not None:
             self._session_unsub()
             self._session_unsub = None
-        if self._session is not None:
-            await self._session.dispose()
+        await self._harness.dispose()

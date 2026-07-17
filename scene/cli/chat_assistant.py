@@ -6,7 +6,6 @@ import asyncio
 import os
 from typing import Any, Awaitable, Callable
 
-from agent_core.core.agent import Agent
 from agent_core.core.content import ImageContent
 from agent_core.core.events import (
     AgentEvent,
@@ -19,10 +18,9 @@ from agent_core.core.events import (
 )
 from agent_core.core.state import AgentState
 from agent_core.providers.auth import AuthSource
-from agent_core.providers.registry import ModelRegistry
+from agent_core.session.harness import AgentHarness
 from agent_core.session.inmemory_store import InMemoryStore
 from agent_core.session.jsonl_store import JsonlStore
-from agent_core.session.session import AgentSession
 from agent_core.session.store import SessionStore
 from agent_core.prompts.builder import SystemPromptBuilder
 from agent_core.resources.loader import ResourceLoader
@@ -35,29 +33,25 @@ def _generate_session_id() -> str:
     import time
     return f"scene-{int(time.time() * 1000)}"
 
+
 EventHandler = Callable[[AgentEvent], Awaitable[None] | None]
 
 
 class ChatAssistant:
-    """High-level chat assistant combining Agent, Session, tools, and skills."""
+    """High-level chat assistant combining AgentHarness, tools, and skills."""
 
     def __init__(
         self,
         *,
-        agent: Agent,
-        session_store: SessionStore | None = None,
-        session_id: str | None = None,
+        harness: AgentHarness,
         skills: list[Skill] | None = None,
         tool_registry: ToolRegistry | None = None,
         cwd: str = "",
     ) -> None:
-        self._agent = agent
+        self._harness = harness
         self._tool_registry = tool_registry or ToolRegistry()
         self._skills = skills or []
         self._cwd = cwd or os.getcwd()
-        self._session_store = session_store or InMemoryStore()
-        self._session_id = session_id or _generate_session_id()
-        self._session: AgentSession | None = None
         self._session_unsub: Callable[[], None] | None = None
         self._handlers: list[EventHandler] = []
 
@@ -82,7 +76,6 @@ class ChatAssistant:
 
         cwd = cwd or os.getcwd()
 
-        # Load skills and context files
         loader = ResourceLoader(
             cwd=cwd,
             extra_skill_paths=[skills_dir] if skills_dir else None,
@@ -90,7 +83,6 @@ class ChatAssistant:
         skills, _ = loader.load_skills()
         context_files = loader.load_context_files()
 
-        # Build tool registry
         tool_registry = ToolRegistry()
         local_tools = create_all_tools(cwd)
         for tool in local_tools.values():
@@ -99,7 +91,6 @@ class ChatAssistant:
             for tool in tools:
                 tool_registry.register(tool)
 
-        # Resolve auth
         if api_key:
             auth_source = AuthSource.static(api_key=api_key)
         elif api_key_env:
@@ -112,7 +103,6 @@ class ChatAssistant:
             else:
                 auth_source = AuthSource.env("OPENAI_API_KEY")
 
-        # Resolve provider and model
         if provider_name == "openai":
             provider = OpenAIProvider()
         elif provider_name == "anthropic":
@@ -139,7 +129,6 @@ class ChatAssistant:
         if model is None:
             model = provider.list_models()[0]
 
-        # Build system prompt
         prompt = SystemPromptBuilder(base_prompt=system_prompt).build(
             cwd=cwd,
             active_tools=tool_registry.to_definitions(),
@@ -147,21 +136,21 @@ class ChatAssistant:
             context_files=context_files,
         )
 
-        agent = Agent(
+        harness = AgentHarness(
+            provider=provider,
+            auth_source=auth_source,
+            store=session_store or InMemoryStore(),
+            session_id=session_id or _generate_session_id(),
             initial_state=AgentState(
                 system_prompt=prompt.text,
                 model=model,
                 tools=tool_registry.to_definitions(),
             ),
-            provider=provider,
-            auth_source=auth_source,
             tool_registry=tool_registry,
         )
 
         assistant = cls(
-            agent=agent,
-            session_store=session_store,
-            session_id=session_id,
+            harness=harness,
             skills=skills,
             tool_registry=tool_registry,
             cwd=cwd,
@@ -169,16 +158,14 @@ class ChatAssistant:
         await assistant.start()
         return assistant
 
+    @property
+    def harness(self) -> AgentHarness:
+        return self._harness
+
     async def start(self) -> None:
-        """Start the session and subscribe to agent events."""
-        self._session = AgentSession(
-            agent=self._agent,
-            store=self._session_store,
-            session_id=self._session_id,
-        )
-        await self._session.start()
-        # Wire ChatAssistant handlers into the session event stream
-        self._session_unsub = self._session.subscribe(self._on_agent_event)
+        """Start the harness and subscribe to agent events."""
+        await self._harness.start()
+        self._session_unsub = self._harness.subscribe(self._on_agent_event)
 
     def on_event(self, handler: EventHandler) -> Callable[[], None]:
         """Subscribe to agent events. Returns an unsubscribe function."""
@@ -193,33 +180,22 @@ class ChatAssistant:
         return _unsub
 
     async def send_message(self, text: str) -> None:
-        """Send a user message to the assistant.
-
-        Supports /skill:name commands which inject skill content into the prompt.
-        """
+        """Send a user message to the assistant."""
         expanded = self._expand_skill_command(text)
-        if self._session is not None:
-            await self._session.prompt(expanded)
-        else:
-            await self._agent.prompt(expanded)
+        await self._harness.prompt(expanded)
 
     async def continue_(self) -> None:
         """Continue the conversation from the current state."""
-        if self._session is not None:
-            await self._session.continue_()
-        else:
-            await self._agent.continue_()
+        await self._harness.continue_()
 
     def abort(self) -> None:
         """Abort the current operation."""
-        self._agent.abort()
+        self._harness.abort()
 
     @property
     def messages(self) -> list[Any]:
         """Current conversation messages."""
-        if self._session is not None:
-            return self._session.messages
-        return list(self._agent.state.messages)
+        return self._harness.messages
 
     @property
     def skills(self) -> list[Skill]:
@@ -230,10 +206,6 @@ class ChatAssistant:
         return list(self._tool_registry)
 
     def _expand_skill_command(self, text: str) -> str:
-        """Expand /skill:name commands to inject skill content.
-
-        Returns the expanded text, or the original if not a skill command.
-        """
         if not text.startswith("/skill:"):
             return text
 
@@ -251,7 +223,6 @@ class ChatAssistant:
         except Exception:
             return text
 
-        # Strip frontmatter from skill content
         body = content
         if body.startswith("---"):
             parts = body.split("---", 2)
@@ -276,5 +247,4 @@ class ChatAssistant:
         if self._session_unsub is not None:
             self._session_unsub()
             self._session_unsub = None
-        if self._session is not None:
-            await self._session.dispose()
+        await self._harness.dispose()

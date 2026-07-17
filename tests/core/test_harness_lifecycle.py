@@ -7,7 +7,6 @@ from typing import Any, AsyncIterator
 
 import pytest
 
-from agent_core.core.agent import Agent
 from agent_core.core.content import TextContent
 from agent_core.core.events import AbortEvent, Settled
 from agent_core.core.state import AgentHarnessPhase, AgentState
@@ -20,8 +19,8 @@ from agent_core.providers.types import (
     StreamToolCallEnd,
     StreamToolCallStart,
 )
+from agent_core.session.harness import AgentHarness
 from agent_core.session.inmemory_store import InMemoryStore
-from agent_core.session.session import AgentSession
 from agent_core.session.store import MessageEntry
 from agent_core.tools.base import ToolDefinition, ToolRegistry, ToolResult
 from tests.conftest import FakeProvider, fake_model
@@ -49,26 +48,27 @@ class MulTool:
         return ToolResult(content=[TextContent(text=str(params["a"] * params["b"]))])
 
 
-def _session_with_tools(session_id: str = "life") -> tuple[AgentSession, InMemoryStore, FakeProvider]:
+def _harness_with_tools(session_id: str = "life") -> tuple[AgentHarness, InMemoryStore, FakeProvider]:
     provider = FakeProvider()
     registry = ToolRegistry()
     registry.register(AddTool())
     registry.register(MulTool())
-    agent = Agent(
+    store = InMemoryStore()
+    harness = AgentHarness(
         provider=provider,
         auth_source=AuthSource.static(api_key="fake"),
+        store=store,
+        session_id=session_id,
         initial_state=AgentState(model=fake_model(), tools=[AddTool(), MulTool()]),
         tool_registry=registry,
     )
-    store = InMemoryStore()
-    session = AgentSession(agent=agent, store=store, session_id=session_id)
-    return session, store, provider
+    return harness, store, provider
 
 
 @pytest.mark.asyncio
 async def test_set_active_tools_filters_next_turn():
     """set_active_tools during turn affects tool list on the next provider request."""
-    session, _, provider = _session_with_tools("active-tools")
+    harness, _, provider = _harness_with_tools("active-tools")
 
     provider.queue_script([
         StreamToolCallStart(id="c1", name="add"),
@@ -86,11 +86,11 @@ async def test_set_active_tools_filters_next_turn():
         nonlocal switched
         if evt.type == "turn_start" and not switched:
             switched = True
-            await session.set_active_tools(["mul"])
+            await harness.set_active_tools(["mul"])
 
-    session.subscribe(on_event)
-    await session.start()
-    await session.prompt("compute")
+    harness.subscribe(on_event)
+    await harness.start()
+    await harness.prompt("compute")
 
     assert len(provider.calls) >= 2
     second_tools = provider.calls[1].get("tools") or []
@@ -109,16 +109,17 @@ async def test_failure_message_persisted_via_harness():
             yield  # pragma: no cover
 
     provider = FailProvider()
-    agent = Agent(
+    store = InMemoryStore()
+    harness = AgentHarness(
         provider=provider,
         auth_source=AuthSource.static(api_key="fake"),
+        store=store,
+        session_id="fail",
         initial_state=AgentState(model=fake_model()),
     )
-    store = InMemoryStore()
-    session = AgentSession(agent=agent, store=store, session_id="fail")
-    await session.start()
+    await harness.start()
 
-    await session.prompt("trigger failure")
+    await harness.prompt("trigger failure")
 
     snap = await store.load_session("fail")
     messages = [e for e in snap.entries if isinstance(e, MessageEntry)]
@@ -132,21 +133,21 @@ async def test_failure_message_persisted_via_harness():
 @pytest.mark.asyncio
 async def test_compact_hook_cancel():
     """session_before_compact hook cancel must skip compaction."""
-    session, store, _ = _session_with_tools("compact-cancel")
-    await session.start()
+    harness, store, _ = _harness_with_tools("compact-cancel")
+    await harness.start()
 
-    session.hooks.on("session_before_compact", lambda _evt: {"cancel": True})
+    harness.hooks.on("session_before_compact", lambda _evt: {"cancel": True})
 
-    result = await session._agent.compact()
+    result = await harness.compact()
     assert result is None
-    assert session.phase == AgentHarnessPhase.IDLE
+    assert harness.phase == AgentHarnessPhase.IDLE
     assert not any(e.type == "compaction" for e in (await store.load_session("compact-cancel")).entries)
 
 
 @pytest.mark.asyncio
 async def test_abort_and_wait_settled_before_abort():
     """abort_and_wait must emit Settled before AbortEvent."""
-    session, _, provider = _session_with_tools("abort-order")
+    harness, _, provider = _harness_with_tools("abort-order")
 
     class SlowProvider(FakeProvider):
         async def stream(self, **kwargs: Any) -> AsyncIterator[StreamEvent]:
@@ -162,19 +163,19 @@ async def test_abort_and_wait_settled_before_abort():
         StreamTextDelta(text="slow"),
         StreamMessageEnd(stop_reason="stop", input_tokens=1, output_tokens=1),
     ])
-    session._agent._provider = slow
+    harness._provider = slow
 
     events: list[str] = []
 
     async def listener(evt):
         events.append(evt.type)
 
-    session.subscribe(listener)
-    await session.start()
+    harness.subscribe(listener)
+    await harness.start()
 
-    run_task = asyncio.create_task(session.prompt("wait"))
+    run_task = asyncio.create_task(harness.prompt("wait"))
     await asyncio.sleep(0.01)
-    await session.abort_and_wait()
+    await harness.abort_and_wait()
     await run_task
 
     assert "settled" in events
@@ -182,5 +183,85 @@ async def test_abort_and_wait_settled_before_abort():
     assert events.index("settled") < events.index("abort")
 
     abort_evt = next(e for e in events if e == "abort")
-    # After Task 6, AbortEvent carries message lists; for now check event exists
     assert abort_evt == "abort"
+
+
+@pytest.mark.asyncio
+async def test_set_active_tools_filters_first_turn():
+    """Idle set_active_tools must filter tools on the first provider request."""
+    harness, _, provider = _harness_with_tools("first-turn-tools")
+    provider.queue_script([
+        StreamTextDelta(text="ok"),
+        StreamMessageEnd(stop_reason="stop", input_tokens=1, output_tokens=1),
+    ])
+    await harness.start()
+    await harness.set_active_tools(["mul"])
+    await harness.prompt("compute")
+
+    assert len(provider.calls) >= 1
+    first_tools = provider.calls[0].get("tools") or []
+    tool_names = {t.get("function", {}).get("name") for t in first_tools}
+    assert tool_names == {"mul"}
+
+
+@pytest.mark.asyncio
+async def test_session_reopen_replays_runtime_config():
+    """Reopening a session must restore model / thinking / active tools from entries."""
+    harness, store, provider = _harness_with_tools("reopen-cfg")
+    provider.queue_script([
+        StreamTextDelta(text="ok"),
+        StreamMessageEnd(stop_reason="stop", input_tokens=1, output_tokens=1),
+    ])
+    await harness.start()
+    await harness.set_model(Model(provider="fake", id="restored-model", context_window=4096, max_output_tokens=1024))
+    await harness.set_thinking_level("high")
+    await harness.set_active_tools(["add"])
+    await harness.prompt("hi")
+    await harness.dispose()
+
+    registry = ToolRegistry()
+    registry.register(AddTool())
+    registry.register(MulTool())
+    harness2 = AgentHarness(
+        provider=FakeProvider(),
+        auth_source=AuthSource.static(api_key="fake"),
+        store=store,
+        session_id="reopen-cfg",
+        initial_state=AgentState(model=fake_model(), tools=[AddTool(), MulTool()]),
+        tool_registry=registry,
+    )
+    await harness2.start()
+
+    assert harness2.get_model().id == "restored-model"
+    assert harness2.get_thinking_level() == "high"
+    assert harness2._active_tool_names == ["add"]
+
+
+@pytest.mark.asyncio
+async def test_persist_failure_raises_session_error():
+    """message_end persist failure must raise AgentHarnessError(code=session)."""
+    from agent_core.core.errors import AgentHarnessError
+
+    class BoomStore(InMemoryStore):
+        async def append_entry(self, session_id: str, entry: Any) -> None:
+            if getattr(entry, "type", None) == "message":
+                raise OSError("disk full")
+            await super().append_entry(session_id, entry)
+
+    provider = FakeProvider()
+    provider.queue_script([
+        StreamTextDelta(text="ok"),
+        StreamMessageEnd(stop_reason="stop", input_tokens=1, output_tokens=1),
+    ])
+    harness = AgentHarness(
+        provider=provider,
+        auth_source=AuthSource.static(api_key="fake"),
+        store=BoomStore(),
+        session_id="boom-persist",
+        initial_state=AgentState(model=fake_model()),
+    )
+    await harness.start()
+
+    with pytest.raises(AgentHarnessError) as ei:
+        await harness.prompt("x")
+    assert ei.value.code == "session"

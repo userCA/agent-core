@@ -126,7 +126,7 @@ async def _event_stream(
         run_task = asyncio.create_task(assistant.send_message(message))
 
         # Check for immediate synchronous errors before starting
-        agent_error = getattr(assistant._agent.state, "error_message", None)
+        agent_error = getattr(assistant.harness.state, "error_message", None)
         if agent_error:
             yield _format_sse({"event": "error", "message": agent_error})
             return

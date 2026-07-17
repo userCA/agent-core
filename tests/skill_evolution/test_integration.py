@@ -212,7 +212,7 @@ class TestCollectorIntegration:
         from agent_core.extensions.base import ExtensionContext
         from agent_core.core.events import AgentStart, TurnEnd
 
-        ctx = ExtensionContext(session_id="s1", agent=FakeAgent(), store=store)
+        ctx = ExtensionContext(session_id="s1", harness=FakeAgent(), store=store)
 
         # AgentStart resets state
         await collector.on_event(ctx, AgentStart())
@@ -249,7 +249,7 @@ class TestCollectorIntegration:
         from agent_core.extensions.base import ExtensionContext
         from agent_core.core.events import AgentStart, TurnEnd
 
-        ctx = ExtensionContext(session_id="s1", agent=FakeAgent(), store=store)
+        ctx = ExtensionContext(session_id="s1", harness=FakeAgent(), store=store)
         await collector.on_event(ctx, AgentStart())
         await collector.on_skill_loaded("test-skill", ["rule_1"])
 
@@ -280,7 +280,7 @@ class TestCollectorIntegration:
         from agent_core.extensions.base import ExtensionContext
         from agent_core.core.events import AgentStart, TurnEnd
 
-        ctx = ExtensionContext(session_id="s1", agent=FakeAgent(), store=store)
+        ctx = ExtensionContext(session_id="s1", harness=FakeAgent(), store=store)
         await collector.on_event(ctx, AgentStart())
         await collector.on_skill_loaded("test-skill", ["rule_1"])
 
@@ -310,7 +310,7 @@ class TestCollectorIntegration:
         from agent_core.extensions.base import ExtensionContext
         from agent_core.core.events import AgentStart, TurnEnd
 
-        ctx = ExtensionContext(session_id="s1", agent=FakeAgent(), store=store)
+        ctx = ExtensionContext(session_id="s1", harness=FakeAgent(), store=store)
         await collector.on_event(ctx, AgentStart())
         evt = TurnEnd(message=FakeMessage(), tool_results=[])
         await collector.on_event(ctx, evt)
@@ -338,7 +338,7 @@ class TestCollectorIntegration:
         from agent_core.extensions.base import ExtensionContext
         from agent_core.core.events import AgentStart, TurnEnd
 
-        ctx = ExtensionContext(session_id="s1", agent=FakeAgent(), store=store)
+        ctx = ExtensionContext(session_id="s1", harness=FakeAgent(), store=store)
         await collector.on_event(ctx, AgentStart())
         evt = TurnEnd(message=FakeMessage(), tool_results=[])
         await collector.on_event(ctx, evt)

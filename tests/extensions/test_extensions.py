@@ -1,7 +1,18 @@
 import pytest
 
 from agent_core.core.events import AgentStart, TextDelta, MessageUpdate
+from agent_core.core.hooks import AgentHooks
+from agent_core.core.state import AgentState
 from agent_core.extensions.base import ExtensionContext, ExtensionRunner
+
+
+class _FakeHarness:
+    state = AgentState()
+    hooks = AgentHooks()
+    session_id = "s1"
+
+    def abort(self) -> None:
+        pass
 
 
 class FakeExtension:
@@ -53,7 +64,7 @@ class ErrorExtension:
 @pytest.mark.asyncio
 async def test_runner_forwards_events():
     ext = FakeExtension()
-    ctx = ExtensionContext(session_id="s1", agent=None, store=None)
+    ctx = ExtensionContext(session_id="s1", harness=_FakeHarness(), store=None)
     runner = ExtensionRunner([ext], ctx)
 
     await runner.on_event(AgentStart())
@@ -63,7 +74,7 @@ async def test_runner_forwards_events():
 @pytest.mark.asyncio
 async def test_runner_before_tool_call():
     ext = FakeExtension()
-    ctx = ExtensionContext(session_id="s1", agent=None, store=None)
+    ctx = ExtensionContext(session_id="s1", harness=_FakeHarness(), store=None)
     runner = ExtensionRunner([ext], ctx)
 
     result = await runner.before_tool_call({"tool_call": {"name": "foo"}})
@@ -74,7 +85,7 @@ async def test_runner_before_tool_call():
 @pytest.mark.asyncio
 async def test_runner_blocking_extension():
     ext = BlockingExtension()
-    ctx = ExtensionContext(session_id="s1", agent=None, store=None)
+    ctx = ExtensionContext(session_id="s1", harness=_FakeHarness(), store=None)
     runner = ExtensionRunner([ext], ctx)
 
     result = await runner.before_tool_call({"tool_call": {"name": "foo"}})
@@ -85,14 +96,12 @@ async def test_runner_blocking_extension():
 async def test_runner_error_isolation():
     bad = ErrorExtension()
     good = FakeExtension()
-    ctx = ExtensionContext(session_id="s1", agent=None, store=None)
+    ctx = ExtensionContext(session_id="s1", harness=_FakeHarness(), store=None)
     runner = ExtensionRunner([bad, good], ctx)
 
-    # on_event should not raise even though bad extension errors
     await runner.on_event(AgentStart())
     assert "agent_start" in good.events
 
-    # before_tool_call should not raise
     result = await runner.before_tool_call({"tool_call": {"name": "foo"}})
     assert result is None
     assert len(good.before_calls) == 1

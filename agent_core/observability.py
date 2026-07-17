@@ -3,10 +3,11 @@
 Usage::
 
     from agent_core.observability import observe
+    from agent_core.session.harness import AgentHarness
 
-    agent = Agent(...)
-    with observe(agent, session_id="s1"):
-        await agent.prompt("Hello")
+    harness = AgentHarness(...)
+    with observe(harness, session_id="s1"):
+        await harness.prompt("Hello")
 
 When OpenTelemetry is installed, spans are created for:
 - ``agent.prompt`` — top-level span per user message
@@ -42,15 +43,16 @@ def _get_tracer() -> Any:
 
 @contextlib.contextmanager
 def observe(
-    agent: Any,
+    harness: Any,
     *,
     session_id: str = "",
     provider_name: str = "",
     model_id: str = "",
 ) -> Iterator[None]:
-    """Instrument an Agent with OpenTelemetry spans (no-op if OTEL unavailable).
+    """Instrument an AgentHarness with OpenTelemetry spans (no-op if OTEL unavailable).
 
-    Patches ``agent._before_hooks`` and ``agent._after_hooks`` with tracing wrappers.
+    Registers tracing hooks via ``harness.add_before_tool_call_hook`` /
+    ``harness.add_after_tool_call_hook``.
     """
     if not _otel_available:
         yield
@@ -65,14 +67,14 @@ def observe(
     tracing_before = _make_tracing_before_hook(tracer, session_id, provider_name, model_id)
     tracing_after = _make_tracing_after_hook(tracer)
 
-    agent.add_before_tool_call_hook(tracing_before)
-    agent.add_after_tool_call_hook(tracing_after)
+    harness.add_before_tool_call_hook(tracing_before)
+    harness.add_after_tool_call_hook(tracing_after)
 
     try:
         yield
     finally:
-        agent.remove_before_tool_call_hook(tracing_before)
-        agent.remove_after_tool_call_hook(tracing_after)
+        harness.remove_before_tool_call_hook(tracing_before)
+        harness.remove_after_tool_call_hook(tracing_after)
 
 
 def _make_tracing_before_hook(

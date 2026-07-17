@@ -1,6 +1,5 @@
-"""Core runtime types and Agent class."""
+"""Core runtime types and loop."""
 
-from agent_core.core.agent import Agent
 from agent_core.core.content import ImageContent, TextContent, ToolCallContent
 from agent_core.core.context import AgentContext, AgentLoopConfig, PrepareNextTurn, TurnSnapshot
 from agent_core.core.errors import AgentHarnessError, normalize_harness_error, normalize_hook_error
@@ -52,7 +51,6 @@ from agent_core.core.state import AgentHarnessPhase, AgentState, ThinkingLevel
 
 __all__ = [
     "AbortEvent",
-    "Agent",
     "AgentContext",
     "AgentEnd",
     "AgentEvent",

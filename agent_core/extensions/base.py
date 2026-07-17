@@ -5,17 +5,29 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Protocol
+from typing import Any, Awaitable, Callable, Protocol, Protocol
 
 from agent_core.core.events import AgentEvent
+from agent_core.core.hooks import AgentHooks
+from agent_core.core.state import AgentState
 
 logger = logging.getLogger(__name__)
+
+
+class HarnessFacade(Protocol):
+    """Minimal harness surface exposed to extensions."""
+
+    state: AgentState
+    hooks: AgentHooks
+    session_id: str
+
+    def abort(self) -> None: ...
 
 
 @dataclass
 class ExtensionContext:
     session_id: str
-    agent: Any
+    harness: HarnessFacade
     store: Any | None = None
     signal: asyncio.Event | None = None
     abort: Callable[[], None] | None = None

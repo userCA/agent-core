@@ -34,10 +34,20 @@
 
 | 场景 | 所需组件 | 代码量级 |
 |------|---------|---------|
-| 最简问答 | Agent + Provider | ~20 行 |
-| 带工具 | Agent + Provider + ToolRegistry | ~40 行 |
-| 生产会话 | AgentHarness + Store + Compactor + Extensions | ~80 行 |
+| 最简问答 | run_agent_loop + Provider（库级） | ~30 行 |
+| 带工具 | run_agent_loop + ToolRegistry | ~50 行 |
+| 生产会话 | AgentHarness + Store + Compactor + Extensions | ~60 行 |
 | 完整服务 | Scene 层 + 路由 + 认证 | 宿主应用职责 |
+
+### 1.4 AgentHarness 成熟度边界（相对 pi-mono）
+
+| 状态 | 能力 |
+|------|------|
+| **已做** | emit-sink loop、phase、turn snapshot、save point、pending writes、active tools（含首 turn）、stream options、provider hooks、resources snapshot、next_turn、run_when_idle、session 配置重放、persist/hook 错误码 |
+| **不做** | Session tree / `navigateTree` / durable leaf（YAGNI；宿主可自建） |
+| **planned** | `skill()` + SkillStart/SkillEnd、`HarnessSession` facade、更广的 reentrancy 矩阵（持续补测） |
+
+生产宿主应始终使用 `AgentHarness`，直接调用 `run_agent_loop`；低层集成可直接使用 `run_agent_loop` + emit sink。
 
 ---
 
@@ -50,12 +60,8 @@
 │  Scene 层（示例宿主，非框架本体）                         │
 │  CLI / HTTP SSE / WebSocket / 飞书 / 任意前端             │
 ├─────────────────────────────────────────────────────────┤
-│  Session 层（Harness 组合层）                            │
-│  AgentHarness = Agent + Store + Compactor + Extensions  │
-│  （`AgentSession` 为向后兼容别名）                        │
-├─────────────────────────────────────────────────────────┤
-│  Agent 层（loop runner + standalone 退化路径）            │
-│  run_agent_loop 包装；有 Harness 时编排职责全部委托        │
+│  Session 层（Harness 编排层）                            │
+│  AgentHarness → run_agent_loop + Store + Extensions     │
 ├─────────────────────────────────────────────────────────┤
 │  Agent Loop（纯异步生成器）                               │
 │  流式 LLM → 执行工具 → 循环，产出 AgentEvent              │
@@ -64,6 +70,10 @@
 │  Providers │ Tools │ Prompts │ Resources │ Compaction   │
 └─────────────────────────────────────────────────────────┘
 ```
+
+**调用链（生产）：** `Scene → AgentHarness.prompt → AgentHarness._execute_turn → run_agent_loop`
+
+**Breaking change（2026-07-17）：** 删除 Python `Agent` 编排类与 `AgentSession` 别名。迁移：`Agent(...) + AgentSession(...)` → 单个 `AgentHarness(...)`。
 
 ### 2.2 依赖矩阵与边界规则
 

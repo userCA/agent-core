@@ -1,29 +1,27 @@
 import pytest
 
-from agent_core.core.agent import Agent
 from agent_core.core.errors import AgentHarnessError
-from agent_core.core.events import MessageEnd, TextDelta, MessageUpdate, AgentEnd
-from agent_core.core.messages import UserMessage
 from agent_core.core.state import AgentState
 from agent_core.providers.auth import AuthSource
 from agent_core.providers.types import StreamTextDelta, StreamMessageEnd
+from agent_core.session.harness import AgentHarness
 from agent_core.session.inmemory_store import InMemoryStore
-from agent_core.session.session import AgentSession
 from tests.conftest import FakeProvider, fake_model
 
 
 @pytest.mark.asyncio
 async def test_session_start_creates_store_entry():
     provider = FakeProvider()
-    agent = Agent(
+    store = InMemoryStore()
+    harness = AgentHarness(
         provider=provider,
         auth_source=AuthSource.static(api_key="fake"),
+        store=store,
+        session_id="s1",
         initial_state=AgentState(model=fake_model()),
     )
-    store = InMemoryStore()
-    session = AgentSession(agent=agent, store=store, session_id="s1")
 
-    await session.start()
+    await harness.start()
 
     sessions = await store.list_sessions()
     assert len(sessions) == 1
@@ -42,16 +40,17 @@ async def test_session_prompt_persists_messages():
             model="fake-1",
         ),
     ])
-    agent = Agent(
+    store = InMemoryStore()
+    harness = AgentHarness(
         provider=provider,
         auth_source=AuthSource.static(api_key="fake"),
+        store=store,
+        session_id="s2",
         initial_state=AgentState(model=fake_model()),
     )
-    store = InMemoryStore()
-    session = AgentSession(agent=agent, store=store, session_id="s2")
-    await session.start()
+    await harness.start()
 
-    await session.prompt("hi")
+    await harness.prompt("hi")
 
     snap = await store.load_session("s2")
     assert len(snap.entries) == 2  # user message + assistant message
@@ -69,19 +68,20 @@ async def test_session_subscribe_receives_events():
             model="fake-1",
         ),
     ])
-    agent = Agent(
+    store = InMemoryStore()
+    harness = AgentHarness(
         provider=provider,
         auth_source=AuthSource.static(api_key="fake"),
+        store=store,
+        session_id="s3",
         initial_state=AgentState(model=fake_model()),
     )
-    store = InMemoryStore()
-    session = AgentSession(agent=agent, store=store, session_id="s3")
-    await session.start()
+    await harness.start()
 
     events = []
-    session.subscribe(lambda e: events.append(e.type))
+    harness.subscribe(lambda e: events.append(e.type))
 
-    await session.prompt("hello")
+    await harness.prompt("hello")
 
     assert "agent_start" in events
     assert "agent_end" in events
@@ -90,18 +90,19 @@ async def test_session_subscribe_receives_events():
 @pytest.mark.asyncio
 async def test_session_dispose_prevents_prompt():
     provider = FakeProvider()
-    agent = Agent(
+    store = InMemoryStore()
+    harness = AgentHarness(
         provider=provider,
         auth_source=AuthSource.static(api_key="fake"),
+        store=store,
+        session_id="s4",
         initial_state=AgentState(model=fake_model()),
     )
-    store = InMemoryStore()
-    session = AgentSession(agent=agent, store=store, session_id="s4")
-    await session.start()
-    await session.dispose()
+    await harness.start()
+    await harness.dispose()
 
     with pytest.raises(AgentHarnessError, match="disposed"):
-        await session.prompt("x")
+        await harness.prompt("x")
 
 
 @pytest.mark.asyncio
@@ -116,17 +117,18 @@ async def test_session_messages_property():
             model="fake-1",
         ),
     ])
-    agent = Agent(
+    store = InMemoryStore()
+    harness = AgentHarness(
         provider=provider,
         auth_source=AuthSource.static(api_key="fake"),
+        store=store,
+        session_id="s5",
         initial_state=AgentState(model=fake_model()),
     )
-    store = InMemoryStore()
-    session = AgentSession(agent=agent, store=store, session_id="s5")
-    await session.start()
+    await harness.start()
 
-    await session.prompt("test")
+    await harness.prompt("test")
 
-    assert len(session.messages) == 2
-    assert session.messages[0].role == "user"
-    assert session.messages[1].role == "assistant"
+    assert len(harness.messages) == 2
+    assert harness.messages[0].role == "user"
+    assert harness.messages[1].role == "assistant"

@@ -147,10 +147,11 @@ class ToolsUpdate(_EventBase):
 
 
 class QueueUpdate(_EventBase):
-    """Steering / follow-up queue changed (enqueue, drain, clear)."""
+    """Steering / follow-up / next-turn queue changed (enqueue, drain, clear)."""
     type: Literal["queue_update"] = "queue_update"
     steer_count: int = 0
     follow_up_count: int = 0
+    next_turn_count: int = 0
 
 
 class Settled(_EventBase):

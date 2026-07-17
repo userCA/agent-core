@@ -66,16 +66,26 @@
 | 统一 Hook 系统 | ✅ 完成 | `AgentHooks` 类统一注册/分发/reducer，支持 observe + on(type) + emit |
 | Hook Reducer 语义 | ✅ 完成 | context(链式 transform) / before_agent_start(accumulate) / tool_call(early exit) / tool_result(patch) |
 | Hook 兼容层 | ✅ 完成 | 旧 `before_tool_call`/`after_tool_call`/`transform_context` 通过 legacy adapter 无感迁移 |
-| AgentHarness 职责上移 | ✅ 完成 | hooks/phase/queues/setters/listeners/event handling 从 Agent 上移到 AgentHarness |
-| AgentHarness 重命名 | ✅ 完成 | `AgentSession` → `AgentHarness`，保留 `AgentSession` 别名 |
-| Agent 委托架构 | ✅ 完成 | Agent 通过 `_harness` 引用委托所有编排职责，standalone 模式保留完整功能 |
+| AgentHarness 直连 Loop | ✅ 完成 | 删除 `Agent`/`AgentSession`；Harness 直接 `run_agent_loop` |
+| Harness 模块拆分 | ✅ 完成 | `harness.py` / `turn_runtime.py` / `persistence.py` / `tool_utils.py` |
+| ExtensionContext.harness | ✅ 完成 | `HarnessFacade` Protocol；扩展不再依赖 Agent |
+| TurnEnd 单次 flush | ✅ 完成 | 仅 save point / AgentEnd flush pending writes |
+| AgentHarness 重命名 | ✅ 完成 | 唯一生产 API 为 `AgentHarness`（无 `AgentSession` 别名） |
 | Harness Own Events | ✅ 完成 | ModelUpdate/ThinkingLevelUpdate/ToolsUpdate/QueueUpdate/Settled/AbortEvent/ResourcesUpdate |
 | Pending Writes | ✅ 完成 | busy 时排队写操作，save point/agent_end 时 FIFO flush |
 | emitRunFailure | ✅ 完成 | 运行失败走完整事件流 MessageStart→MessageEnd→TurnEnd→AgentEnd |
-| Compact 一等公民 | ✅ 完成 | Agent.compact() 带 Phase Guard + SessionBeforeCompactHookEvent |
+| Compact 一等公民 | ✅ 完成 | `AgentHarness.compact()` 带 Phase Guard + SessionBeforeCompactHookEvent |
 | Pending Flush 真持久化 | ✅ 完成 | idle/busy setter 分岔；`ActiveToolsChangeEntry`；FIFO flush 写 store |
-| Active Tools Snapshot | ✅ 完成 | `set_active_tools` 影响 save point 后下一 turn 工具列表 |
+| Active Tools Snapshot | ✅ 完成 | 首 turn + save point 均从 `create_turn_snapshot()` 过滤 active tools |
 | Stream Options | ✅ 完成 | `get/set_stream_options` + TurnSnapshot 快照；save point 刷新 |
 | Provider Hooks | ✅ 完成 | before_provider_request/payload + after_provider_response |
-| AgentHarnessError 接线 | ✅ 完成 | normalize + failure 走 harness sink；Settled→Abort 时序 |
-| 职责收敛 (P2) | ✅ 完成 | `_handle_event`/`_notify_listeners`/`phase` 有 harness 时纯委托 |
+| AgentHarnessError 接线 | ✅ 完成 | persist/hook 失败归一化；failure 走 harness sink；Settled→Abort 时序 |
+| 职责收敛 | ✅ 完成 | Harness 为 state/phase/queues/hooks 唯一所有者 |
+| Session 配置重放 | ✅ 完成 | reopen 重放 ModelChange / ThinkingLevel / ActiveTools entries |
+| Resources Snapshot | ✅ 完成 | `get/set_resources` + `ResourcesUpdate` + TurnSnapshot.resources/session_id |
+| nextTurn 队列 | ✅ 完成 | idle 用 `next_turn`；abort 保留；steer/follow_up 仅 turn 中允许 |
+| run_when_idle | ✅ 完成 | listener 安全调度，避免 `wait_for_idle` 死锁 |
+| Reentrancy 测试 | ✅ 完成 | `test_harness_reentrancy.py` / resources / lifecycle 首 turn+restore |
+| Session tree / leaf | ❌ 不做 | 与 TS navigateTree 不对齐；文档非目标 |
+| SkillStart/SkillEnd emit | ⏳ planned | 待 `skill()` 公开 API |
+| HarnessSession facade | ⏳ planned | 扩展侧 pending-write 门面（TS 亦未完成） |

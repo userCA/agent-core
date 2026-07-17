@@ -240,7 +240,7 @@ async def main() -> int:
     )
 
     # Print configuration summary
-    model = assistant._agent.state.model
+    model = assistant.harness.state.model
     print(f"Provider : {model.provider}")
     print(f"Model    : {model.id}")
     print(f"Tools    : {len(assistant.tool_names)} ({', '.join(assistant.tool_names[:5])}{'...' if len(assistant.tool_names) > 5 else ''})")

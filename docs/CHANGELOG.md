@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-07-17 — AgentHarness 直连 Agent Loop（Hard-cut）
+
+**Breaking change：** 生产 API 收敛为 `AgentHarness`，删除 `agent_core/core/agent.py` 与 `AgentSession` 别名。
+
+**架构：**
+- `AgentHarness.prompt → _execute_turn → run_agent_loop`（唯一生产调用链）
+- 新建 `session/harness.py`、`turn_runtime.py`、`persistence.py`、`tool_utils.py`
+- `ExtensionContext.harness: HarnessFacade` 替代 `agent`
+- Scene 层 `ChatAssistant` 统一 `_harness` 字段
+- TurnEnd 不再 flush pending writes（仅 save point / AgentEnd）
+
+**迁移：** `Agent(...) + AgentSession(agent=..., store=...)` → `AgentHarness(provider=..., store=..., session_id=..., ...)`
+
+**测试：** core/session/extensions/skill_evolution/prompts/tools 280 passed。
+
+---
+
+## 2026-07-17 — AgentHarness 成熟度 Phase A–D
+
+对照 `pi-example/harness/doc/agent-harness.md` 补齐生产不变量与生命周期硬化。
+
+**Phase A — 语义补洞：** 首 turn 使用 `create_turn_snapshot()`（active tools 立即生效）；session reopen 重放 model/thinking/active_tools；message persist 失败 → `AgentHarnessError("session")`；mutation hook 失败 → `AgentHarnessError("hook")`。
+
+**Phase B — Resources：** `get/set_resources` + `ResourcesUpdate`；`TurnSnapshot.resources` / `session_id`；Extension `on_before_agent_start` 接入 harness hooks。
+
+**Phase C — 生命周期：** `next_turn` 队列（abort 保留）；idle 拒绝 steer/follow_up；QueueUpdate await；`run_when_idle`；reentrancy 测试套件。
+
+**Phase D — 收敛/文档：** Thin Agent 定位说明；FEATURES/CHANGELOG/design 标明已做 / 不做 / planned。
+
+**测试：** `test_harness_lifecycle.py` / `test_harness_resources.py` / `test_harness_reentrancy.py` / steering 更新。
+
+---
+
 ## 2026-07-17 — AgentHarness 语义补全（P0/P1/P2）
 
 **Spec:** `.qoder/specs/Agent完备Harness演进_task-31c.md`

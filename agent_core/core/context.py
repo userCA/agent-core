@@ -46,6 +46,8 @@ class TurnSnapshot:
     model: Model | None = None
     thinking_level: str = "off"
     stream_options: dict[str, Any] = field(default_factory=dict)
+    resources: dict[str, Any] = field(default_factory=dict)
+    session_id: str = ""
 
 
 PrepareNextTurn = Callable[[], Awaitable[TurnSnapshot | None]]

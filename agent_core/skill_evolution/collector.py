@@ -4,18 +4,18 @@ This extension automatically captures traces whenever skills are loaded and appl
 storing them for later offline analysis by the SkillEvolutionAgent.
 
 Trace collection works through the standard Extension.on_event hook, which is
-already dispatched by AgentSession. No additional wiring needed — just register
+already dispatched by AgentHarness. No additional wiring needed — just register
 the collector as an extension and it self-drives from TurnEnd events.
 
 Usage:
     from agent_core.skill_evolution.collector import SkillTraceCollector
     from agent_core.skill_evolution.store import create_skill_evolution_store
+    from agent_core.session.harness import AgentHarness
 
     store = create_skill_evolution_store("jsonl")
     collector = SkillTraceCollector(store)
 
-    # Register via AgentSession constructor (already supported)
-    session = AgentSession(agent, store, extensions=[collector])
+    harness = AgentHarness(..., extensions=[collector])
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ class SkillTraceCollector(Extension):
 
     Primary mechanism: on_event(ctx, evt) — fires on every agent event.
     On AgentStart: resets turn counter.
-    On TurnEnd:   extracts skill names from system_prompt (via ctx.agent.state),
+    On TurnEnd:   extracts skill names from system_prompt (via ctx.harness.state),
                   determines outcome from message/tool results, persists trace.
 
     Also provides on_skill_loaded() as an optional explicit API for callers
@@ -64,7 +64,7 @@ class SkillTraceCollector(Extension):
     def name(self) -> str:
         return "skill_trace_collector"
 
-    # ── primary entry point (dispatched by AgentSession) ──────────────
+    # ── primary entry point (dispatched by AgentHarness) ──────────────
 
     async def on_event(self, ctx: ExtensionContext, evt: AgentEvent) -> None:
         """Receive every agent event. We handle AgentStart and TurnEnd."""
@@ -114,19 +114,17 @@ class SkillTraceCollector(Extension):
     @staticmethod
     def _extract_skill_names(ctx: ExtensionContext) -> list[str]:
         """Parse <skill name="..."> tags from the agent's system prompt."""
-        agent = getattr(ctx, 'agent', None)
-        if not agent or not hasattr(agent, 'state'):
+        if not ctx.harness or not hasattr(ctx.harness, 'state'):
             return []
-        sp = getattr(agent.state, 'system_prompt', '') or ''
+        sp = getattr(ctx.harness.state, 'system_prompt', '') or ''
         return _SKILL_TAG_RE.findall(sp)
 
     @staticmethod
     def _extract_user_query(ctx: ExtensionContext) -> str:
         """Extract the last user message from agent state."""
-        agent = getattr(ctx, 'agent', None)
-        if not agent or not hasattr(agent, 'state'):
+        if not ctx.harness or not hasattr(ctx.harness, 'state'):
             return ""
-        messages = getattr(agent.state, 'messages', []) or []
+        messages = getattr(ctx.harness.state, 'messages', []) or []
         for msg in reversed(messages):
             if hasattr(msg, 'role') and msg.role == "user":
                 if hasattr(msg, 'content'):

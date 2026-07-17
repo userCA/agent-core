@@ -1,0 +1,852 @@
+"""AgentHarness — production orchestration API directly calling run_agent_loop."""
+
+from __future__ import annotations
+
+import asyncio
+import inspect
+import logging
+import os
+import time
+from datetime import datetime, timezone
+from typing import Any, Awaitable, Callable
+
+from agent_core.compaction.compactor import Compactor
+from agent_core.core.content import ImageContent, TextContent
+from agent_core.core.context import AgentContext
+from agent_core.core.errors import AgentHarnessError, normalize_harness_error, normalize_hook_error
+from agent_core.core.events import (
+    AbortEvent,
+    AgentEnd,
+    AgentEvent,
+    MessageEnd,
+    MessageStart,
+    MessageUpdate,
+    ModelUpdate,
+    QueueUpdate,
+    ResourcesUpdate,
+    Settled,
+    ThinkingLevelUpdate,
+    ToolExecutionEnd,
+    ToolExecutionStart,
+    ToolsUpdate,
+    TurnEnd,
+)
+from agent_core.core.hooks import (
+    AgentHooks,
+    ContextHookEvent,
+    SessionBeforeCompactHookEvent,
+    ToolCallHookEvent,
+    ToolResultHookEvent,
+)
+from agent_core.core.human_input import HumanInputGate
+from agent_core.core.loop import run_agent_loop
+from agent_core.core.messages import AssistantMessage, ToolResultMessage, Usage, UserMessage
+from agent_core.core.pending_writes import PendingSessionWrite
+from agent_core.core.queue import PendingMessageQueue, QueueMode
+from agent_core.core.state import AgentHarnessPhase, AgentState
+from agent_core.core.stream_options import clone_stream_options
+from agent_core.extensions.base import ExtensionContext, ExtensionRunner, HarnessFacade
+from agent_core.providers.auth import AuthSource
+from agent_core.providers.base import ModelProvider
+from agent_core.providers.message_converter import create_default_converter
+from agent_core.providers.types import Model
+from agent_core.session.persistence import HarnessPersistence
+from agent_core.session.store import SessionHeader, SessionStore
+from agent_core.session.tool_utils import filter_active_tools, resolve_tool_name
+from agent_core.session.turn_runtime import (
+    build_loop_config,
+    chain_before_agent_start_hooks,
+    create_turn_snapshot,
+    register_legacy_context,
+    register_legacy_tool_call,
+    register_legacy_tool_result,
+)
+
+logger = logging.getLogger(__name__)
+
+Listener = Callable[[AgentEvent], Awaitable[None] | None]
+Unsubscribe = Callable[[], None]
+
+
+class AgentHarness:
+    """Unified production runtime: state, queues, persistence, hooks, loop execution."""
+
+    def __init__(
+        self,
+        *,
+        provider: ModelProvider,
+        auth_source: AuthSource,
+        store: SessionStore,
+        session_id: str,
+        initial_state: AgentState | None = None,
+        convert_to_llm: Any | None = None,
+        transform_context: Any | None = None,
+        tool_registry: Any | None = None,
+        before_tool_call: Any | None = None,
+        after_tool_call: Any | None = None,
+        tool_execution: str = "parallel",
+        tool_timeout: float | None = 120.0,
+        max_turns: int | None = None,
+        max_retries: int = 3,
+        retry_base_delay: float = 1.0,
+        retry_max_delay: float = 60.0,
+        compactor: Compactor | None = None,
+        extensions: list[Any] | None = None,
+        tool_result_max_chars: int = 4000,
+        steering_mode: QueueMode = "one-at-a-time",
+        followup_mode: QueueMode = "one-at-a-time",
+    ) -> None:
+        self.state: AgentState = initial_state or AgentState()
+        self._provider = provider
+        self._auth_source = auth_source
+        self._store = store
+        self._session_id = session_id
+        self._persistence = HarnessPersistence(store, session_id)
+        self._compactor = compactor
+        self._extensions = extensions or []
+        self._tool_registry = tool_registry
+        self._tool_execution = tool_execution
+        self._tool_timeout = tool_timeout
+        self._max_turns = max_turns
+        self._max_retries = max_retries
+        self._retry_base_delay = retry_base_delay
+        self._retry_max_delay = retry_max_delay
+        self._tool_result_max_chars = tool_result_max_chars
+        if convert_to_llm is not None:
+            self._convert_to_llm = convert_to_llm
+        elif hasattr(provider, "create_message_converter"):
+            self._convert_to_llm = provider.create_message_converter(tool_result_max_chars)
+        else:
+            self._convert_to_llm = create_default_converter(tool_result_max_chars)
+
+        self.hooks = AgentHooks()
+        if before_tool_call is not None:
+            register_legacy_tool_call(self.hooks, before_tool_call)
+        if after_tool_call is not None:
+            register_legacy_tool_result(self.hooks, after_tool_call)
+        if transform_context is not None:
+            register_legacy_context(self.hooks, transform_context)
+
+        self._steering = PendingMessageQueue(steering_mode)
+        self._follow_up = PendingMessageQueue(followup_mode)
+        self._next_turn = PendingMessageQueue("all")
+        self._pending_writes: list[PendingSessionWrite] = []
+        self._listeners: list[Listener] = []
+        self._human_input_gate = HumanInputGate()
+        self._active_run: asyncio.Task | None = None
+        self._abort_event: asyncio.Event | None = None
+        self._pending_tool_calls: set[str] = set()
+        self._phase = AgentHarnessPhase.IDLE
+        self._active_tool_names: list[str] | None = None
+        self._stream_options: dict[str, Any] = {}
+        self._resources: dict[str, Any] = {"skills": [], "prompt_templates": []}
+        self._started = False
+        self._closed = False
+        self._ext_runner: ExtensionRunner | None = None
+        self._overflow_compact_callback: Any | None = None
+
+    # ── HarnessFacade / TurnRuntimeHost ─────────────────────────────
+
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+
+    @property
+    def active_tool_names(self) -> list[str] | None:
+        return self._active_tool_names
+
+    @property
+    def stream_options(self) -> dict[str, Any]:
+        return self._stream_options
+
+    @property
+    def resources(self) -> dict[str, Any]:
+        return self._resources
+
+    @property
+    def phase(self) -> AgentHarnessPhase:
+        return self._phase
+
+    @phase.setter
+    def phase(self, value: AgentHarnessPhase) -> None:
+        self._phase = value
+        self.state.phase = value
+
+    @property
+    def signal(self) -> asyncio.Event | None:
+        return self._abort_event
+
+    @property
+    def pending_tool_calls(self) -> set[str]:
+        return self._pending_tool_calls
+
+    @property
+    def messages(self) -> list[Any]:
+        return list(self.state.messages)
+
+    # ── lifecycle ───────────────────────────────────────────────────
+
+    async def start(self) -> None:
+        if self._started or self._closed:
+            return
+        header = SessionHeader(
+            id=self._session_id,
+            timestamp=datetime.now(tz=timezone.utc).isoformat(),
+            cwd=os.getcwd(),
+        )
+        try:
+            snapshot = await self._persistence.load_session()
+            self._restore_from_snapshot(snapshot)
+        except KeyError:
+            await self._persistence.create_session(header)
+        except Exception as exc:
+            logger.warning("Failed to load session %s: %s", self._session_id, exc)
+
+        if self._extensions:
+            ext_ctx = ExtensionContext(
+                session_id=self._session_id,
+                harness=self,
+                store=self._store,
+            )
+            self._ext_runner = ExtensionRunner(self._extensions, ext_ctx)
+
+            async def _tool_call_adapter(event: ToolCallHookEvent) -> Any:
+                return await self._ext_runner.before_tool_call(event.call_ctx)
+
+            async def _tool_result_adapter(event: ToolResultHookEvent) -> Any:
+                return await self._ext_runner.after_tool_call(event.call_ctx)
+
+            self.hooks.on("tool_call", _tool_call_adapter)
+            self.hooks.on("tool_result", _tool_result_adapter)
+
+            async def _before_agent_start_adapter(event: Any) -> Any:
+                from agent_core.core.hooks import BeforeAgentStartHookEvent
+                if not isinstance(event, BeforeAgentStartHookEvent):
+                    return None
+                return await self._ext_runner.on_before_agent_start(
+                    event.prompt, event.system_prompt,
+                )
+
+            self.hooks.on("before_agent_start", _before_agent_start_adapter)
+
+            for ext in self._extensions:
+                transform = getattr(ext, "transform_context", None)
+                if callable(transform):
+                    self._register_context_transform(transform)
+
+        if self._compactor is not None:
+            self._overflow_compact_callback = self._make_overflow_compact_callback()
+
+        self._started = True
+
+    async def dispose(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        await self._persistence.close()
+
+    def _check_ready(self) -> None:
+        if self._closed:
+            raise AgentHarnessError("invalid_state", "AgentHarness is disposed")
+        if not self._started:
+            raise AgentHarnessError("invalid_state", "AgentHarness not started; call start() first")
+
+    def _restore_from_snapshot(self, snapshot: Any) -> None:
+        def apply_message(restored: list[Any]) -> None:
+            self.state.messages = restored
+
+        def apply_model(entry: Any) -> None:
+            prev = self.state.model
+            self.state.model = Model(
+                provider=entry.provider,
+                id=entry.model_id,
+                context_window=getattr(prev, "context_window", 4096) if prev else 4096,
+                max_output_tokens=getattr(prev, "max_output_tokens", 1024) if prev else 1024,
+                supports_reasoning=getattr(prev, "supports_reasoning", False) if prev else False,
+                supports_xhigh_thinking=getattr(prev, "supports_xhigh_thinking", False) if prev else False,
+            )
+
+        def apply_thinking(entry: Any) -> None:
+            self.state.thinking_level = entry.level  # type: ignore[assignment]
+
+        def apply_active_tools(entry: Any) -> None:
+            self._active_tool_names = list(entry.active_tool_names)
+
+        self._persistence.replay_entries(
+            snapshot,
+            apply_message=apply_message,
+            apply_model_change=apply_model,
+            apply_thinking_level=apply_thinking,
+            apply_active_tools=apply_active_tools,
+        )
+
+    # ── listeners ───────────────────────────────────────────────────
+
+    def subscribe(self, listener: Listener) -> Unsubscribe:
+        self._listeners.append(listener)
+
+        def _unsub() -> None:
+            try:
+                self._listeners.remove(listener)
+            except ValueError:
+                pass
+
+        return _unsub
+
+    async def _notify_listeners(self, evt: AgentEvent) -> None:
+        for listener in list(self._listeners):
+            try:
+                result = listener(evt)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception as exc:
+                raise normalize_hook_error(exc) from exc
+
+    # ── public API ──────────────────────────────────────────────────
+
+    async def prompt(
+        self,
+        text_or_message: Any,
+        *,
+        images: list[ImageContent] | None = None,
+    ) -> AssistantMessage:
+        self._check_ready()
+        if self._phase != AgentHarnessPhase.IDLE:
+            raise AgentHarnessError(
+                "busy",
+                f"AgentHarness is busy (phase={self._phase.value}); use steer/follow_up or wait_for_idle.",
+            )
+        message = self._normalize_input(text_or_message, images)
+        prepended = self._drain_next_turn()
+        return await self._execute_turn([*prepended, message], continuation=False)
+
+    async def continue_(self) -> AssistantMessage:
+        self._check_ready()
+        if self._phase != AgentHarnessPhase.IDLE:
+            raise AgentHarnessError("busy", f"AgentHarness is busy (phase={self._phase.value}).")
+        if not self.state.messages:
+            raise AgentHarnessError("invalid_state", "No messages in state to continue from.")
+        last = self.state.messages[-1]
+        if not isinstance(last, (UserMessage, ToolResultMessage)):
+            raise AgentHarnessError(
+                "invalid_state",
+                f"Cannot continue from message with role={getattr(last, 'role', 'unknown')}.",
+            )
+        return await self._execute_turn([], continuation=True)
+
+    async def compact(self, *, instructions: str | None = None) -> dict[str, Any] | None:
+        self._check_ready()
+        if self._compactor is None:
+            return None
+        if self._phase != AgentHarnessPhase.IDLE:
+            raise AgentHarnessError("busy", "compact() requires idle phase")
+        self.phase = AgentHarnessPhase.COMPACTION
+        try:
+            hook_result = await self.hooks.emit(SessionBeforeCompactHookEvent(
+                messages=list(self.state.messages),
+                instructions=instructions,
+            ))
+            if hook_result and isinstance(hook_result, dict) and hook_result.get("cancel"):
+                return None
+            compacted = await self._compactor.compact(
+                list(self.state.messages),
+                reason="manual",
+                instructions=instructions,
+                signal=None,
+            )
+            if compacted.summary and compacted.kept_count > 0:
+                await self._apply_compaction_result(compacted, list(self.state.messages))
+                return {"compacted": True, "result": True}
+            return {"compacted": False, "result": False}
+        except Exception as exc:
+            raise AgentHarnessError("compaction", str(exc), cause=exc) from exc
+        finally:
+            self.phase = AgentHarnessPhase.IDLE
+
+    def abort(self) -> None:
+        if self._abort_event is not None:
+            self._abort_event.set()
+        self._human_input_gate.cancel_all()
+
+    async def abort_and_wait(self) -> dict[str, Any]:
+        cleared_steer = self._steering.drain()
+        cleared_follow_up = self._follow_up.drain()
+        self.abort()
+        await self.wait_for_idle()
+        await self._notify_listeners(AbortEvent(
+            cleared_steer=list(cleared_steer),
+            cleared_follow_up=list(cleared_follow_up),
+        ))
+        return {
+            "cleared_steer": list(cleared_steer),
+            "cleared_follow_up": list(cleared_follow_up),
+            "next_turn_count": self._next_turn.item_count,
+        }
+
+    async def wait_for_idle(self) -> None:
+        if self._active_run is not None:
+            await self._active_run
+
+    def provide_human_input(self, tool_call_id: str, values: dict[str, Any]) -> bool:
+        return self._human_input_gate.provide_input(tool_call_id, values)
+
+    def run_when_idle(self, callback: Callable[[], Awaitable[None] | None]) -> asyncio.Future:
+        loop = asyncio.get_running_loop()
+        fut: asyncio.Future = loop.create_future()
+
+        async def _deferred() -> None:
+            try:
+                active = self._active_run
+                if active is not None and not active.done():
+                    await active
+                while self.phase != AgentHarnessPhase.IDLE:
+                    await asyncio.sleep(0)
+                result = callback()
+                if inspect.isawaitable(result):
+                    result = await result
+                if not fut.done():
+                    fut.set_result(result)
+            except Exception as exc:
+                if not fut.done():
+                    fut.set_exception(exc)
+
+        loop.create_task(_deferred())
+        return fut
+
+    # ── turn execution ──────────────────────────────────────────────
+
+    async def _execute_turn(
+        self,
+        new_messages: list[Any],
+        *,
+        continuation: bool,
+    ) -> AssistantMessage:
+        self.phase = AgentHarnessPhase.TURN
+        self._abort_event = asyncio.Event()
+        self._pending_tool_calls.clear()
+        self.state.is_streaming = True
+        self.state.error_message = None
+        last_assistant: AssistantMessage | None = None
+
+        async def _do_run() -> None:
+            nonlocal last_assistant
+            snapshot = self.create_turn_snapshot()
+            context = AgentContext(
+                system_prompt=snapshot.system_prompt,
+                messages=list(snapshot.messages),
+                tools=list(snapshot.tools),
+            )
+            compact_cb = self._overflow_compact_callback
+            config = build_loop_config(
+                self,
+                provider=self._provider,
+                auth_source=self._auth_source,
+                convert_to_llm=self._convert_to_llm,
+                tool_registry=self._tool_registry,
+                tool_execution=self._tool_execution,
+                tool_timeout=self._tool_timeout,
+                max_turns=self._max_turns,
+                max_retries=self._max_retries,
+                retry_base_delay=self._retry_base_delay,
+                retry_max_delay=self._retry_max_delay,
+                compact_callback=compact_cb,
+                tool_result_max_chars=self._tool_result_max_chars,
+                human_input_gate=self._human_input_gate,
+            )
+
+            before_agent_start = chain_before_agent_start_hooks(self.hooks)
+            if before_agent_start is not None:
+                prompt = new_messages[0].content[0].text if new_messages else ""
+                result = await before_agent_start(prompt, context.system_prompt)
+                if result:
+                    if result.get("system_prompt"):
+                        context.system_prompt = result["system_prompt"]
+                    if result.get("message"):
+                        context.messages.append(result["message"])
+
+            async def _emit_sink(evt: AgentEvent) -> None:
+                nonlocal last_assistant
+                if isinstance(evt, AgentEnd) and evt.messages:
+                    last_assistant = evt.messages[-1]
+                await self._handle_event(evt, context)
+
+            msgs = [] if continuation else new_messages
+            try:
+                assistants = await run_agent_loop(
+                    msgs, context, config, _emit_sink, self._abort_event,
+                )
+                if last_assistant is None and assistants:
+                    last_assistant = assistants[-1]
+            except Exception as exc:
+                logger.exception("AgentHarness run failed")
+                last_assistant = await self._emit_run_failure(
+                    normalize_harness_error(exc), context, self._abort_event,
+                )
+
+        task = asyncio.create_task(_do_run())
+        self._active_run = task
+        try:
+            await task
+        finally:
+            self._finish_run()
+
+        if last_assistant is None:
+            raise AgentHarnessError("invalid_state", "Turn completed without assistant message")
+        return last_assistant
+
+    async def _emit_run_failure(
+        self,
+        exc: BaseException,
+        context: AgentContext,
+        abort_event: asyncio.Event | None = None,
+    ) -> AssistantMessage:
+        error_msg = str(exc)
+        aborted = abort_event is not None and abort_event.is_set()
+        model = self.state.model
+        assistant = AssistantMessage(
+            content=[TextContent(text="")],
+            usage=Usage(),
+            stop_reason="aborted" if aborted else "error",
+            provider=model.provider if model else "",
+            model=model.id if model else "",
+            error_message=error_msg,
+            retryable_error=getattr(exc, "retryable", False),
+            timestamp=time.time(),
+        )
+        self.state.error_message = error_msg
+        await self._handle_event(MessageStart(message=assistant), context)
+        await self._handle_event(MessageEnd(message=assistant), context)
+        await self._handle_event(TurnEnd(message=assistant, tool_results=[]), context)
+        await self._handle_event(AgentEnd(messages=[assistant]), context)
+        return assistant
+
+    def _finish_run(self) -> None:
+        self.phase = AgentHarnessPhase.IDLE
+        self.state.is_streaming = False
+        self.state.streaming_message = None
+        self._pending_tool_calls.clear()
+        self._active_run = None
+        self._abort_event = None
+
+    def create_turn_snapshot(self) -> Any:
+        return create_turn_snapshot(self)
+
+    async def prepare_next_turn(self) -> Any:
+        return self.create_turn_snapshot()
+
+    async def drain_steering(self) -> list[Any]:
+        return self._steering.drain()
+
+    async def drain_follow_up(self) -> list[Any]:
+        return self._follow_up.drain()
+
+    def _drain_next_turn(self) -> list[Any]:
+        return self._next_turn.drain()
+
+    @staticmethod
+    def _normalize_input(text_or_message: Any, images: list[ImageContent] | None) -> Any:
+        if isinstance(text_or_message, str):
+            content: list[Any] = [TextContent(text=text_or_message)]
+            if images:
+                content.extend(images)
+            return UserMessage(content=content, timestamp=time.time())
+        return text_or_message
+
+    # ── event handling ────────────────────────────────────────────────
+
+    async def _handle_event(self, evt: AgentEvent, context: AgentContext | None = None) -> None:
+        if isinstance(evt, MessageStart):
+            if isinstance(evt.message, AssistantMessage):
+                self.state.streaming_message = evt.message
+        elif isinstance(evt, MessageUpdate):
+            self.state.streaming_message = evt.message
+        elif isinstance(evt, MessageEnd):
+            self.state.streaming_message = None
+            self.state.messages.append(evt.message)
+        elif isinstance(evt, TurnEnd):
+            msg = evt.message
+            if isinstance(msg, AssistantMessage) and msg.error_message:
+                self.state.error_message = msg.error_message
+            for tool_result in evt.tool_results:
+                self.state.messages.append(tool_result)
+        elif isinstance(evt, AgentEnd):
+            self.state.streaming_message = None
+            await self.flush_pending_writes()
+            self.phase = AgentHarnessPhase.IDLE
+            if self._compactor is not None:
+                await self._maybe_threshold_compact()
+
+        if isinstance(evt, ToolExecutionStart):
+            self._pending_tool_calls.add(evt.tool_call_id)
+        elif isinstance(evt, ToolExecutionEnd):
+            self._pending_tool_calls.discard(evt.tool_call_id)
+
+        if isinstance(evt, MessageEnd):
+            await self._persistence.persist_message(evt.message)
+        elif isinstance(evt, ToolExecutionEnd):
+            await self._persistence.persist_tool_result(evt)
+
+        if self._ext_runner is not None:
+            await self._ext_runner.on_event(evt)
+
+        await self._notify_listeners(evt)
+        if isinstance(evt, AgentEnd):
+            await self._notify_listeners(Settled(next_turn_count=self._next_turn.item_count))
+
+    # ── compaction ──────────────────────────────────────────────────
+
+    def _make_overflow_compact_callback(self) -> Any:
+        async def _on_overflow_compact(messages: list[Any]) -> bool:
+            try:
+                compacted = await self._compactor.compact(
+                    messages, reason="overflow", signal=None,
+                )
+                if compacted.summary and compacted.kept_count > 0:
+                    await self._apply_compaction_result(compacted, messages)
+                    return True
+                return False
+            except Exception as exc:
+                logger.warning("Overflow compaction failed for session %s: %s", self._session_id, exc)
+                return False
+        return _on_overflow_compact
+
+    async def _apply_compaction_result(self, compacted: Any, messages: list[Any]) -> None:
+        await self._persistence.persist_compaction(compacted)
+        from agent_core.core.messages import CustomMessage
+        summary_msg = CustomMessage(
+            custom_type="compaction_summary",
+            content=compacted.summary,
+            timestamp=time.time(),
+        )
+        kept = messages[-compacted.kept_count:]
+        messages.clear()
+        messages.append(summary_msg)
+        messages.extend(kept)
+        self.state.messages = list(messages)
+
+    async def _maybe_threshold_compact(self) -> None:
+        if self._compactor is None:
+            return
+        try:
+            model = getattr(self.state, "model", None)
+            context_window = getattr(model, "context_window", 0) if model else 0
+            messages = list(self.state.messages)
+            if not context_window or not self._compactor.should_compact(
+                messages, context_window=context_window,
+            ):
+                return
+            if self._phase != AgentHarnessPhase.IDLE:
+                return
+            self.phase = AgentHarnessPhase.COMPACTION
+            try:
+                compacted = await self._compactor.compact(
+                    messages, reason="threshold", signal=None,
+                )
+                if compacted.summary and compacted.kept_count > 0:
+                    await self._apply_compaction_result(compacted, messages)
+            finally:
+                self.phase = AgentHarnessPhase.IDLE
+        except Exception as exc:
+            logger.warning("Compaction failed for session %s: %s", self._session_id, exc)
+
+    # ── queues ──────────────────────────────────────────────────────
+
+    async def steer(self, message: Any) -> None:
+        if self.phase == AgentHarnessPhase.IDLE:
+            raise AgentHarnessError(
+                "invalid_state", "steer() requires an active turn; use next_turn() while idle",
+            )
+        self._steering.enqueue(message)
+        await self._emit_queue_update()
+
+    async def follow_up(self, message: Any) -> None:
+        if self.phase == AgentHarnessPhase.IDLE:
+            raise AgentHarnessError(
+                "invalid_state", "follow_up() requires an active turn; use next_turn() while idle",
+            )
+        self._follow_up.enqueue(message)
+        await self._emit_queue_update()
+
+    async def next_turn(self, message: Any) -> None:
+        self._next_turn.enqueue(message)
+        await self._emit_queue_update()
+
+    def clear_all_queues(self) -> None:
+        self._steering.clear()
+        self._follow_up.clear()
+
+    @property
+    def steering_mode(self) -> QueueMode:
+        return self._steering.mode
+
+    @steering_mode.setter
+    def steering_mode(self, mode: QueueMode) -> None:
+        self._steering.mode = mode
+
+    @property
+    def followup_mode(self) -> QueueMode:
+        return self._follow_up.mode
+
+    @followup_mode.setter
+    def followup_mode(self, mode: QueueMode) -> None:
+        self._follow_up.mode = mode
+
+    def has_queued_messages(self) -> bool:
+        return (
+            self._steering.has_items()
+            or self._follow_up.has_items()
+            or self._next_turn.has_items()
+        )
+
+    async def _emit_queue_update(self) -> None:
+        await self._notify_listeners(QueueUpdate(
+            steer_count=self._steering.item_count,
+            follow_up_count=self._follow_up.item_count,
+            next_turn_count=self._next_turn.item_count,
+        ))
+
+    # ── pending writes & config setters ─────────────────────────────
+
+    async def flush_pending_writes(self) -> None:
+        while self._pending_writes:
+            write = self._pending_writes[0]
+            await self._persistence.persist_pending_write(write)
+            self._pending_writes.pop(0)
+
+    async def _apply_config_write(self, write: PendingSessionWrite) -> None:
+        if self.phase == AgentHarnessPhase.IDLE:
+            await self._persistence.persist_pending_write(write)
+        else:
+            self._pending_writes.append(write)
+
+    def get_model(self) -> Any:
+        return self.state.model
+
+    async def set_model(self, model: Any) -> None:
+        previous_model = self.state.model
+        write = PendingSessionWrite(
+            type="model_change",
+            data={"provider": getattr(model, "provider", ""), "model_id": getattr(model, "id", "")},
+        )
+        await self._apply_config_write(write)
+        self.state.model = model
+        await self._notify_listeners(ModelUpdate(
+            model=model, previous_model=previous_model, source="set",
+        ))
+
+    def get_thinking_level(self) -> str:
+        return self.state.thinking_level
+
+    async def set_thinking_level(self, level: str) -> None:
+        previous_level = self.state.thinking_level
+        write = PendingSessionWrite(
+            type="thinking_level_change",
+            data={"thinking_level": level},
+        )
+        await self._apply_config_write(write)
+        self.state.thinking_level = level
+        await self._notify_listeners(ThinkingLevelUpdate(
+            level=level, previous_level=previous_level,
+        ))
+
+    def get_tools(self) -> list[Any]:
+        return list(self.state.tools)
+
+    async def set_tools(self, tools: list[Any], active_tool_names: list[str] | None = None) -> None:
+        names = [resolve_tool_name(t, i) for i, t in enumerate(tools)]
+        if len(names) != len(set(names)):
+            raise AgentHarnessError("invalid_argument", "Duplicate tool name(s)")
+        previous_tool_names = [
+            resolve_tool_name(t, i) for i, t in enumerate(self.state.tools)
+        ]
+        if active_tool_names is None:
+            active_tool_names = list(names)
+        unknown = [n for n in active_tool_names if n not in names]
+        if unknown:
+            raise AgentHarnessError("invalid_argument", f"Unknown tool(s): {', '.join(unknown)}")
+        write = PendingSessionWrite(
+            type="active_tools_change",
+            data={"active_tool_names": list(active_tool_names)},
+        )
+        await self._apply_config_write(write)
+        self.state.tools = list(tools)
+        self._active_tool_names = list(active_tool_names)
+        await self._notify_listeners(ToolsUpdate(
+            tool_names=names, previous_tool_names=previous_tool_names,
+            active_tool_names=list(active_tool_names),
+            previous_active_tool_names=previous_tool_names, source="set",
+        ))
+
+    async def set_active_tools(self, tool_names: list[str]) -> None:
+        all_names = {
+            resolve_tool_name(t, i) for i, t in enumerate(self.state.tools)
+        }
+        unknown = [n for n in tool_names if n not in all_names]
+        if unknown:
+            raise AgentHarnessError("invalid_argument", f"Unknown tool(s): {', '.join(unknown)}")
+        previous_tool_names = [
+            resolve_tool_name(t, i) for i, t in enumerate(self.state.tools)
+        ]
+        write = PendingSessionWrite(
+            type="active_tools_change",
+            data={"active_tool_names": list(tool_names)},
+        )
+        await self._apply_config_write(write)
+        self._active_tool_names = list(tool_names)
+        await self._notify_listeners(ToolsUpdate(
+            tool_names=previous_tool_names, previous_tool_names=previous_tool_names,
+            active_tool_names=list(tool_names),
+            previous_active_tool_names=previous_tool_names, source="set",
+        ))
+
+    def get_stream_options(self) -> dict[str, Any]:
+        return clone_stream_options(self._stream_options)
+
+    def set_stream_options(self, options: dict[str, Any]) -> None:
+        self._stream_options = clone_stream_options(options)
+
+    def get_resources(self) -> dict[str, Any]:
+        return {
+            "skills": list(self._resources.get("skills", [])),
+            "prompt_templates": list(self._resources.get("prompt_templates", [])),
+        }
+
+    async def set_resources(self, resources: dict[str, Any]) -> None:
+        previous = self.get_resources()
+        self._resources = {
+            "skills": list(resources.get("skills", [])),
+            "prompt_templates": list(resources.get("prompt_templates", [])),
+        }
+        await self._notify_listeners(ResourcesUpdate(
+            resources=self.get_resources(), previous_resources=previous,
+        ))
+
+    def _register_context_transform(self, handler: Any) -> None:
+        async def _adapter(event: ContextHookEvent) -> Any:
+            result = handler(event.messages, None)
+            if inspect.isawaitable(result):
+                result = await result
+            if result is not None and result is not event.messages:
+                return {"messages": result}
+            return None
+        self.hooks.on("context", _adapter)
+
+    # ── legacy hook registration ────────────────────────────────────
+
+    def add_before_agent_start_hook(self, hook: Any) -> None:
+        self.hooks.on("before_agent_start", hook)
+
+    def add_before_tool_call_hook(self, hook: Any) -> None:
+        register_legacy_tool_call(self.hooks, hook)
+
+    def remove_before_tool_call_hook(self, hook: Any) -> None:
+        pass
+
+    def add_after_tool_call_hook(self, hook: Any) -> None:
+        register_legacy_tool_result(self.hooks, hook)
+
+    def remove_after_tool_call_hook(self, hook: Any) -> None:
+        pass
+
+    def add_transform_context_hook(self, hook: Any) -> None:
+        register_legacy_context(self.hooks, hook)

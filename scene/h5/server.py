@@ -223,7 +223,7 @@ async def _event_stream(
         )
 
         # Check for immediate synchronous errors before starting
-        agent_error = getattr(assistant._agent.state, "error_message", None)
+        agent_error = getattr(assistant.harness.state, "error_message", None)
         if agent_error:
             err = _classify_error(agent_error)
             yield _format_sse(
@@ -265,7 +265,7 @@ async def _event_stream(
         await run_task
 
         # Check for errors that occurred during agent execution
-        agent_error = getattr(assistant._agent.state, "error_message", None)
+        agent_error = getattr(assistant.harness.state, "error_message", None)
         if agent_error:
             err = _classify_error(agent_error)
             err["retryable"] = True  # runtime errors are generally retryable
