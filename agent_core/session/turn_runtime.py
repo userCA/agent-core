@@ -150,6 +150,19 @@ def chain_transform_hooks(hooks: AgentHooks) -> Callable[..., Awaitable[Any]] | 
     return _chained
 
 
+def _filter_stream_kwargs(base_stream: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Pass through kwargs accepted by the provider stream() signature."""
+    try:
+        sig = inspect.signature(base_stream)
+    except (TypeError, ValueError):
+        return kwargs
+    params = sig.parameters
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return kwargs
+    allowed = set(params)
+    return {k: v for k, v in kwargs.items() if k in allowed}
+
+
 def make_stream_fn(
     *,
     provider: ModelProvider,
@@ -199,7 +212,7 @@ def make_stream_fn(
         if "max_tokens" in options:
             call_kwargs["max_tokens"] = options["max_tokens"]
 
-        async for evt in base_stream(**call_kwargs):
+        async for evt in base_stream(**_filter_stream_kwargs(base_stream, call_kwargs)):
             yield evt
 
         resp_evt = AfterProviderResponseHookEvent(
