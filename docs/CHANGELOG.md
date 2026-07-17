@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-07-17 — SqliteStore：轻量会话数据库适配
+
+新增 `agent_core/session/sqlite_store.py`（stdlib `sqlite3`，无额外依赖）与 `create_session_store()` 工厂。
+
+- `SessionStore` 协议增加 `delete_session`
+- Scene `http_sse` / `h5` Manager 通过 `SESSION_STORE=jsonl|sqlite|inmemory` 切换
+- 默认仍为 `jsonl`；SQLite 路径：`SESSION_SQLITE_PATH` 或 `{sessions_dir}/sessions.db`
+
+---
+
 ## 2026-07-17 — AgentHarness 直连 Agent Loop（Hard-cut）
 
 **Breaking change：** 生产 API 收敛为 `AgentHarness`，删除 `agent_core/core/agent.py` 与 `AgentSession` 别名。

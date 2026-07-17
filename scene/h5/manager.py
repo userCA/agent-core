@@ -15,7 +15,7 @@ from typing import Any
 
 from agent_core.resources.personas import get_persona
 from agent_core.tools.mcp_tool import MCPManager
-from agent_core.session.jsonl_store import JsonlStore
+from agent_core.session.factory import create_session_store
 from agent_core.session.store import CustomEntry, SessionMeta, SessionStore
 
 from scene.h5.chat_assistant import ChatAssistant
@@ -44,7 +44,7 @@ class SessionManager:
     ) -> None:
         self._cwd = cwd or os.getcwd()
         self._store_dir = session_store_dir
-        self._store = JsonlStore(session_store_dir)
+        self._store: SessionStore = create_session_store(directory=session_store_dir)
         self._sessions: dict[str, ChatAssistant] = {}
         self._lock = asyncio.Lock()
         self._create_locks: dict[str, asyncio.Lock] = {}
@@ -177,18 +177,13 @@ class SessionManager:
         return {}
 
     async def delete_session(self, session_id: str) -> bool:
-        """Delete a persisted session file and dispose from memory if active."""
+        """Delete a persisted session and dispose from memory if active."""
         _validate_session_id(session_id)
         # Remove from in-memory active sessions
         assistant = self._sessions.pop(session_id, None)
         if assistant:
             await assistant.dispose()
-        # Delete file from disk
-        path = self._store._path(session_id)
-        if path.exists():
-            os.unlink(path)
-            return True
-        return False
+        return await self._store.delete_session(session_id)
 
     async def dispose_all(self) -> None:
         """Dispose all active sessions."""

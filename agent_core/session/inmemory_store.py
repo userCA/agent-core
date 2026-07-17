@@ -36,5 +36,11 @@ class InMemoryStore:
             )
         return result[:limit]
 
+    async def delete_session(self, session_id: str) -> bool:
+        if session_id not in self._sessions:
+            return False
+        del self._sessions[session_id]
+        return True
+
     async def close(self) -> None:
         pass

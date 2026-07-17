@@ -15,7 +15,7 @@ from typing import Any
 
 from agent_core.resources.personas import get_persona
 from agent_core.tools.mcp_tool import MCPManager
-from agent_core.session.jsonl_store import JsonlStore
+from agent_core.session.factory import create_session_store
 from agent_core.session.store import SessionMeta, SessionStore
 
 from scene.http_sse.chat_assistant import ChatAssistant
@@ -44,6 +44,7 @@ class SessionManager:
     ) -> None:
         self._cwd = cwd or os.getcwd()
         self._store_dir = session_store_dir
+        self._store: SessionStore = create_session_store(directory=session_store_dir)
         self._sessions: dict[str, ChatAssistant] = {}
         self._lock = asyncio.Lock()
         self._create_locks: dict[str, asyncio.Lock] = {}
@@ -111,7 +112,7 @@ class SessionManager:
                     return sid, existing
                 await self.dispose(sid)
 
-            store = JsonlStore(self._store_dir)
+            store = self._store
 
             provider_name = provider_name or os.environ.get("AGENT_PROVIDER", "openai")
             model_id = model_id or os.environ.get("AGENT_MODEL", "gpt-4o")
@@ -151,9 +152,8 @@ class SessionManager:
             await assistant.dispose()
 
     async def list_sessions(self, limit: int = 50) -> list[SessionMeta]:
-        """List persisted sessions from disk."""
-        store = JsonlStore(self._store_dir)
-        return await store.list_sessions(limit=limit)
+        """List persisted sessions."""
+        return await self._store.list_sessions(limit=limit)
 
     async def reload_mcp(self) -> None:
         """Reload MCP configs from .mcp.json and reconnect."""
@@ -161,19 +161,13 @@ class SessionManager:
             await self._mcp_manager.reload(cwd=self._cwd)
 
     async def delete_session(self, session_id: str) -> bool:
-        """Delete a persisted session file and dispose from memory if active."""
+        """Delete a persisted session and dispose from memory if active."""
         _validate_session_id(session_id)
         # Remove from in-memory active sessions
         assistant = self._sessions.pop(session_id, None)
         if assistant:
             await assistant.dispose()
-        # Delete file from disk
-        store = JsonlStore(self._store_dir)
-        path = store._path(session_id)
-        if path.exists():
-            os.unlink(path)
-            return True
-        return False
+        return await self._store.delete_session(session_id)
 
     async def dispose_all(self) -> None:
         """Dispose all active sessions."""

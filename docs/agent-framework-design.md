@@ -446,6 +446,7 @@ SessionStore（协议）
 ├── append_entry(session_id, entry: SessionEntry)
 ├── load_session(session_id) → SessionSnapshot
 ├── list_sessions(owner?, limit?) → [SessionMeta]
+├── delete_session(session_id) → bool
 └── close()
 
 SessionEntry（判别联合）
@@ -458,7 +459,9 @@ SessionEntry（判别联合）
 
 **内置实现**：
 - `InMemoryStore`：测试/短期会话
-- `JsonlStore`：每会话一个 `.jsonl` 文件（第一行 header，后续行为 entries）
+- `JsonlStore`：每会话一个 `.jsonl` 文件（第一行 header，后续行为 entries）—— Scene 默认
+- `SqliteStore`：单文件 SQLite（stdlib）；`SESSION_STORE=sqlite`，路径 `SESSION_SQLITE_PATH` 或 `{dir}/sessions.db`
+- 工厂：`create_session_store()`
 
 ### 6.3 上下文压缩
 

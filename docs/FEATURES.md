@@ -72,6 +72,7 @@
 | TurnEnd 单次 flush | ✅ 完成 | 仅 save point / AgentEnd flush pending writes |
 | AgentHarness 重命名 | ✅ 完成 | 唯一生产 API 为 `AgentHarness`（无 `AgentSession` 别名） |
 | Harness Own Events | ✅ 完成 | ModelUpdate/ThinkingLevelUpdate/ToolsUpdate/QueueUpdate/Settled/AbortEvent/ResourcesUpdate |
+| SessionStore 多后端 | ✅ 完成 | `jsonl` / `sqlite` / `inmemory`；`create_session_store()` + `SESSION_STORE` |
 | Pending Writes | ✅ 完成 | busy 时排队写操作，save point/agent_end 时 FIFO flush |
 | emitRunFailure | ✅ 完成 | 运行失败走完整事件流 MessageStart→MessageEnd→TurnEnd→AgentEnd |
 | Compact 一等公民 | ✅ 完成 | `AgentHarness.compact()` 带 Phase Guard + SessionBeforeCompactHookEvent |

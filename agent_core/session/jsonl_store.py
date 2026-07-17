@@ -111,6 +111,13 @@ class JsonlStore:
             )
         return result[:limit]
 
+    async def delete_session(self, session_id: str) -> bool:
+        path = self._path(session_id)
+        if not path.exists():
+            return False
+        os.unlink(path)
+        return True
+
     async def close(self) -> None:
         pass
 
