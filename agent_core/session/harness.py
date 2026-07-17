@@ -20,20 +20,10 @@ from agent_core.core.events import (
     AgentEvent,
     MessageEnd,
     MessageStart,
-    MessageUpdate,
-    ModelUpdate,
-    QueueUpdate,
-    ResourcesUpdate,
-    Settled,
-    ThinkingLevelUpdate,
-    ToolExecutionEnd,
-    ToolExecutionStart,
-    ToolsUpdate,
     TurnEnd,
 )
 from agent_core.core.hooks import (
     AgentHooks,
-    ContextHookEvent,
     SessionBeforeCompactHookEvent,
     ToolCallHookEvent,
     ToolResultHookEvent,
@@ -41,18 +31,18 @@ from agent_core.core.hooks import (
 from agent_core.core.human_input import HumanInputGate
 from agent_core.core.loop import run_agent_loop
 from agent_core.core.messages import AssistantMessage, ToolResultMessage, Usage, UserMessage
-from agent_core.core.pending_writes import PendingSessionWrite
 from agent_core.core.queue import PendingMessageQueue, QueueMode
 from agent_core.core.state import AgentHarnessPhase, AgentState
-from agent_core.core.stream_options import clone_stream_options
 from agent_core.extensions.base import ExtensionContext, ExtensionRunner, HarnessFacade
 from agent_core.providers.auth import AuthSource
 from agent_core.providers.base import ModelProvider
 from agent_core.providers.message_converter import create_default_converter
 from agent_core.providers.types import Model
 from agent_core.session.persistence import HarnessPersistence
+from agent_core.session.harness_config import HarnessConfigMixin
+from agent_core.session.harness_events import HarnessEventsMixin
+from agent_core.session.harness_queues import HarnessQueuesMixin
 from agent_core.session.store import SessionHeader, SessionStore
-from agent_core.session.tool_utils import filter_active_tools, resolve_tool_name
 from agent_core.session.turn_runtime import (
     build_loop_config,
     chain_before_agent_start_hooks,
@@ -68,7 +58,7 @@ Listener = Callable[[AgentEvent], Awaitable[None] | None]
 Unsubscribe = Callable[[], None]
 
 
-class AgentHarness:
+class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
     """Unified production runtime: state, queues, persistence, hooks, loop execution."""
 
     def __init__(
@@ -534,15 +524,6 @@ class AgentHarness:
     async def prepare_next_turn(self) -> Any:
         return self.create_turn_snapshot()
 
-    async def drain_steering(self) -> list[Any]:
-        return self._steering.drain()
-
-    async def drain_follow_up(self) -> list[Any]:
-        return self._follow_up.drain()
-
-    def _drain_next_turn(self) -> list[Any]:
-        return self._next_turn.drain()
-
     @staticmethod
     def _normalize_input(text_or_message: Any, images: list[ImageContent] | None) -> Any:
         if isinstance(text_or_message, str):
@@ -551,302 +532,3 @@ class AgentHarness:
                 content.extend(images)
             return UserMessage(content=content, timestamp=time.time())
         return text_or_message
-
-    # ── event handling ────────────────────────────────────────────────
-
-    async def _handle_event(self, evt: AgentEvent, context: AgentContext | None = None) -> None:
-        if isinstance(evt, MessageStart):
-            if isinstance(evt.message, AssistantMessage):
-                self.state.streaming_message = evt.message
-        elif isinstance(evt, MessageUpdate):
-            self.state.streaming_message = evt.message
-        elif isinstance(evt, MessageEnd):
-            self.state.streaming_message = None
-            self.state.messages.append(evt.message)
-        elif isinstance(evt, TurnEnd):
-            msg = evt.message
-            if isinstance(msg, AssistantMessage) and msg.error_message:
-                self.state.error_message = msg.error_message
-            for tool_result in evt.tool_results:
-                self.state.messages.append(tool_result)
-        elif isinstance(evt, AgentEnd):
-            self.state.streaming_message = None
-            await self.flush_pending_writes()
-            self.phase = AgentHarnessPhase.IDLE
-            if self._compactor is not None:
-                await self._maybe_threshold_compact()
-
-        if isinstance(evt, ToolExecutionStart):
-            self._pending_tool_calls.add(evt.tool_call_id)
-        elif isinstance(evt, ToolExecutionEnd):
-            self._pending_tool_calls.discard(evt.tool_call_id)
-
-        if isinstance(evt, MessageEnd):
-            await self._persistence.persist_message(evt.message)
-        elif isinstance(evt, ToolExecutionEnd):
-            await self._persistence.persist_tool_result(evt)
-
-        if self._ext_runner is not None:
-            await self._ext_runner.on_event(evt)
-
-        await self._notify_listeners(evt)
-        if isinstance(evt, AgentEnd):
-            await self._notify_listeners(Settled(next_turn_count=self._next_turn.item_count))
-
-    # ── compaction ──────────────────────────────────────────────────
-
-    def _make_overflow_compact_callback(self) -> Any:
-        async def _on_overflow_compact(messages: list[Any]) -> bool:
-            try:
-                compacted = await self._compactor.compact(
-                    messages, reason="overflow", signal=None,
-                )
-                if compacted.summary and compacted.kept_count > 0:
-                    await self._apply_compaction_result(compacted, messages)
-                    return True
-                return False
-            except Exception as exc:
-                logger.warning("Overflow compaction failed for session %s: %s", self._session_id, exc)
-                return False
-        return _on_overflow_compact
-
-    async def _apply_compaction_result(self, compacted: Any, messages: list[Any]) -> None:
-        await self._persistence.persist_compaction(compacted)
-        from agent_core.core.messages import CustomMessage
-        summary_msg = CustomMessage(
-            custom_type="compaction_summary",
-            content=compacted.summary,
-            timestamp=time.time(),
-        )
-        kept = messages[-compacted.kept_count:]
-        messages.clear()
-        messages.append(summary_msg)
-        messages.extend(kept)
-        self.state.messages = list(messages)
-
-    async def _maybe_threshold_compact(self) -> None:
-        if self._compactor is None:
-            return
-        try:
-            model = getattr(self.state, "model", None)
-            context_window = getattr(model, "context_window", 0) if model else 0
-            messages = list(self.state.messages)
-            if not context_window or not self._compactor.should_compact(
-                messages, context_window=context_window,
-            ):
-                return
-            if self._phase != AgentHarnessPhase.IDLE:
-                return
-            self.phase = AgentHarnessPhase.COMPACTION
-            try:
-                compacted = await self._compactor.compact(
-                    messages, reason="threshold", signal=None,
-                )
-                if compacted.summary and compacted.kept_count > 0:
-                    await self._apply_compaction_result(compacted, messages)
-            finally:
-                self.phase = AgentHarnessPhase.IDLE
-        except Exception as exc:
-            logger.warning("Compaction failed for session %s: %s", self._session_id, exc)
-
-    # ── queues ──────────────────────────────────────────────────────
-
-    async def steer(self, message: Any) -> None:
-        if self.phase == AgentHarnessPhase.IDLE:
-            raise AgentHarnessError(
-                "invalid_state", "steer() requires an active turn; use next_turn() while idle",
-            )
-        self._steering.enqueue(message)
-        await self._emit_queue_update()
-
-    async def follow_up(self, message: Any) -> None:
-        if self.phase == AgentHarnessPhase.IDLE:
-            raise AgentHarnessError(
-                "invalid_state", "follow_up() requires an active turn; use next_turn() while idle",
-            )
-        self._follow_up.enqueue(message)
-        await self._emit_queue_update()
-
-    async def next_turn(self, message: Any) -> None:
-        self._next_turn.enqueue(message)
-        await self._emit_queue_update()
-
-    def clear_all_queues(self) -> None:
-        self._steering.clear()
-        self._follow_up.clear()
-
-    @property
-    def steering_mode(self) -> QueueMode:
-        return self._steering.mode
-
-    @steering_mode.setter
-    def steering_mode(self, mode: QueueMode) -> None:
-        self._steering.mode = mode
-
-    @property
-    def followup_mode(self) -> QueueMode:
-        return self._follow_up.mode
-
-    @followup_mode.setter
-    def followup_mode(self, mode: QueueMode) -> None:
-        self._follow_up.mode = mode
-
-    def has_queued_messages(self) -> bool:
-        return (
-            self._steering.has_items()
-            or self._follow_up.has_items()
-            or self._next_turn.has_items()
-        )
-
-    async def _emit_queue_update(self) -> None:
-        await self._notify_listeners(QueueUpdate(
-            steer_count=self._steering.item_count,
-            follow_up_count=self._follow_up.item_count,
-            next_turn_count=self._next_turn.item_count,
-        ))
-
-    # ── pending writes & config setters ─────────────────────────────
-
-    async def flush_pending_writes(self) -> None:
-        while self._pending_writes:
-            write = self._pending_writes[0]
-            await self._persistence.persist_pending_write(write)
-            self._pending_writes.pop(0)
-
-    async def _apply_config_write(self, write: PendingSessionWrite) -> None:
-        if self.phase == AgentHarnessPhase.IDLE:
-            await self._persistence.persist_pending_write(write)
-        else:
-            self._pending_writes.append(write)
-
-    def get_model(self) -> Any:
-        return self.state.model
-
-    async def set_model(self, model: Any) -> None:
-        previous_model = self.state.model
-        write = PendingSessionWrite(
-            type="model_change",
-            data={"provider": getattr(model, "provider", ""), "model_id": getattr(model, "id", "")},
-        )
-        await self._apply_config_write(write)
-        self.state.model = model
-        await self._notify_listeners(ModelUpdate(
-            model=model, previous_model=previous_model, source="set",
-        ))
-
-    def get_thinking_level(self) -> str:
-        return self.state.thinking_level
-
-    async def set_thinking_level(self, level: str) -> None:
-        previous_level = self.state.thinking_level
-        write = PendingSessionWrite(
-            type="thinking_level_change",
-            data={"thinking_level": level},
-        )
-        await self._apply_config_write(write)
-        self.state.thinking_level = level
-        await self._notify_listeners(ThinkingLevelUpdate(
-            level=level, previous_level=previous_level,
-        ))
-
-    def get_tools(self) -> list[Any]:
-        return list(self.state.tools)
-
-    async def set_tools(self, tools: list[Any], active_tool_names: list[str] | None = None) -> None:
-        names = [resolve_tool_name(t, i) for i, t in enumerate(tools)]
-        if len(names) != len(set(names)):
-            raise AgentHarnessError("invalid_argument", "Duplicate tool name(s)")
-        previous_tool_names = [
-            resolve_tool_name(t, i) for i, t in enumerate(self.state.tools)
-        ]
-        if active_tool_names is None:
-            active_tool_names = list(names)
-        unknown = [n for n in active_tool_names if n not in names]
-        if unknown:
-            raise AgentHarnessError("invalid_argument", f"Unknown tool(s): {', '.join(unknown)}")
-        write = PendingSessionWrite(
-            type="active_tools_change",
-            data={"active_tool_names": list(active_tool_names)},
-        )
-        await self._apply_config_write(write)
-        self.state.tools = list(tools)
-        self._active_tool_names = list(active_tool_names)
-        await self._notify_listeners(ToolsUpdate(
-            tool_names=names, previous_tool_names=previous_tool_names,
-            active_tool_names=list(active_tool_names),
-            previous_active_tool_names=previous_tool_names, source="set",
-        ))
-
-    async def set_active_tools(self, tool_names: list[str]) -> None:
-        all_names = {
-            resolve_tool_name(t, i) for i, t in enumerate(self.state.tools)
-        }
-        unknown = [n for n in tool_names if n not in all_names]
-        if unknown:
-            raise AgentHarnessError("invalid_argument", f"Unknown tool(s): {', '.join(unknown)}")
-        previous_tool_names = [
-            resolve_tool_name(t, i) for i, t in enumerate(self.state.tools)
-        ]
-        write = PendingSessionWrite(
-            type="active_tools_change",
-            data={"active_tool_names": list(tool_names)},
-        )
-        await self._apply_config_write(write)
-        self._active_tool_names = list(tool_names)
-        await self._notify_listeners(ToolsUpdate(
-            tool_names=previous_tool_names, previous_tool_names=previous_tool_names,
-            active_tool_names=list(tool_names),
-            previous_active_tool_names=previous_tool_names, source="set",
-        ))
-
-    def get_stream_options(self) -> dict[str, Any]:
-        return clone_stream_options(self._stream_options)
-
-    def set_stream_options(self, options: dict[str, Any]) -> None:
-        self._stream_options = clone_stream_options(options)
-
-    def get_resources(self) -> dict[str, Any]:
-        return {
-            "skills": list(self._resources.get("skills", [])),
-            "prompt_templates": list(self._resources.get("prompt_templates", [])),
-        }
-
-    async def set_resources(self, resources: dict[str, Any]) -> None:
-        previous = self.get_resources()
-        self._resources = {
-            "skills": list(resources.get("skills", [])),
-            "prompt_templates": list(resources.get("prompt_templates", [])),
-        }
-        await self._notify_listeners(ResourcesUpdate(
-            resources=self.get_resources(), previous_resources=previous,
-        ))
-
-    def _register_context_transform(self, handler: Any) -> None:
-        async def _adapter(event: ContextHookEvent) -> Any:
-            result = handler(event.messages, None)
-            if inspect.isawaitable(result):
-                result = await result
-            if result is not None and result is not event.messages:
-                return {"messages": result}
-            return None
-        self.hooks.on("context", _adapter)
-
-    # ── legacy hook registration ────────────────────────────────────
-
-    def add_before_agent_start_hook(self, hook: Any) -> None:
-        self.hooks.on("before_agent_start", hook)
-
-    def add_before_tool_call_hook(self, hook: Any) -> None:
-        register_legacy_tool_call(self.hooks, hook)
-
-    def remove_before_tool_call_hook(self, hook: Any) -> None:
-        pass
-
-    def add_after_tool_call_hook(self, hook: Any) -> None:
-        register_legacy_tool_result(self.hooks, hook)
-
-    def remove_after_tool_call_hook(self, hook: Any) -> None:
-        pass
-
-    def add_transform_context_hook(self, hook: Any) -> None:
-        register_legacy_context(self.hooks, hook)
