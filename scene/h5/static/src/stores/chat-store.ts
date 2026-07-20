@@ -6,8 +6,15 @@ import { extractThinkSteps, getDisplayableText } from '../utils/think';
 /* Message & ToolStep value types                                     */
 /* ------------------------------------------------------------------ */
 
+export interface DelegationAgentItem {
+  agent: string;
+  status: 'running' | 'completed' | 'failed' | 'aborted';
+  task?: string;
+  summary?: string;
+}
+
 export interface MessageBlock {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'skill';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'skill' | 'delegation';
   text?: string;
   label?: string;
   detail?: string;
@@ -20,6 +27,9 @@ export interface MessageBlock {
   videoSeconds?: string;
   imageUrl?: string;
   imageMeta?: { width?: number; height?: number; format?: string; size?: string };
+  mode?: string;
+  agents?: DelegationAgentItem[];
+  delegationId?: string;
 }
 
 export interface ChatMessage {

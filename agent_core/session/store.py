@@ -13,6 +13,7 @@ class SessionHeader(BaseModel):
     id: str
     timestamp: str
     cwd: str = ""
+    owner: str = ""
 
 
 class MessageEntry(BaseModel):
@@ -89,5 +90,9 @@ class SessionStore(Protocol):
     async def list_sessions(self, *, owner: str | None = None, limit: int = 50) -> list[SessionMeta]: ...
 
     async def delete_session(self, session_id: str) -> bool: ...
+
+    async def fork_session(
+        self, source_session_id: str, new_session_id: str, *, header: SessionHeader
+    ) -> None: ...
 
     async def close(self) -> None: ...

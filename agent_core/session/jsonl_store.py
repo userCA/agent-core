@@ -71,6 +71,8 @@ class JsonlStore:
                 if not first:
                     continue
                 header = SessionHeader.model_validate(json.loads(first))
+                if owner is not None and header.owner != owner:
+                    continue
                 lines = f.readlines()
                 entry_count = len(lines)
                 # Extract title from first user message
@@ -109,7 +111,9 @@ class JsonlStore:
                     title=title,
                 )
             )
-        return result[:limit]
+            if len(result) >= limit:
+                break
+        return result
 
     async def delete_session(self, session_id: str) -> bool:
         path = self._path(session_id)
@@ -117,6 +121,17 @@ class JsonlStore:
             return False
         os.unlink(path)
         return True
+
+    async def fork_session(
+        self, source_session_id: str, new_session_id: str, *, header: SessionHeader
+    ) -> None:
+        source = await self.load_session(source_session_id)
+        dest = self._path(new_session_id)
+        if dest.exists():
+            raise ValueError(f"Session {new_session_id} already exists")
+        await self.create_session(new_session_id, header)
+        for entry in source.entries:
+            await self.append_entry(new_session_id, entry.model_copy(deep=True))
 
     async def close(self) -> None:
         pass

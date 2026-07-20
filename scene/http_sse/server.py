@@ -21,7 +21,7 @@ from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
 from agent_core.resources.personas import load_personas
 
 from agent_core.extensions.companion import companion_event_to_sse
-from scene.http_sse.events import agent_event_to_sse_json
+from scene.http_sse.events import agent_event_to_sse_frames
 from agent_core.tools.mcp_tool import add_mcp_server_to_json, remove_mcp_server_from_json
 from scene.http_sse.manager import SessionManager
 from scene.http_sse.request_context import current_request_headers
@@ -94,6 +94,18 @@ def _format_sse(data: dict[str, Any]) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
+def _resolve_owner(request: Request) -> str:
+    uid = request.headers.get("uid") or request.query_params.get("user_id") or ""
+    uid = uid.strip()
+    if uid:
+        return uid
+    import os
+
+    if os.environ.get("REQUIRE_SESSION_OWNER", "").strip() in ("1", "true", "yes"):
+        return ""
+    return "anonymous"
+
+
 async def _event_stream(
     session_id: str | None,
     message: str,
@@ -101,14 +113,19 @@ async def _event_stream(
     provider_name: str | None = None,
     model_id: str | None = None,
     companion_uid: str = "",
+    owner: str = "anonymous",
 ) -> AsyncIterator[str]:
     """Yield SSE-formatted events for a chat turn."""
+    if not owner:
+        yield _format_sse({"event": "error", "message": "Missing owner (uid or user_id)"})
+        return
     companion_queue: asyncio.Queue[Any] = asyncio.Queue() if companion_uid else None  # type: ignore[assignment]
     sid, assistant = await manager.get_or_create(
         session_id, persona_id=persona_id,
         provider_name=provider_name, model_id=model_id,
         companion_queue=companion_queue,
         companion_uid=companion_uid,
+        owner=owner,
     )
 
     # Send session_id first
@@ -142,8 +159,7 @@ async def _event_stream(
             evt = await asyncio.wait_for(queue.get(), timeout=600.0)
             if evt is None:
                 break
-            data = agent_event_to_sse_json(evt)
-            if data is not None:
+            for data in agent_event_to_sse_frames(evt):
                 yield _format_sse(data)
             if isinstance(evt, AgentEnd):
                 break
@@ -166,10 +182,11 @@ async def chat_stream(request: Request, chat_request: ChatRequest) -> StreamingR
     current_request_headers.set(dict(request.headers))
     headers: dict[str, str] = dict(request.headers)
     companion_uid = headers.get("uid", "")
+    owner = _resolve_owner(request)
     return StreamingResponse(
         _event_stream(session_id, chat_request.message, persona_id=persona_id,
                       provider_name=chat_request.provider, model_id=chat_request.model,
-                      companion_uid=companion_uid),
+                      companion_uid=companion_uid, owner=owner),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -195,7 +212,10 @@ async def list_sessions(request: Request) -> dict[str, Any]:
     """List persisted sessions with metadata. Supports pagination."""
     limit = min(int(request.query_params.get("limit", "50")), 100)
     offset = int(request.query_params.get("offset", "0"))
-    all_sessions = await manager.list_sessions(limit=200)
+    owner = _resolve_owner(request) or "anonymous"
+    all_sessions = await manager.list_sessions(limit=200, owner=owner)
+    # Hide sub-agent audit sessions from the main list.
+    all_sessions = [s for s in all_sessions if "__sub__" not in s.session_id]
     sessions = all_sessions[offset:offset + limit]
     return {
         "sessions": [
@@ -220,7 +240,12 @@ async def get_session(request: Request) -> dict[str, Any]:
     if not session_id:
         return {"success": False, "error": "Missing session_id"}
 
-    _, assistant = await manager.get_or_create(session_id)
+    try:
+        _, assistant = await manager.get_or_create(
+            session_id, owner=_resolve_owner(request) or "anonymous"
+        )
+    except PermissionError as exc:
+        return {"success": False, "error": str(exc)}
     messages = []
     for msg in assistant.messages:
         try:
@@ -237,7 +262,9 @@ async def export_session(request: Request):
     if not session_id:
         return {"success": False, "error": "Missing session_id"}
 
-    _, assistant = await manager.get_or_create(session_id)
+    _, assistant = await manager.get_or_create(
+        session_id, owner=_resolve_owner(request) or "anonymous"
+    )
     lines = []
     for msg in assistant.messages:
         role = getattr(msg, 'role', 'unknown')
@@ -259,7 +286,12 @@ async def delete_session(request: Request) -> dict[str, Any]:
     session_id = request.query_params.get("session_id")
     if not session_id:
         return {"success": False, "error": "Missing session_id"}
-    deleted = await manager.delete_session(session_id)
+    try:
+        deleted = await manager.delete_session(
+            session_id, owner=_resolve_owner(request) or "anonymous"
+        )
+    except PermissionError as exc:
+        return {"success": False, "error": str(exc)}
     return {"success": deleted}
 
 
@@ -270,7 +302,12 @@ async def abort_session(request: Request) -> dict[str, Any]:
     if not session_id:
         return {"success": False, "error": "Missing session_id"}
 
-    _, assistant = await manager.get_or_create(session_id)
+    try:
+        _, assistant = await manager.get_or_create(
+            session_id, owner=_resolve_owner(request) or "anonymous"
+        )
+    except PermissionError as exc:
+        return {"success": False, "error": str(exc)}
     assistant.abort()
     return {"success": True}
 

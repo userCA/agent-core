@@ -46,6 +46,7 @@ class SessionManager:
         self._store_dir = session_store_dir
         self._store: SessionStore = create_session_store(directory=session_store_dir)
         self._sessions: dict[str, ChatAssistant] = {}
+        self._session_owners: dict[str, str] = {}
         self._lock = asyncio.Lock()
         self._create_locks: dict[str, asyncio.Lock] = {}
         self._mcp_manager: MCPManager | None = None
@@ -86,15 +87,32 @@ class SessionManager:
             return True
         return False
 
+    async def _assert_owner(self, session_id: str, owner: str) -> None:
+        known = self._session_owners.get(session_id)
+        if known is not None and known != owner:
+            raise PermissionError(f"Session {session_id} not owned by caller")
+        if known is None:
+            try:
+                snap = await self._store.load_session(session_id)
+                header_owner = getattr(snap.header, "owner", "") or ""
+                if header_owner and header_owner != owner:
+                    raise PermissionError(f"Session {session_id} not owned by caller")
+                if header_owner:
+                    self._session_owners[session_id] = header_owner
+            except KeyError:
+                pass
+
     async def get_or_create(
         self, session_id: str | None, persona_id: str | None = None,
         provider_name: str | None = None, model_id: str | None = None,
         companion_queue: "asyncio.Queue[Any] | None" = None,
         companion_uid: str = "",
+        owner: str = "anonymous",
     ) -> tuple[str, ChatAssistant]:
         """Get an existing assistant or create a new one."""
         if session_id:
             _validate_session_id(session_id)
+            await self._assert_owner(session_id, owner)
             existing = self._sessions.get(session_id)
             if existing is not None:
                 if not self._should_rebuild(existing, persona_id, provider_name, model_id):
@@ -103,6 +121,7 @@ class SessionManager:
 
         sid = session_id or _generate_session_id()
         _validate_session_id(sid)
+        await self._assert_owner(sid, owner)
         lock = self._create_locks.setdefault(sid, asyncio.Lock())
         async with lock:
             # Re-check inside lock
@@ -131,6 +150,7 @@ class SessionManager:
                 mcp_manager=self._mcp_manager,
                 companion_queue=companion_queue,
                 companion_uid=companion_uid,
+                owner=owner,
             )
             # Remember persona + model used to create this assistant
             assistant._persona_id = persona_id
@@ -138,6 +158,7 @@ class SessionManager:
             assistant._model_id = model_id
             async with self._lock:
                 self._sessions[sid] = assistant
+                self._session_owners[sid] = owner
         self._create_locks.pop(sid, None)
         return sid, assistant
 
@@ -151,23 +172,35 @@ class SessionManager:
         if assistant:
             await assistant.dispose()
 
-    async def list_sessions(self, limit: int = 50) -> list[SessionMeta]:
-        """List persisted sessions."""
-        return await self._store.list_sessions(limit=limit)
+    async def list_sessions(
+        self, limit: int = 50, *, owner: str | None = None
+    ) -> list[SessionMeta]:
+        """List persisted sessions, optionally filtered by owner."""
+        return await self._store.list_sessions(owner=owner, limit=limit)
 
     async def reload_mcp(self) -> None:
         """Reload MCP configs from .mcp.json and reconnect."""
         if self._mcp_manager is not None:
             await self._mcp_manager.reload(cwd=self._cwd)
 
-    async def delete_session(self, session_id: str) -> bool:
+    async def delete_session(self, session_id: str, *, owner: str | None = None) -> bool:
         """Delete a persisted session and dispose from memory if active."""
         _validate_session_id(session_id)
+        if owner is not None:
+            await self._assert_owner(session_id, owner)
         # Remove from in-memory active sessions
         assistant = self._sessions.pop(session_id, None)
+        self._session_owners.pop(session_id, None)
         if assistant:
             await assistant.dispose()
-        return await self._store.delete_session(session_id)
+        deleted = await self._store.delete_session(session_id)
+        # Cascade-delete sub-agent audit sessions.
+        prefix = f"{session_id}__sub__"
+        for meta in await self._store.list_sessions(owner=owner, limit=500):
+            if meta.session_id.startswith(prefix):
+                await self._store.delete_session(meta.session_id)
+                self._session_owners.pop(meta.session_id, None)
+        return deleted
 
     async def dispose_all(self) -> None:
         """Dispose all active sessions."""

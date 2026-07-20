@@ -27,6 +27,8 @@ class InMemoryStore:
     async def list_sessions(self, *, owner: str | None = None, limit: int = 50) -> list[SessionMeta]:
         result: list[SessionMeta] = []
         for sid, snap in self._sessions.items():
+            if owner is not None and snap.header.owner != owner:
+                continue
             result.append(
                 SessionMeta(
                     session_id=sid,
@@ -41,6 +43,16 @@ class InMemoryStore:
             return False
         del self._sessions[session_id]
         return True
+
+    async def fork_session(
+        self, source_session_id: str, new_session_id: str, *, header: SessionHeader
+    ) -> None:
+        source = await self.load_session(source_session_id)
+        if new_session_id in self._sessions:
+            raise ValueError(f"Session {new_session_id} already exists")
+        # Deep-copy entries so later parent writes do not mutate the fork.
+        copied = [e.model_copy(deep=True) for e in source.entries]
+        self._sessions[new_session_id] = SessionSnapshot(header=header, entries=copied)
 
     async def close(self) -> None:
         pass

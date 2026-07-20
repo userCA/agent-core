@@ -31,6 +31,21 @@ from agent_core.core.events import (
 _IMAGE_TOOL_NAMES = frozenset({"generate_image", "generate_images", "edit_image"})
 
 
+def _delegation_action(result: Any) -> dict[str, Any] | None:
+    """Map ToolResult.details.delegation → action event (H5 SSE v1)."""
+    if result is None:
+        return None
+    details = getattr(result, "details", None)
+    if not isinstance(details, dict):
+        return None
+    payload = details.get("delegation")
+    if not isinstance(payload, dict) or payload.get("type") != "delegation":
+        return None
+    data = {"actionType": "delegation.update", **payload}
+    data.pop("type", None)
+    return {"sse_event": "action", "data": data}
+
+
 class _ContentTracker:
     """Track content-block lifecycle (start → delta×N → done)."""
 
@@ -254,14 +269,21 @@ def agent_event_to_sse_json(
 
     # -- ToolExecutionUpdate ---------------------------------------------------
     if isinstance(evt, ToolExecutionUpdate):
-        return {
-            "sse_event": "action",
-            "data": {
-                "actionType": "tool_call.progress",
-                "toolCallId": evt.tool_call_id,
-                "output": _extract_result_text(evt.partial_result),
-            },
-        }
+        events: list[dict[str, Any]] = []
+        deleg = _delegation_action(evt.partial_result)
+        if deleg is not None:
+            events.append(deleg)
+        text = _extract_result_text(evt.partial_result)
+        if text or deleg is None:
+            events.append({
+                "sse_event": "action",
+                "data": {
+                    "actionType": "tool_call.progress",
+                    "toolCallId": evt.tool_call_id,
+                    "output": text,
+                },
+            })
+        return events[0] if len(events) == 1 else events
 
     # -- ToolExecutionEnd ------------------------------------------------------
     if isinstance(evt, ToolExecutionEnd):
@@ -273,6 +295,10 @@ def agent_event_to_sse_json(
             result_payload["display"] = evt.result.display
 
         events: list[dict[str, Any]] = []
+
+        deleg = _delegation_action(evt.result)
+        if deleg is not None:
+            events.append(deleg)
 
         # Emit image content blocks for image generation tools
         if evt.tool_name in _IMAGE_TOOL_NAMES and not evt.is_error and tracker:
@@ -291,6 +317,7 @@ def agent_event_to_sse_json(
             "data": {
                 "actionType": "tool_call.completed",
                 "toolCallId": evt.tool_call_id,
+                "name": evt.tool_name,
                 "result": result_payload,
             },
         })

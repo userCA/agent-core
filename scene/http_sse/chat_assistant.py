@@ -99,6 +99,7 @@ class ChatAssistant:
         skills: list[Skill] | None = None,
         tool_registry: ToolRegistry | None = None,
         cwd: str = "",
+        multi_agent_handle: Any | None = None,
     ) -> None:
         self._harness = harness
         self._tool_registry = tool_registry or ToolRegistry()
@@ -106,6 +107,7 @@ class ChatAssistant:
         self._cwd = cwd or os.getcwd()
         self._session_unsub: Callable[[], None] | None = None
         self._handlers: list[EventHandler] = []
+        self._multi_agent_handle = multi_agent_handle
 
     @classmethod
     async def create(
@@ -127,6 +129,8 @@ class ChatAssistant:
         memory_config: dict[str, Any] | None = None,
         companion_queue: "asyncio.Queue[Any] | None" = None,
         companion_uid: str = "",
+        owner: str = "",
+        enable_multi_agent: bool | None = None,
     ) -> "ChatAssistant":
         """Factory method to create a ChatAssistant with minimal configuration."""
         from agent_core.providers.openai_provider import OpenAIProvider
@@ -321,29 +325,88 @@ class ChatAssistant:
                 send_event=companion_queue.put_nowait,
             ))
 
-        harness = AgentHarness(
-            provider=provider,
-            auth_source=auth_source,
-            store=session_store or InMemoryStore(),
-            session_id=resolved_session_id,
-            initial_state=AgentState(
-                system_prompt=prompt.text,
-                model=model,
-                tools=tool_registry.to_definitions(),
-            ),
-            tool_registry=tool_registry,
-            extensions=extensions or None,
-            tool_execution="sequential",
-            before_tool_call=_auth_before_tool_call,
-            transform_context=_transform_context,
-            max_turns=10,
+        store = session_store or InMemoryStore()
+        # Ensure session header carries owner before harness.start().
+        if owner:
+            from datetime import datetime, timezone
+
+            from agent_core.session.store import SessionHeader
+
+            try:
+                await store.load_session(resolved_session_id)
+            except KeyError:
+                await store.create_session(
+                    resolved_session_id,
+                    SessionHeader(
+                        id=resolved_session_id,
+                        timestamp=datetime.now(tz=timezone.utc).isoformat(),
+                        cwd=cwd,
+                        owner=owner,
+                    ),
+                )
+
+        from scene.http_sse.multi_agent_profiles import (
+            default_multi_agent_options,
+            multi_agent_enabled,
         )
+
+        use_multi = (
+            multi_agent_enabled() if enable_multi_agent is None else enable_multi_agent
+        )
+        multi_handle = None
+        harness_kwargs: dict[str, Any] = {
+            "extensions": extensions or None,
+            "tool_execution": "sequential",
+            "before_tool_call": _auth_before_tool_call,
+            "transform_context": _transform_context,
+            "max_turns": 10,
+        }
+        if use_multi:
+            from agent_core.multi_agent import create_multi_agent_harness
+
+            tool_list = [
+                t for info in tool_registry.list() if (t := tool_registry.get(info.name))
+            ]
+            options = default_multi_agent_options()
+            if persona is not None and persona.name:
+                options.routing_prompt = (
+                    (options.routing_prompt or "")
+                    + f"\n当前接待风格参考 persona: {persona.name}."
+                )
+            harness, multi_handle = create_multi_agent_harness(
+                options=options,
+                provider=provider,
+                auth_source=auth_source,
+                store=store,
+                session_id=resolved_session_id,
+                model=model,
+                tools=tool_list,
+                system_prompt=prompt.text,
+                owner=owner,
+                tool_registry=tool_registry,
+                **harness_kwargs,
+            )
+        else:
+            harness = AgentHarness(
+                provider=provider,
+                auth_source=auth_source,
+                store=store,
+                session_id=resolved_session_id,
+                initial_state=AgentState(
+                    system_prompt=prompt.text,
+                    model=model,
+                    tools=tool_registry.to_definitions(),
+                ),
+                tool_registry=tool_registry,
+                **harness_kwargs,
+            )
 
         assistant = cls(
             harness=harness,
             skills=skills,
             tool_registry=tool_registry,
             cwd=cwd,
+            multi_agent_handle=multi_handle,
         )
         await assistant.start()
         return assistant
@@ -382,8 +445,18 @@ class ChatAssistant:
         await self._harness.continue_()
 
     def abort(self) -> None:
-        """Abort the current operation."""
+        """Abort the current operation (and any running sub-agents)."""
         self._harness.abort()
+        handle = self._multi_agent_handle
+        if handle is not None:
+            runner = getattr(handle, "runner", None)
+            if runner is not None:
+                # Fire-and-forget abort of active sub-agents.
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(runner.abort_all())
+                except RuntimeError:
+                    pass
 
     def provide_human_input(self, tool_call_id: str, values: dict[str, Any]) -> bool:
         """Resume a tool that is waiting for human input."""

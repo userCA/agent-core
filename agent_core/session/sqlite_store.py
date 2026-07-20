@@ -128,18 +128,22 @@ class SqliteStore:
 
     async def list_sessions(self, *, owner: str | None = None, limit: int = 50) -> list[SessionMeta]:
         async with self._lock:
-            return await asyncio.to_thread(self._list_sessions_sync, limit)
+            return await asyncio.to_thread(self._list_sessions_sync, owner, limit)
 
-    def _list_sessions_sync(self, limit: int) -> list[SessionMeta]:
+    def _list_sessions_sync(self, owner: str | None, limit: int) -> list[SessionMeta]:
+        # Fetch more rows when filtering by owner so LIMIT applies after filter.
+        fetch_limit = limit if owner is None else max(limit * 10, 100)
         rows = self._conn.execute(
             "SELECT session_id, header_json, created_at FROM sessions "
             "ORDER BY created_at DESC LIMIT ?",
-            (limit,),
+            (fetch_limit,),
         ).fetchall()
         result: list[SessionMeta] = []
         for row in rows:
             sid = row["session_id"]
             header = SessionHeader.model_validate(json.loads(row["header_json"]))
+            if owner is not None and header.owner != owner:
+                continue
             count_row = self._conn.execute(
                 "SELECT COUNT(*) AS c FROM entries WHERE session_id = ?", (sid,)
             ).fetchone()
@@ -164,6 +168,8 @@ class SqliteStore:
                     title=title,
                 )
             )
+            if len(result) >= limit:
+                break
         return result
 
     async def delete_session(self, session_id: str) -> bool:
@@ -180,6 +186,22 @@ class SqliteStore:
         self._conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
         self._conn.commit()
         return True
+
+    async def fork_session(
+        self, source_session_id: str, new_session_id: str, *, header: SessionHeader
+    ) -> None:
+        source = await self.load_session(source_session_id)
+        async with self._lock:
+            exists = await asyncio.to_thread(
+                lambda: self._conn.execute(
+                    "SELECT 1 FROM sessions WHERE session_id = ?", (new_session_id,)
+                ).fetchone()
+            )
+            if exists is not None:
+                raise ValueError(f"Session {new_session_id} already exists")
+        await self.create_session(new_session_id, header)
+        for entry in source.entries:
+            await self.append_entry(new_session_id, entry.model_copy(deep=True))
 
     async def close(self) -> None:
         async with self._lock:

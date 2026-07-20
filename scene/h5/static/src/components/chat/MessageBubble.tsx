@@ -121,14 +121,16 @@ export default function MessageBubble({ message }: Props) {
   // assistant — split reasoning steps and content into separate cards
   // Use turnPhase-based split (streaming messages) with type-based fallback (history messages)
   const { intermediateBlocks } = message;
+  const isReasoningStep = (b: NonNullable<typeof blocks>[number]) =>
+    b.type === 'think' || b.type === 'tool' || b.type === 'skill';
   const stepBlocks = intermediateBlocks
-    || blocks?.filter(b => b.type === 'think' || b.type === 'tool' || b.type === 'skill')
-    || [];
+    ? intermediateBlocks.filter(isReasoningStep)
+    : (blocks?.filter(isReasoningStep) || []);
   const contentBlocks = intermediateBlocks
     ? (blocks?.filter(b => b.turnPhase !== 'intermediate') || [])
-      // Also catch non-step blocks from intermediate (e.g. widgets from tool results)
-      .concat(intermediateBlocks.filter(b => b.type !== 'think' && b.type !== 'tool' && b.type !== 'skill'))
-    : (blocks?.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image') || []);
+      // Non-step intermediate blocks (widgets / delegation) belong in content card
+      .concat(intermediateBlocks.filter(b => !isReasoningStep(b)))
+    : (blocks?.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image' || b.type === 'delegation') || []);
   const hasSteps = stepBlocks.length > 0;
   const hasContent = contentBlocks.length > 0 || !!content;
   const splitCards = hasSteps && hasContent;

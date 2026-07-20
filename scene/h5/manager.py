@@ -131,6 +131,7 @@ class SessionManager:
                 mcp_manager=self._mcp_manager,
                 companion_queue=companion_queue,
                 companion_uid=companion_uid,
+                owner=companion_uid or "",
             )
             # Remember persona + model used to create this assistant
             assistant._persona_id = persona_id
@@ -183,7 +184,13 @@ class SessionManager:
         assistant = self._sessions.pop(session_id, None)
         if assistant:
             await assistant.dispose()
-        return await self._store.delete_session(session_id)
+        deleted = await self._store.delete_session(session_id)
+        # Cascade-delete sub-agent audit sessions.
+        prefix = f"{session_id}__sub__"
+        for meta in await self._store.list_sessions(limit=500):
+            if meta.session_id.startswith(prefix):
+                await self._store.delete_session(meta.session_id)
+        return deleted
 
     async def dispose_all(self) -> None:
         """Dispose all active sessions."""

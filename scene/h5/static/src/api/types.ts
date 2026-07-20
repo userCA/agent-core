@@ -77,6 +77,7 @@ export interface ErrorDetail {
 // skill.completed:      { actionType, skillId }
 // step.start / step.end { actionType, stepId, stepName, type? }
 // human_input.*:        { actionType, toolCallId, prompt, inputSchema }
+// delegation.update:    { actionType, delegation_id, phase, mode, agent, ... }
 
 export interface ActionEvent {
   actionType: string;
@@ -90,6 +91,14 @@ export interface ActionEvent {
   timeoutSeconds?: number;
   stepId?: string;
   stepName?: string;
+  // delegation.update fields (snake_case from backend details)
+  delegation_id?: string;
+  phase?: string;
+  mode?: string;
+  agent?: string;
+  status?: string;
+  task?: string;
+  summary?: string;
   [key: string]: any;
 }
 

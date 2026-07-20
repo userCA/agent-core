@@ -18,58 +18,84 @@ from agent_core.core.events import (
 )
 
 
-def agent_event_to_sse_json(evt: AgentEvent) -> dict[str, Any] | None:
-    """Convert an AgentEvent to an SSE JSON dict.
+def _delegation_from_result(result: Any) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    details = getattr(result, "details", None)
+    if not isinstance(details, dict):
+        return None
+    payload = details.get("delegation")
+    if not isinstance(payload, dict) or payload.get("type") != "delegation":
+        return None
+    frame = {"event": "delegation", **payload}
+    frame.pop("type", None)
+    return frame
 
-    Returns None for events that should not be sent to the client.
-    """
+
+def agent_event_to_sse_frames(evt: AgentEvent) -> list[dict[str, Any]]:
+    """Convert an AgentEvent to zero or more SSE JSON frames."""
+    frames: list[dict[str, Any]] = []
+
     if isinstance(evt, MessageUpdate):
         delta = evt.delta
         if isinstance(delta, TextDelta):
-            return {"event": "text_delta", "text": delta.text}
+            frames.append({"event": "text_delta", "text": delta.text})
         elif isinstance(delta, ThinkingDelta):
-            return {"event": "thinking_delta", "text": delta.text}
-        elif isinstance(delta, ToolCallDelta):
-            return None
-        return None
+            frames.append({"event": "thinking_delta", "text": delta.text})
+        return frames
 
     if isinstance(evt, ToolExecutionStart):
-        return {
-            "event": "tool_start",
-            "tool_name": evt.tool_name,
-            "tool_call_id": evt.tool_call_id,
-            "args": evt.args,
-        }
+        frames.append(
+            {
+                "event": "tool_start",
+                "tool_name": evt.tool_name,
+                "tool_call_id": evt.tool_call_id,
+                "args": evt.args,
+            }
+        )
+        return frames
 
     if isinstance(evt, ToolExecutionUpdate):
-        return {
-            "event": "tool_update",
-            "tool_name": evt.tool_name,
-            "result": _extract_result_text(evt.partial_result),
-        }
+        deleg = _delegation_from_result(evt.partial_result)
+        if deleg is not None:
+            frames.append(deleg)
+        text = _extract_result_text(evt.partial_result)
+        if text or deleg is None:
+            frames.append(
+                {
+                    "event": "tool_update",
+                    "tool_name": evt.tool_name,
+                    "result": text,
+                }
+            )
+        return frames
 
     if isinstance(evt, ToolExecutionEnd):
-        result_dict = {
+        deleg = _delegation_from_result(evt.result)
+        if deleg is not None:
+            frames.append(deleg)
+        result_dict: dict[str, Any] = {
             "event": "tool_end",
             "tool_name": evt.tool_name,
             "tool_call_id": evt.tool_call_id,
             "result": _extract_result_text(evt.result),
             "is_error": evt.is_error,
         }
-        if (
-            hasattr(evt.result, "display")
-            and evt.result.display
-        ):
+        if hasattr(evt.result, "display") and evt.result.display:
             result_dict["display"] = evt.result.display
-        return result_dict
+        frames.append(result_dict)
+        return frames
 
     if isinstance(evt, HumanInputRequired):
-        return {
-            "event": "human_input_required",
-            "tool_call_id": evt.tool_call_id,
-            "prompt": evt.prompt,
-            "input_schema": evt.input_schema,
-        }
+        frames.append(
+            {
+                "event": "human_input_required",
+                "tool_call_id": evt.tool_call_id,
+                "prompt": evt.prompt,
+                "input_schema": evt.input_schema,
+            }
+        )
+        return frames
 
     if isinstance(evt, MessageEnd):
         usage = None
@@ -85,9 +111,24 @@ def agent_event_to_sse_json(evt: AgentEvent) -> dict[str, Any] | None:
                 "output_tokens": getattr(u, "output_tokens", 0),
                 "total_tokens": getattr(u, "total_tokens", 0),
             }
-        return {"event": "message_end", "usage": usage}
+        frames.append({"event": "message_end", "usage": usage})
+        return frames
 
-    return None
+    return frames
+
+
+def agent_event_to_sse_json(evt: AgentEvent) -> dict[str, Any] | None:
+    """Convert an AgentEvent to a single SSE JSON dict (backward compatible).
+
+    Prefer non-delegation frames when multiple are produced.
+    """
+    frames = agent_event_to_sse_frames(evt)
+    if not frames:
+        return None
+    for frame in frames:
+        if frame.get("event") != "delegation":
+            return frame
+    return frames[0]
 
 
 def _extract_result_text(result: Any) -> str:

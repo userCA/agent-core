@@ -46,6 +46,21 @@ export interface ToolEndEvent {
   display?: DisplayPayload;
 }
 
+export interface DelegationEvent {
+  event: 'delegation';
+  phase: 'start' | 'agent_start' | 'agent_end' | 'end';
+  mode?: 'single' | 'parallel' | 'chain';
+  delegation_id?: string;
+  agent?: string;
+  task?: string;
+  status?: 'running' | 'completed' | 'failed' | 'aborted';
+  index?: number;
+  total?: number;
+  summary?: string;
+  error_message?: string | null;
+  session_id?: string;
+}
+
 export interface DisplayPayload {
   widget?: WidgetDisplay;
   audio?: AudioDisplay;
@@ -143,6 +158,7 @@ export type SSEEvent =
   | ToolStartEvent
   | ToolUpdateEvent
   | ToolEndEvent
+  | DelegationEvent
   | HumanInputRequiredEvent
   | MessageEndEvent
   | ErrorEvent

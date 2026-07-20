@@ -9,8 +9,15 @@ import { useCompanionStore } from '../stores/companion-store';
 import { getDisplayableText } from '../utils/think';
 import type { SSEEvent } from '../api/types';
 
+interface _DelegationAgent {
+  agent: string;
+  status: 'running' | 'completed' | 'failed' | 'aborted';
+  task?: string;
+  summary?: string;
+}
+
 interface _Block {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'delegation';
   content?: string;
   toolName?: string;
   toolCallId?: string;
@@ -20,6 +27,9 @@ interface _Block {
   videoUrl?: string;
   videoSize?: string;
   videoSeconds?: string;
+  mode?: string;
+  delegationId?: string;
+  agents?: _DelegationAgent[];
 }
 
 export function useSSE() {
@@ -73,6 +83,8 @@ export function useSSE() {
       }
 
       case 'tool_start': {
+        // delegate_task uses dedicated delegation cards instead of generic tool cards.
+        if (evt.tool_name === 'delegate_task') break;
         blocks.push({
           type: 'tool', content: JSON.stringify(evt.args),
           toolName: evt.tool_name, toolCallId: evt.tool_call_id, status: 'running',
@@ -83,7 +95,50 @@ export function useSSE() {
       case 'tool_update':
         break;
 
+      case 'delegation': {
+        let block = blocks.find(
+          (blk) => blk.type === 'delegation' && blk.delegationId === evt.delegation_id,
+        );
+        if (!block) {
+          block = {
+            type: 'delegation',
+            delegationId: evt.delegation_id,
+            mode: evt.mode,
+            status: 'running',
+            agents: [],
+          };
+          blocks.push(block);
+        }
+        if (evt.mode) block.mode = evt.mode;
+        if (evt.phase === 'agent_start' && evt.agent) {
+          const agents = block.agents || (block.agents = []);
+          const existing = agents.find((a) => a.agent === evt.agent && a.task === evt.task);
+          if (existing) {
+            existing.status = 'running';
+            existing.task = evt.task;
+          } else {
+            agents.push({ agent: evt.agent, status: 'running', task: evt.task });
+          }
+        }
+        if (evt.phase === 'agent_end' && evt.agent) {
+          const agents = block.agents || (block.agents = []);
+          let item = agents.find((a) => a.agent === evt.agent && (a.task === evt.task || !evt.task));
+          if (!item) {
+            item = { agent: evt.agent, status: 'completed', task: evt.task };
+            agents.push(item);
+          }
+          item.status = (evt.status as _DelegationAgent['status']) || 'completed';
+          if (evt.summary) item.summary = evt.summary;
+        }
+        if (evt.phase === 'end') {
+          block.status = 'done';
+          block.isError = evt.status === 'failed' || evt.status === 'aborted';
+        }
+        break;
+      }
+
       case 'tool_end': {
+        if (evt.tool_name === 'delegate_task') break;
         const b = blocks.find(blk => blk.toolCallId === evt.tool_call_id && blk.type === 'tool');
         if (b) { b.content = evt.result; b.status = 'done'; b.isError = evt.is_error; }
         if (evt.display?.widget) {
@@ -142,7 +197,7 @@ export function useSSE() {
     setStreamBlocks(blocksRef.current.map(b => ({
       type: b.type,
       text: b.type === 'text' ? b.content : undefined,
-      label: b.type === 'tool' ? b.toolName : undefined,
+      label: b.type === 'tool' ? b.toolName : b.type === 'delegation' ? '协调专家' : undefined,
       detail: b.type === 'video' ? (b as any).videoUrl : b.content,
       isError: b.isError,
       status: b.status as 'running' | 'done' | undefined,
@@ -150,6 +205,8 @@ export function useSSE() {
       videoSize: b.type === 'video' ? (b as any).videoSize : undefined,
       videoSeconds: b.type === 'video' ? (b as any).videoSeconds : undefined,
       widget: b.type === 'widget' ? (b as any).widget : undefined,
+      mode: b.type === 'delegation' ? b.mode : undefined,
+      agents: b.type === 'delegation' ? b.agents : undefined,
     } as MessageBlock)));
   }, [appendText, setStreamBlocks, addWidget, addAudio, setHitlRequest, setUsage, addMessage, setSessionId]);
 
@@ -196,6 +253,15 @@ export function useSSE() {
           msgBlocks.push({ type: 'think', detail: c });
         } else if (b.type === 'tool') {
           msgBlocks.push({ type: 'tool', label: b.toolName, detail: c, isError: b.isError });
+        } else if (b.type === 'delegation') {
+          msgBlocks.push({
+            type: 'delegation',
+            label: '协调专家',
+            mode: b.mode,
+            agents: b.agents,
+            status: 'done',
+            isError: b.isError,
+          });
         } else if (b.type === 'widget') {
           msgBlocks.push({ type: 'widget', widget: (b as any).widget });
         } else if (b.type === 'video') {

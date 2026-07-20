@@ -11,7 +11,9 @@ import './StreamingMessage.css';
 function StatusBar({ blocks }: { blocks: MessageBlock[] }) {
   const running = blocks.find(b => b.status === 'running');
   const label = running
-    ? running.type === 'tool' ? `正在调用 ${running.label || '工具'}...` : '思考中...'
+    ? running.type === 'delegation'
+      ? '正在协调专家...'
+      : running.type === 'tool' ? `正在调用 ${running.label || '工具'}...` : '思考中...'
     : '处理中...';
   return (
     <div className="status-bar">

@@ -44,8 +44,15 @@ async function filesToContentBlocks(files: File[]): Promise<ContentBlockInput[]>
   return blocks;
 }
 
+interface _DelegationAgent {
+  agent: string;
+  status: 'running' | 'completed' | 'failed' | 'aborted';
+  task?: string;
+  summary?: string;
+}
+
 interface _Block {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'file' | 'skill';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'file' | 'skill' | 'delegation';
   content?: string;
   toolName?: string;
   toolCallId?: string;
@@ -61,6 +68,9 @@ interface _Block {
   fileUrl?: string;
   fileName?: string;
   fileSize?: string;
+  delegationId?: string;
+  mode?: string;
+  agents?: _DelegationAgent[];
 }
 
 export function useSSE() {
@@ -89,7 +99,7 @@ export function useSSE() {
     setStreamBlocks(blocks.map(b => ({
       type: b.type === 'file' ? 'text' : b.type as MessageBlock['type'],
       text: b.type === 'text' ? b.content : undefined,
-      label: b.type === 'tool' ? b.toolName : b.type === 'skill' ? b.toolName : undefined,
+      label: b.type === 'tool' ? b.toolName : b.type === 'skill' ? b.toolName : b.type === 'delegation' ? '协调专家' : undefined,
       detail: b.type === 'video' ? b.videoUrl : b.type === 'image' ? b.imageUrl : b.type === 'file' ? b.fileUrl : b.content,
       isError: b.isError,
       status: b.status,
@@ -100,6 +110,9 @@ export function useSSE() {
       widget: b.type === 'widget' ? b.widget : undefined,
       imageUrl: b.type === 'image' ? b.imageUrl : undefined,
       imageMeta: b.type === 'image' ? b.imageMeta : undefined,
+      mode: b.type === 'delegation' ? b.mode : undefined,
+      agents: b.type === 'delegation' ? b.agents : undefined,
+      delegationId: b.type === 'delegation' ? b.delegationId : undefined,
     } as MessageBlock)));
   }, [setStreamBlocks]);
 
@@ -163,6 +176,133 @@ export function useSSE() {
     }
     else if (type === 'state.snapshot' || type === 'state.delta') {
       // Future: sync agent state
+    }
+    // -- Action events first (delegation.update also has `phase`, must not hit content branch) --
+    else if (actionType) {
+      const ae = evt as ActionEvent;
+      switch (actionType) {
+        case 'tool_call.started': {
+          // delegate_task uses dedicated delegation cards instead of generic tool cards.
+          if (ae.name === 'delegate_task') break;
+          blocks.push({
+            type: 'tool', content: JSON.stringify(ae.arguments),
+            toolName: ae.name || ae.toolCallId || 'tool', toolCallId: ae.toolCallId, status: 'running',
+          });
+          break;
+        }
+  
+        case 'tool_call.progress':
+          // progress updates — currently no-op in UI
+          break;
+
+        case 'delegation.update': {
+          let block = blocks.find(
+            (blk) => blk.type === 'delegation' && blk.delegationId === ae.delegation_id,
+          );
+          if (!block) {
+            block = {
+              type: 'delegation',
+              delegationId: ae.delegation_id,
+              mode: ae.mode,
+              status: 'running',
+              agents: [],
+            };
+            blocks.push(block);
+          }
+          if (ae.mode) block.mode = ae.mode;
+          if (ae.phase === 'agent_start' && ae.agent) {
+            const agents = block.agents || (block.agents = []);
+            const existing = agents.find((a) => a.agent === ae.agent && a.task === ae.task);
+            if (existing) {
+              existing.status = 'running';
+              existing.task = ae.task;
+            } else {
+              agents.push({ agent: ae.agent, status: 'running', task: ae.task });
+            }
+          }
+          if (ae.phase === 'agent_end' && ae.agent) {
+            const agents = block.agents || (block.agents = []);
+            let item = agents.find((a) => a.agent === ae.agent && (a.task === ae.task || !ae.task));
+            if (!item) {
+              item = { agent: ae.agent, status: 'completed', task: ae.task };
+              agents.push(item);
+            }
+            item.status = (ae.status as _DelegationAgent['status']) || 'completed';
+            if (ae.summary) item.summary = ae.summary;
+          }
+          if (ae.phase === 'end') {
+            block.status = 'done';
+            block.isError = ae.status === 'failed' || ae.status === 'aborted';
+          }
+          break;
+        }
+        
+        case 'skill.started': {
+          blocks.push({
+            type: 'skill',
+            content: ae.skillDescription || ae.skillName || ae.skillId,
+            toolName: ae.skillName || ae.skillId,
+            status: 'running',
+          });
+          break;
+        }
+
+        case 'skill.completed': {
+          const sb = [...blocks].reverse().find(blk => blk.type === 'skill' && blk.toolName === ae.skillId && blk.status === 'running');
+          if (sb) sb.status = 'done';
+          break;
+        }
+
+        case 'step.start':
+        case 'step.end':
+          // Future: step visualization
+          break;
+        
+        case 'tool_call.completed': {
+          if (ae.name === 'delegate_task') break;
+          const b = blocks.find(blk => blk.toolCallId === ae.toolCallId && blk.type === 'tool');
+          const resultOutput = ae.result?.output ?? '';
+          const isError = ae.result?.isError ?? false;
+          if (b) { b.content = resultOutput; b.status = 'done'; b.isError = isError; }
+          if (ae.result?.display?.widget) {
+            addWidget(ae.result.display.widget);
+            blocks.push({ type: 'widget', widget: ae.result.display.widget, status: 'done' });
+          }
+          if (ae.result?.display?.audio) addAudio(ae.result.display.audio);
+          // Detect video URL from result output
+          if ((ae.name === 'generate_video' || ae.name === 'check_video_status') && resultOutput) {
+            const vm = (resultOutput as string).match(/https?:\/\/\S+\.mp4\b/);
+            if (vm) {
+              const sm = (resultOutput as string).match(/\u5206\u8fa8\u7387\**:\s*(\S+)/);
+              const tm = (resultOutput as string).match(/\u65f6\u957f\**:\s*([\d.]+)s/);
+              blocks.push({
+                type: 'video',
+                content: vm[0],
+                videoUrl: vm[0],
+                videoSize: sm?.[1],
+                videoSeconds: tm?.[1],
+                status: 'done',
+              } as any);
+            }
+          }
+          break;
+        }
+  
+        case 'human_input.required': {
+          setHitlRequest({
+            toolCallId: ae.toolCallId!,
+            prompt: ae.prompt!,
+            inputSchema: ae.inputSchema as any,
+          });
+          break;
+        }
+
+        case 'human_input.submitted': {
+          // User submitted HITL input — dismiss the card
+          setHitlRequest(null);
+          break;
+        }
+      }
     }
     // -- Content blocks (phase field present) --
     // SSE v1 spec: three-phase lifecycle start → delta×N → done
@@ -253,88 +393,6 @@ export function useSSE() {
             fileSize: (cb.meta as any)?.size,
             status: 'done',
           });
-        }
-      }
-    }
-    // -- Action events (dispatch by actionType) --
-    else if (actionType) {
-      const ae = evt as ActionEvent;
-      switch (actionType) {
-        case 'tool_call.started': {
-          blocks.push({
-            type: 'tool', content: JSON.stringify(ae.arguments),
-            toolName: ae.name || ae.toolCallId || 'tool', toolCallId: ae.toolCallId, status: 'running',
-          });
-          break;
-        }
-  
-        case 'tool_call.progress':
-          // progress updates — currently no-op in UI
-          break;
-        
-        case 'skill.started': {
-          blocks.push({
-            type: 'skill',
-            content: ae.skillDescription || ae.skillName || ae.skillId,
-            toolName: ae.skillName || ae.skillId,
-            status: 'running',
-          });
-          break;
-        }
-
-        case 'skill.completed': {
-          const sb = [...blocks].reverse().find(blk => blk.type === 'skill' && blk.toolName === ae.skillId && blk.status === 'running');
-          if (sb) sb.status = 'done';
-          break;
-        }
-
-        case 'step.start':
-        case 'step.end':
-          // Future: step visualization
-          break;
-        
-        case 'tool_call.completed': {
-          const b = blocks.find(blk => blk.toolCallId === ae.toolCallId && blk.type === 'tool');
-          const resultOutput = ae.result?.output ?? '';
-          const isError = ae.result?.isError ?? false;
-          if (b) { b.content = resultOutput; b.status = 'done'; b.isError = isError; }
-          if (ae.result?.display?.widget) {
-            addWidget(ae.result.display.widget);
-            blocks.push({ type: 'widget', widget: ae.result.display.widget, status: 'done' });
-          }
-          if (ae.result?.display?.audio) addAudio(ae.result.display.audio);
-          // Detect video URL from result output
-          if ((ae.name === 'generate_video' || ae.name === 'check_video_status') && resultOutput) {
-            const vm = (resultOutput as string).match(/https?:\/\/\S+\.mp4\b/);
-            if (vm) {
-              const sm = (resultOutput as string).match(/\u5206\u8fa8\u7387\**:\s*(\S+)/);
-              const tm = (resultOutput as string).match(/\u65f6\u957f\**:\s*([\d.]+)s/);
-              blocks.push({
-                type: 'video',
-                content: vm[0],
-                videoUrl: vm[0],
-                videoSize: sm?.[1],
-                videoSeconds: tm?.[1],
-                status: 'done',
-              } as any);
-            }
-          }
-          break;
-        }
-  
-        case 'human_input.required': {
-          setHitlRequest({
-            toolCallId: ae.toolCallId!,
-            prompt: ae.prompt!,
-            inputSchema: ae.inputSchema as any,
-          });
-          break;
-        }
-
-        case 'human_input.submitted': {
-          // User submitted HITL input — dismiss the card
-          setHitlRequest(null);
-          break;
         }
       }
     }
@@ -433,6 +491,16 @@ export function useSSE() {
           mb = { type: 'tool', label: b.toolName, detail: c, isError: b.isError };
         } else if (b.type === 'skill') {
           mb = { type: 'skill', label: b.toolName, detail: b.content };
+        } else if (b.type === 'delegation') {
+          mb = {
+            type: 'delegation',
+            label: '协调专家',
+            mode: b.mode,
+            agents: b.agents,
+            status: 'done',
+            isError: b.isError,
+            delegationId: b.delegationId,
+          };
         } else if (b.type === 'widget') {
           mb = { type: 'widget', widget: b.widget };
         } else if (b.type === 'video') {

@@ -1,0 +1,92 @@
+.delegation-card {
+  margin: 8px 0;
+  border: 1px solid var(--border, #ddd);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface, #fafafa);
+  font-size: 13px;
+}
+
+.delegation-card.running {
+  border-color: var(--accent, #3b82f6);
+}
+
+.delegation-card.error {
+  border-color: var(--danger, #ef4444);
+}
+
+.delegation-summary {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.delegation-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.delegation-mode {
+  font-size: 11px;
+  color: var(--mute, #888);
+  border: 1px solid var(--border, #ddd);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.delegation-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border, #ddd);
+  border-top-color: var(--accent, #3b82f6);
+  border-radius: 50%;
+  animation: delegation-spin 0.8s linear infinite;
+}
+
+@keyframes delegation-spin {
+  to { transform: rotate(360deg); }
+}
+
+.delegation-agents {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 12px;
+}
+
+.delegation-agent {
+  padding: 8px 0;
+  border-top: 1px solid var(--border, #eee);
+}
+
+.delegation-agent-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.delegation-agent-status {
+  font-size: 11px;
+  color: var(--mute, #888);
+  text-transform: uppercase;
+}
+
+.delegation-agent-task,
+.delegation-agent-summary {
+  margin-top: 4px;
+  color: var(--mute, #666);
+  line-height: 1.4;
+}
+
+.delegation-agent.mute {
+  color: var(--mute, #888);
+  border-top: 0;
+}

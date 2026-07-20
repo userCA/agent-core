@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import type { MessageBlock } from '../../stores/chat-store';
 import Markdown from '../shared/Markdown';
 import WidgetFrame from '../tools/WidgetFrame';
+import DelegationCard from './DelegationCard';
 import './TraceCard.css';
 
 interface Props {
@@ -24,18 +25,57 @@ const CheckNode = ({ size = 10 }: { size?: number }) => (
   </svg>
 );
 
+function renderContentBlock(b: MessageBlock, i: number) {
+  if (b.type === 'text') {
+    return <div key={i} className="final-content block-text"><Markdown text={b.text || ''} /></div>;
+  }
+  if (b.type === 'delegation') {
+    return (
+      <DelegationCard
+        key={i}
+        mode={b.mode}
+        status={b.status}
+        agents={b.agents}
+        isError={b.isError}
+      />
+    );
+  }
+  if (b.type === 'widget' && b.widget) {
+    return <div key={i} className="block-widget"><WidgetFrame widget={b.widget} /></div>;
+  }
+  if (b.type === 'video' && b.videoUrl) {
+    return (
+      <div key={i} className="block-widget">
+        <video controls preload="metadata" aria-label="生成的视频"
+          style={{ width: '100%', maxHeight: 480, aspectRatio: '16/9', borderRadius: 'var(--radius-sm)', background: '#000' }}
+          src={b.videoUrl} />
+      </div>
+    );
+  }
+  if (b.type === 'image' && b.imageUrl) {
+    return (
+      <div key={i} className="block-image">
+        <img src={b.imageUrl} alt="生成的图片" loading="lazy"
+          style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 'var(--radius-sm)', display: 'block' }} />
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function TraceCard({ blocks }: Props) {
-  // Separate step blocks (think/tool/skill) from content blocks (text/widget/video/image)
-  // Use turnPhase when available, fallback to type-based detection
-  const isStep = (b: MessageBlock) =>
-    b.turnPhase ? b.turnPhase === 'intermediate' : (b.type === 'think' || b.type === 'tool' || b.type === 'skill');
+  // Only think/tool/skill are reasoning steps. turnPhase alone must not promote
+  // text/delegation/media into the tool rail (streaming text is intermediate until message.end).
+  const isStep = (b: MessageBlock) => {
+    if (b.type !== 'think' && b.type !== 'tool' && b.type !== 'skill') return false;
+    return b.turnPhase ? b.turnPhase === 'intermediate' : true;
+  };
   const stepBlocks = blocks.filter(isStep);
-  const contentBlocks = blocks.filter(b => !isStep(b));
+  const contentBlocks = blocks.filter((b) => !isStep(b));
 
   const [traceOpen, setTraceOpen] = useState(true);
   const [openSteps, setOpenSteps] = useState<Set<number>>(new Set());
 
-  // Auto-expand running blocks, collapse done blocks
   useEffect(() => {
     if (stepBlocks.length === 0) return;
     setOpenSteps((prev) => {
@@ -56,41 +96,21 @@ export default function TraceCard({ blocks }: Props) {
     });
   }, []);
 
-  const hasRunning = stepBlocks.some((b) => b.status === 'running');
+  const hasRunning = stepBlocks.some((b) => b.status === 'running')
+    || contentBlocks.some((b) => b.type === 'delegation' && b.status === 'running');
 
-  // Header label
   let headLabel = '思考中…';
-  if (hasRunning) {
+  if (contentBlocks.some((b) => b.type === 'delegation' && b.status === 'running')) {
+    headLabel = '协调专家 · 进行中';
+  } else if (stepBlocks.some((b) => b.status === 'running')) {
     const running = stepBlocks.find((b) => b.status === 'running')!;
     headLabel = `${running.label || '处理'} · 进行中`;
-  } else if (stepBlocks.length > 0 && !hasRunning) {
+  } else if (stepBlocks.length > 0) {
     headLabel = `推理完成 · ${stepBlocks.length} 步`;
   }
 
-  // If no step blocks, just render content blocks inline
   if (stepBlocks.length === 0 && contentBlocks.length > 0) {
-    return (
-      <>
-        {contentBlocks.map((b, i) => {
-          if (b.type === 'text') return <div key={i} className="final-content block-text"><Markdown text={b.text || ''} /></div>;
-          if (b.type === 'widget' && b.widget) return <div key={i} className="block-widget"><WidgetFrame widget={b.widget} /></div>;
-          if (b.type === 'video' && b.videoUrl) return (
-            <div key={i} className="block-widget">
-              <video controls preload="metadata" aria-label="生成的视频"
-                style={{ width: '100%', maxHeight: 480, aspectRatio: '16/9', borderRadius: 'var(--radius-sm)', background: '#000' }}
-                src={b.videoUrl} />
-            </div>
-          );
-          if (b.type === 'image' && b.imageUrl) return (
-            <div key={i} className="block-image">
-              <img src={b.imageUrl} alt="生成的图片" loading="lazy"
-                style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 'var(--radius-sm)', display: 'block' }} />
-            </div>
-          );
-          return null;
-        })}
-      </>
-    );
+    return <>{contentBlocks.map((b, i) => renderContentBlock(b, i))}</>;
   }
 
   return (
@@ -102,11 +122,7 @@ export default function TraceCard({ blocks }: Props) {
         aria-expanded={traceOpen}
       >
         <span className="thead-ic">
-          {hasRunning ? (
-            <span className="t-spin" />
-          ) : (
-            <CheckNode size={13} />
-          )}
+          {hasRunning ? <span className="t-spin" /> : <CheckNode size={13} />}
         </span>
         <span className="thead-label">{headLabel}</span>
         <Chevron />
@@ -136,7 +152,9 @@ export default function TraceCard({ blocks }: Props) {
                 <span className="t-sub">
                   {isRunning
                     ? (block.detail?.slice(0, 40) || '处理中…')
-                    : (block.detail ? (block.detail.length > 60 ? block.detail.slice(0, 60) + '…' : block.detail) : '完成')}
+                    : (block.detail
+                      ? (block.detail.length > 60 ? `${block.detail.slice(0, 60)}…` : block.detail)
+                      : '完成')}
                 </span>
                 <Chevron />
               </button>
@@ -150,27 +168,9 @@ export default function TraceCard({ blocks }: Props) {
         })}
       </div>
 
-      {/* Content blocks rendered below the trace card */}
       {contentBlocks.length > 0 && (
         <div className="trace-content">
-          {contentBlocks.map((b, i) => {
-            if (b.type === 'text') return <div key={i} className="final-content block-text"><Markdown text={b.text || ''} /></div>;
-            if (b.type === 'widget' && b.widget) return <div key={i} className="block-widget"><WidgetFrame widget={b.widget} /></div>;
-            if (b.type === 'video' && b.videoUrl) return (
-              <div key={i} className="block-widget">
-                <video controls preload="metadata" aria-label="生成的视频"
-                  style={{ width: '100%', maxHeight: 480, aspectRatio: '16/9', borderRadius: 'var(--radius-sm)', background: '#000' }}
-                  src={b.videoUrl} />
-              </div>
-            );
-            if (b.type === 'image' && b.imageUrl) return (
-              <div key={i} className="block-image">
-                <img src={b.imageUrl} alt="生成的图片" loading="lazy"
-                  style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 'var(--radius-sm)', display: 'block' }} />
-              </div>
-            );
-            return null;
-          })}
+          {contentBlocks.map((b, i) => renderContentBlock(b, i))}
         </div>
       )}
     </div>

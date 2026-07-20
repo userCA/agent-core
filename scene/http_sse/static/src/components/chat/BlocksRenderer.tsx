@@ -3,6 +3,7 @@ import type { MessageBlock } from '../../stores/chat-store';
 import Markdown from '../shared/Markdown';
 import WidgetFrame from '../tools/WidgetFrame';
 import Icon from '../shared/Icon';
+import DelegationCard from './DelegationCard';
 import '../tools/StepsPanel.css';
 import '../tools/ToolStep.css';
 
@@ -43,6 +44,18 @@ export default function BlocksRenderer({ blocks }: Props) {
             <div key={i} className="final-content block-text">
               <Markdown text={b.text || ''} />
             </div>
+          );
+        }
+
+        if (b.type === 'delegation') {
+          return (
+            <DelegationCard
+              key={i}
+              mode={b.mode}
+              status={b.status}
+              agents={b.agents}
+              isError={b.isError}
+            />
           );
         }
 
