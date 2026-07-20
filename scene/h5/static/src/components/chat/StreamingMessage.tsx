@@ -113,16 +113,7 @@ export default function StreamingMessage() {
     <div className="msg-row msg-row-assistant">
       <MoonAvatar />
       <div className="msg-col msg-col-assistant">
-        {/* Trace card rendered standalone (outside bubble) for distinct visual treatment */}
-        {streamBlocks.length > 0 && (
-          <div className={`bubble bubble-assistant bubble-trace-only${!isStreaming ? ' fade-out' : ''}`}>
-            <div className="msg-content">
-              <TraceCard blocks={streamBlocks} />
-            </div>
-          </div>
-        )}
-
-        {/* Streaming text bubble — only render when there's actual text content or HITL */}
+        {/* Streaming text bubble rendered FIRST — acknowledgment text appears before delegation card */}
         {(currentText.length > 0 || audios.length > 0 || hitlRequest) && (
           <div className={`bubble bubble-assistant streaming-bubble${!isStreaming ? ' fade-out' : ''}`}>
             <div ref={contentRef} className="final-content streaming" />
@@ -137,6 +128,15 @@ export default function StreamingMessage() {
                 onSubmitted={() => setHitlRequest(null)}
               />
             )}
+          </div>
+        )}
+
+        {/* Trace card rendered AFTER streaming text — only when non-text blocks exist */}
+        {streamBlocks.some(b => b.type !== 'text') && (
+          <div className={`bubble bubble-assistant bubble-trace-only${!isStreaming ? ' fade-out' : ''}`}>
+            <div className="msg-content">
+              <TraceCard blocks={streamBlocks} />
+            </div>
           </div>
         )}
       </div>

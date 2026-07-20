@@ -29,17 +29,6 @@ function renderContentBlock(b: MessageBlock, i: number) {
   if (b.type === 'text') {
     return <div key={i} className="final-content block-text"><Markdown text={b.text || ''} /></div>;
   }
-  if (b.type === 'delegation') {
-    return (
-      <DelegationCard
-        key={i}
-        mode={b.mode}
-        status={b.status}
-        agents={b.agents}
-        isError={b.isError}
-      />
-    );
-  }
   if (b.type === 'widget' && b.widget) {
     return <div key={i} className="block-widget"><WidgetFrame widget={b.widget} /></div>;
   }
@@ -64,29 +53,35 @@ function renderContentBlock(b: MessageBlock, i: number) {
 }
 
 export default function TraceCard({ blocks }: Props) {
-  // Only think/tool/skill are reasoning steps. turnPhase alone must not promote
-  // text/delegation/media into the tool rail (streaming text is intermediate until message.end).
+  // think/tool/skill/delegation are reasoning steps. text is excluded
+  // (rendered by streaming bubble or MessageBubble content card).
   const isStep = (b: MessageBlock) => {
-    if (b.type !== 'think' && b.type !== 'tool' && b.type !== 'skill') return false;
+    if (b.type !== 'think' && b.type !== 'tool' && b.type !== 'skill' && b.type !== 'delegation') return false;
     return b.turnPhase ? b.turnPhase === 'intermediate' : true;
   };
   const stepBlocks = blocks.filter(isStep);
-  const contentBlocks = blocks.filter((b) => !isStep(b));
+  // Exclude text blocks — they are rendered by streaming bubble (during stream)
+  // or content card (after finalization), not inside the trace card.
+  const contentBlocks = blocks.filter((b) => !isStep(b) && b.type !== 'text');
+
+  // Delegation renders as full card; think/tool/skill as compact rail nodes
+  const compactStepBlocks = stepBlocks.filter((b) => b.type !== 'delegation');
+  const delegationBlocks = stepBlocks.filter((b) => b.type === 'delegation');
 
   const [traceOpen, setTraceOpen] = useState(true);
   const [openSteps, setOpenSteps] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    if (stepBlocks.length === 0) return;
+    if (compactStepBlocks.length === 0) return;
     setOpenSteps((prev) => {
       const next = new Set(prev);
-      for (let i = 0; i < stepBlocks.length; i++) {
-        if (stepBlocks[i].status === 'running') next.add(i);
-        else if (stepBlocks[i].status === 'done') next.delete(i);
+      for (let i = 0; i < compactStepBlocks.length; i++) {
+        if (compactStepBlocks[i].status === 'running') next.add(i);
+        else if (compactStepBlocks[i].status === 'done') next.delete(i);
       }
       return next;
     });
-  }, [stepBlocks]);
+  }, [compactStepBlocks]);
 
   const toggleStep = useCallback((i: number) => {
     setOpenSteps((prev) => {
@@ -97,13 +92,13 @@ export default function TraceCard({ blocks }: Props) {
   }, []);
 
   const hasRunning = stepBlocks.some((b) => b.status === 'running')
-    || contentBlocks.some((b) => b.type === 'delegation' && b.status === 'running');
+    || contentBlocks.some((b) => b.status === 'running');
 
   let headLabel = '思考中…';
-  if (contentBlocks.some((b) => b.type === 'delegation' && b.status === 'running')) {
+  if (delegationBlocks.some((b) => b.status === 'running')) {
     headLabel = '协调专家 · 进行中';
-  } else if (stepBlocks.some((b) => b.status === 'running')) {
-    const running = stepBlocks.find((b) => b.status === 'running')!;
+  } else if (compactStepBlocks.some((b) => b.status === 'running')) {
+    const running = compactStepBlocks.find((b) => b.status === 'running')!;
     headLabel = `${running.label || '处理'} · 进行中`;
   } else if (stepBlocks.length > 0) {
     headLabel = `推理完成 · ${stepBlocks.length} 步`;
@@ -111,6 +106,11 @@ export default function TraceCard({ blocks }: Props) {
 
   if (stepBlocks.length === 0 && contentBlocks.length > 0) {
     return <>{contentBlocks.map((b, i) => renderContentBlock(b, i))}</>;
+  }
+
+  // When only delegation exists (no compact steps), still render as trace card
+  if (stepBlocks.length === 0 && delegationBlocks.length === 0 && contentBlocks.length === 0) {
+    return null;
   }
 
   return (
@@ -128,46 +128,64 @@ export default function TraceCard({ blocks }: Props) {
         <Chevron />
       </button>
 
-      <div className="trace-rail">
-        {stepBlocks.map((block, i) => {
-          const isThink = block.type === 'think';
-          const isSkill = block.type === 'skill';
-          const nodeClass = isThink ? 'think' : isSkill ? 'skill' : 'tool';
-          const kindLabel = isThink ? '思考' : isSkill ? (block.label || '技能') : (block.label || '工具');
-          const isRunning = block.status === 'running';
-          const isOpen = openSteps.has(i);
+      {/* Step rail: think / tool / skill / delegation — all as t-step nodes */}
+      {stepBlocks.length > 0 && (
+        <div className="trace-rail">
+          {stepBlocks.map((block, i) => {
+            // Delegation renders its own t-step node
+            if (block.type === 'delegation') {
+              return (
+                <DelegationCard
+                  key={`del-${i}`}
+                  mode={block.mode}
+                  status={block.status}
+                  agents={block.agents}
+                  isError={block.isError}
+                />
+              );
+            }
+            const isThink = block.type === 'think';
+            const isSkill = block.type === 'skill';
+            const nodeClass = isThink ? 'think' : isSkill ? 'skill' : 'tool';
+            const kindLabel = isThink ? '思考' : isSkill ? (block.label || '技能') : (block.label || '工具');
+            const isRunning = block.status === 'running';
+            // Index into compactStepBlocks for open/close state
+            const compactIdx = compactStepBlocks.indexOf(block);
+            const isOpen = openSteps.has(compactIdx);
 
-          return (
-            <div key={i} className={`t-step${isOpen ? ' open' : ''}`}>
-              <span className={`t-node ${nodeClass} ${isRunning ? 'running' : 'done'}`}>
-                {isRunning ? <span className="t-spin" /> : <CheckNode />}
-              </span>
-              <button
-                type="button"
-                className="t-head"
-                onClick={() => toggleStep(i)}
-                aria-expanded={isOpen}
-              >
-                <span className="t-kind">{kindLabel}</span>
-                <span className="t-sub">
-                  {isRunning
-                    ? (block.detail?.slice(0, 40) || '处理中…')
-                    : (block.detail
-                      ? (block.detail.length > 60 ? `${block.detail.slice(0, 60)}…` : block.detail)
-                      : '完成')}
+            return (
+              <div key={i} className={`t-step${isOpen ? ' open' : ''}`}>
+                <span className={`t-node ${nodeClass} ${isRunning ? 'running' : 'done'}`}>
+                  {isRunning ? <span className="t-spin" /> : <CheckNode />}
                 </span>
-                <Chevron />
-              </button>
-              <div className="t-body">
-                <div className={`t-body-inner${block.isError ? ' t-error' : ''}`}>
-                  {block.detail || ''}
+                <button
+                  type="button"
+                  className="t-head"
+                  onClick={() => toggleStep(compactIdx)}
+                  aria-expanded={isOpen}
+                >
+                  <span className="t-kind">{kindLabel}</span>
+                  <span className="t-sub">
+                    {isRunning
+                      ? (block.detail?.slice(0, 40) || '处理中…')
+                      : (block.detail
+                        ? (block.detail.length > 60 ? `${block.detail.slice(0, 60)}…` : block.detail)
+                        : '完成')}
+                  </span>
+                  <Chevron />
+                </button>
+                <div className="t-body">
+                  <div className={`t-body-inner${block.isError ? ' t-error' : ''}`}>
+                    {block.detail || ''}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
+      {/* Other content blocks (widget/video/image, excluding text) */}
       {contentBlocks.length > 0 && (
         <div className="trace-content">
           {contentBlocks.map((b, i) => renderContentBlock(b, i))}

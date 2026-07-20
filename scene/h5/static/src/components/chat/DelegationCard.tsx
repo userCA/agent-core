@@ -9,44 +9,65 @@ interface Props {
   isError?: boolean;
 }
 
+/** Check SVG — same as TraceCard */
+const CheckNode = ({ size = 10 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+
+/** Chevron SVG — same as TraceCard */
+const Chevron = () => (
+  <svg className="t-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6" />
+  </svg>
+);
+
 export default function DelegationCard({ mode, status, agents = [], isError }: Props) {
-  const [open, setOpen] = useState(status === 'running');
   const running = status === 'running';
-  const title = running ? '协调专家中…' : isError ? '专家协调失败' : '专家协调完成';
+  const [open, setOpen] = useState(running);
+  const title = running ? '协调专家' : isError ? '专家协调失败' : '专家协调完成';
+  const detail = running
+    ? (agents.length > 0 ? `${agents.length} 位专家${mode ? ` · ${mode}` : ''}` : '等待响应…')
+    : (agents.length > 0 ? `${agents.length} 位专家${mode ? ` · ${mode}` : ''}` : '完成');
 
   return (
-    <div className={`delegation-card${running ? ' running' : ''}${isError ? ' error' : ''}`}>
+    <div className={`t-step del-step${open ? ' open' : ''}${isError ? ' del-error' : ''}`}>
+      <span className={`t-node del-node ${running ? 'running' : 'done'}`}>
+        {running ? <span className="t-spin" /> : <CheckNode />}
+      </span>
       <button
         type="button"
-        className="delegation-summary"
+        className="t-head"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <span className="delegation-title">
-          {running && <span className="delegation-spinner" aria-hidden />}
-          {title}
-          {mode ? <span className="delegation-mode">{mode}</span> : null}
-        </span>
-        <span className="delegation-arrow">{open ? '▲' : '▼'}</span>
+        <span className="t-kind">{title}</span>
+        <span className="t-sub">{detail}</span>
+        <Chevron />
       </button>
-      {open && (
-        <ul className="delegation-agents">
+      <div className="t-body">
+        <div className={`t-body-inner${isError ? ' t-error' : ''}`}>
           {agents.length === 0 ? (
-            <li className="delegation-agent mute">等待专家响应…</li>
+            <span className="del-mute">等待专家响应…</span>
           ) : (
-            agents.map((a) => (
-              <li key={`${a.agent}-${a.task || ''}`} className={`delegation-agent status-${a.status}`}>
-                <div className="delegation-agent-row">
-                  <strong>{a.agent}</strong>
-                  <span className="delegation-agent-status">{a.status}</span>
-                </div>
-                {a.task ? <div className="delegation-agent-task">{a.task}</div> : null}
-                {a.summary ? <div className="delegation-agent-summary">{a.summary}</div> : null}
-              </li>
-            ))
+            <ul className="del-agents">
+              {agents.map((a) => (
+                <li key={`${a.agent}-${a.task || ''}`} className={`del-agent status-${a.status}`}>
+                  <div className="del-agent-row">
+                    <strong>{a.agent}</strong>
+                    <span className="del-agent-status">{a.status}</span>
+                  </div>
+                  {a.task ? <div className="del-agent-task">{a.task}</div> : null}
+                  {a.summary ? <div className="del-agent-summary">{a.summary}</div> : null}
+                </li>
+              ))}
+            </ul>
           )}
-        </ul>
-      )}
+        </div>
+      </div>
     </div>
   );
 }

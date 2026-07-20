@@ -1,92 +1,62 @@
-.delegation-card {
-  margin: 8px 0;
-  border: 1px solid var(--border, #ddd);
-  border-radius: var(--radius-sm, 8px);
-  background: var(--surface, #fafafa);
-  font-size: 13px;
+/* DelegationCard — trace-rail step node with expandable detail */
+
+/* Delegation node accent color */
+.del-node {
+  background: var(--accent-wisteria, #a78bfa);
+}
+.del-node.running {
+  background: var(--paper-surface, #fff);
+}
+.del-node.done {
+  background: var(--accent-wisteria, #a78bfa);
 }
 
-.delegation-card.running {
-  border-color: var(--accent, #3b82f6);
-}
-
-.delegation-card.error {
-  border-color: var(--danger, #ef4444);
-}
-
-.delegation-summary {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-  font: inherit;
-}
-
-.delegation-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.delegation-mode {
-  font-size: 11px;
-  color: var(--mute, #888);
-  border: 1px solid var(--border, #ddd);
-  border-radius: 4px;
-  padding: 1px 6px;
-}
-
-.delegation-spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--border, #ddd);
-  border-top-color: var(--accent, #3b82f6);
-  border-radius: 50%;
-  animation: delegation-spin 0.8s linear infinite;
-}
-
-@keyframes delegation-spin {
-  to { transform: rotate(360deg); }
-}
-
-.delegation-agents {
+/* Agent list inside expandable body */
+.del-agents {
   list-style: none;
   margin: 0;
-  padding: 0 12px 12px;
+  padding: 0;
 }
 
-.delegation-agent {
-  padding: 8px 0;
-  border-top: 1px solid var(--border, #eee);
+.del-agent {
+  padding: 6px 0;
+  border-top: 1px solid rgba(44,62,62,0.10);
+}
+.del-agent:first-child {
+  border-top: none;
 }
 
-.delegation-agent-row {
+.del-agent-row {
   display: flex;
   justify-content: space-between;
   gap: 8px;
 }
 
-.delegation-agent-status {
+.del-agent-row strong {
+  font-size: 12.5px;
+  color: var(--ink-primary);
+}
+
+.del-agent-status {
   font-size: 11px;
-  color: var(--mute, #888);
+  color: var(--ink-muted);
   text-transform: uppercase;
+  flex-shrink: 0;
 }
 
-.delegation-agent-task,
-.delegation-agent-summary {
-  margin-top: 4px;
-  color: var(--mute, #666);
-  line-height: 1.4;
+.del-agent-task,
+.del-agent-summary {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--ink-muted);
+  line-height: 1.5;
 }
 
-.delegation-agent.mute {
-  color: var(--mute, #888);
-  border-top: 0;
+.del-mute {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.del-error .del-node {
+  border-color: var(--danger, #c0392b);
 }

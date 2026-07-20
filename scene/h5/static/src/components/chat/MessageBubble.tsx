@@ -122,15 +122,15 @@ export default function MessageBubble({ message }: Props) {
   // Use turnPhase-based split (streaming messages) with type-based fallback (history messages)
   const { intermediateBlocks } = message;
   const isReasoningStep = (b: NonNullable<typeof blocks>[number]) =>
-    b.type === 'think' || b.type === 'tool' || b.type === 'skill';
+    b.type === 'think' || b.type === 'tool' || b.type === 'skill' || b.type === 'delegation';
   const stepBlocks = intermediateBlocks
     ? intermediateBlocks.filter(isReasoningStep)
     : (blocks?.filter(isReasoningStep) || []);
   const contentBlocks = intermediateBlocks
-    ? (blocks?.filter(b => b.turnPhase !== 'intermediate') || [])
-      // Non-step intermediate blocks (widgets / delegation) belong in content card
-      .concat(intermediateBlocks.filter(b => !isReasoningStep(b)))
-    : (blocks?.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image' || b.type === 'delegation') || []);
+    ? intermediateBlocks.filter(b => !isReasoningStep(b))
+      // Intermediate content (text) before final — preserves chronological order
+      .concat(blocks?.filter(b => b.turnPhase !== 'intermediate') || [])
+    : (blocks?.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image') || []);
   const hasSteps = stepBlocks.length > 0;
   const hasContent = contentBlocks.length > 0 || !!content;
   const splitCards = hasSteps && hasContent;

@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-07-20 — H5 Delegation 卡片统一收敛至中间步骤
+
+**需求**：多智能体专家协调（delegation）卡片与 TraceCard 步骤卡片风格不统一，视觉割裂；且缺少可展开查看明细的交互。
+
+**方案**：
+- DelegationCard 从独立卡片样式重构为 trace-rail 步骤节点（复用 `.t-step/.t-node/.t-head/.t-body` 类体系）
+- delegation 类型归入 `stepBlocks`，与 think/tool/skill 统一收敛到 TraceCard
+- 恢复可展开交互：点击 chevron 展开 agent 列表（名称、状态、任务、摘要）
+- 节点使用紫色 accent（`--accent-wisteria`）做视觉区分
+- mode 信息保留在 detail 文本中（如 `2 位专家 · parallel`）
+
+**改动范围**：
+- `scene/h5/static/src/components/chat/DelegationCard.tsx` — 重构为 t-step 节点
+- `scene/h5/static/src/components/chat/DelegationCard.css` — 替换为 del-* 前缀
+- `scene/h5/static/src/components/chat/TraceCard.tsx` — delegation 合并到 trace-rail 内渲染
+- `scene/h5/static/src/components/chat/MessageBubble.tsx` — isReasoningStep 增加 delegation
+- `scene/h5/static/src/components/chat/StreamingMessage.tsx` — 文本气泡先于 TraceCard 渲染
+
+**影响面**：仅影响 H5 场景前端消息渲染，不影响后端事件流和其他场景。
+
+---
+
 ## 2026-07-17 — SqliteStore：轻量会话数据库适配
 
 新增 `agent_core/session/sqlite_store.py`（stdlib `sqlite3`，无额外依赖）与 `create_session_store()` 工厂。
