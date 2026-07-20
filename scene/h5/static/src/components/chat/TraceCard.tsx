@@ -3,6 +3,7 @@ import type { MessageBlock } from '../../stores/chat-store';
 import Markdown from '../shared/Markdown';
 import WidgetFrame from '../tools/WidgetFrame';
 import DelegationCard from './DelegationCard';
+import PlanCard from './PlanCard';
 import './TraceCard.css';
 
 interface Props {
@@ -53,10 +54,18 @@ function renderContentBlock(b: MessageBlock, i: number) {
 }
 
 export default function TraceCard({ blocks }: Props) {
-  // think/tool/skill/delegation are reasoning steps. text is excluded
+  // think/tool/skill/delegation/plan are reasoning steps. text is excluded
   // (rendered by streaming bubble or MessageBubble content card).
   const isStep = (b: MessageBlock) => {
-    if (b.type !== 'think' && b.type !== 'tool' && b.type !== 'skill' && b.type !== 'delegation') return false;
+    if (
+      b.type !== 'think' &&
+      b.type !== 'tool' &&
+      b.type !== 'skill' &&
+      b.type !== 'delegation' &&
+      b.type !== 'plan'
+    ) {
+      return false;
+    }
     return b.turnPhase ? b.turnPhase === 'intermediate' : true;
   };
   const stepBlocks = blocks.filter(isStep);
@@ -64,9 +73,26 @@ export default function TraceCard({ blocks }: Props) {
   // or content card (after finalization), not inside the trace card.
   const contentBlocks = blocks.filter((b) => !isStep(b) && b.type !== 'text');
 
-  // Delegation renders as full card; think/tool/skill as compact rail nodes
-  const compactStepBlocks = stepBlocks.filter((b) => b.type !== 'delegation');
+  // Delegation/plan render as full cards; think/tool/skill as compact rail nodes
+  // Tools with planStepId are grouped under their plan step, not shown flat.
+  const compactStepBlocks = stepBlocks.filter(
+    (b) => b.type !== 'delegation' && b.type !== 'plan' && !b.planStepId
+  );
   const delegationBlocks = stepBlocks.filter((b) => b.type === 'delegation');
+  const planBlocks = stepBlocks.filter((b) => b.type === 'plan');
+
+  // Build map: stepId → tool blocks (for PlanCard grouping)
+  const planToolsMap = React.useMemo(() => {
+    const map = new Map<string, MessageBlock[]>();
+    for (const b of stepBlocks) {
+      if (b.planStepId) {
+        const arr = map.get(b.planStepId) || [];
+        arr.push(b);
+        map.set(b.planStepId, arr);
+      }
+    }
+    return map;
+  }, [stepBlocks]);
 
   const [traceOpen, setTraceOpen] = useState(true);
   const [openSteps, setOpenSteps] = useState<Set<number>>(new Set());
@@ -95,7 +121,9 @@ export default function TraceCard({ blocks }: Props) {
     || contentBlocks.some((b) => b.status === 'running');
 
   let headLabel = '思考中…';
-  if (delegationBlocks.some((b) => b.status === 'running')) {
+  if (planBlocks.some((b) => b.status === 'running')) {
+    headLabel = '执行计划 · 进行中';
+  } else if (delegationBlocks.some((b) => b.status === 'running')) {
     headLabel = '协调专家 · 进行中';
   } else if (compactStepBlocks.some((b) => b.status === 'running')) {
     const running = compactStepBlocks.find((b) => b.status === 'running')!;
@@ -108,8 +136,8 @@ export default function TraceCard({ blocks }: Props) {
     return <>{contentBlocks.map((b, i) => renderContentBlock(b, i))}</>;
   }
 
-  // When only delegation exists (no compact steps), still render as trace card
-  if (stepBlocks.length === 0 && delegationBlocks.length === 0 && contentBlocks.length === 0) {
+  // When only delegation/plan exists (no compact steps), still render as trace card
+  if (stepBlocks.length === 0 && delegationBlocks.length === 0 && planBlocks.length === 0 && contentBlocks.length === 0) {
     return null;
   }
 
@@ -128,11 +156,10 @@ export default function TraceCard({ blocks }: Props) {
         <Chevron />
       </button>
 
-      {/* Step rail: think / tool / skill / delegation — all as t-step nodes */}
+      {/* Step rail: think / tool / skill / delegation / plan — all as t-step nodes */}
       {stepBlocks.length > 0 && (
         <div className="trace-rail">
           {stepBlocks.map((block, i) => {
-            // Delegation renders its own t-step node
             if (block.type === 'delegation') {
               return (
                 <DelegationCard
@@ -141,6 +168,21 @@ export default function TraceCard({ blocks }: Props) {
                   status={block.status}
                   agents={block.agents}
                   isError={block.isError}
+                />
+              );
+            }
+            if (block.type === 'plan') {
+              return (
+                <PlanCard
+                  key={`plan-${i}`}
+                  title={block.planTitle || block.label}
+                  status={block.status}
+                  planStatus={block.planStatus}
+                  done={block.planDone}
+                  total={block.planTotal}
+                  steps={block.planSteps}
+                  isError={block.isError}
+                  stepTools={planToolsMap}
                 />
               );
             }

@@ -16,8 +16,15 @@ interface _DelegationAgent {
   summary?: string;
 }
 
+interface _PlanStep {
+  id: string;
+  title: string;
+  status: string;
+  detail?: string | null;
+}
+
 interface _Block {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'delegation';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'delegation' | 'plan';
   content?: string;
   toolName?: string;
   toolCallId?: string;
@@ -30,6 +37,12 @@ interface _Block {
   mode?: string;
   delegationId?: string;
   agents?: _DelegationAgent[];
+  planId?: string;
+  planTitle?: string;
+  planStatus?: string;
+  planDone?: number;
+  planTotal?: number;
+  planSteps?: _PlanStep[];
 }
 
 export function useSSE() {
@@ -83,8 +96,8 @@ export function useSSE() {
       }
 
       case 'tool_start': {
-        // delegate_task uses dedicated delegation cards instead of generic tool cards.
-        if (evt.tool_name === 'delegate_task') break;
+        // Special tools use dedicated cards instead of generic tool cards.
+        if (evt.tool_name === 'delegate_task' || evt.tool_name === 'manage_plan') break;
         blocks.push({
           type: 'tool', content: JSON.stringify(evt.args),
           toolName: evt.tool_name, toolCallId: evt.tool_call_id, status: 'running',
@@ -137,8 +150,37 @@ export function useSSE() {
         break;
       }
 
+      case 'plan': {
+        const plan = evt.plan;
+        const planId = plan?.id;
+        let block = blocks.find(
+          (blk) => blk.type === 'plan' && (planId ? blk.planId === planId : true),
+        );
+        if (!block) {
+          block = { type: 'plan', planId, status: 'running', planSteps: [] };
+          blocks.push(block);
+        }
+        if (planId) block.planId = planId;
+        if (plan) {
+          block.planTitle = plan.title;
+          block.planStatus = plan.status;
+          block.planSteps = plan.steps || [];
+        }
+        if (typeof evt.done === 'number') block.planDone = evt.done;
+        if (typeof evt.total === 'number') block.planTotal = evt.total;
+        const terminal =
+          evt.phase === 'completed' ||
+          evt.phase === 'cancelled' ||
+          evt.phase === 'error' ||
+          plan?.status === 'completed' ||
+          plan?.status === 'cancelled';
+        block.status = terminal ? 'done' : 'running';
+        block.isError = evt.phase === 'error';
+        break;
+      }
+
       case 'tool_end': {
-        if (evt.tool_name === 'delegate_task') break;
+        if (evt.tool_name === 'delegate_task' || evt.tool_name === 'manage_plan') break;
         const b = blocks.find(blk => blk.toolCallId === evt.tool_call_id && blk.type === 'tool');
         if (b) { b.content = evt.result; b.status = 'done'; b.isError = evt.is_error; }
         if (evt.display?.widget) {
@@ -197,7 +239,10 @@ export function useSSE() {
     setStreamBlocks(blocksRef.current.map(b => ({
       type: b.type,
       text: b.type === 'text' ? b.content : undefined,
-      label: b.type === 'tool' ? b.toolName : b.type === 'delegation' ? '协调专家' : undefined,
+      label: b.type === 'tool' ? b.toolName
+        : b.type === 'delegation' ? '协调专家'
+        : b.type === 'plan' ? (b.planTitle || '执行计划')
+        : undefined,
       detail: b.type === 'video' ? (b as any).videoUrl : b.content,
       isError: b.isError,
       status: b.status as 'running' | 'done' | undefined,
@@ -207,6 +252,12 @@ export function useSSE() {
       widget: b.type === 'widget' ? (b as any).widget : undefined,
       mode: b.type === 'delegation' ? b.mode : undefined,
       agents: b.type === 'delegation' ? b.agents : undefined,
+      planId: b.type === 'plan' ? b.planId : undefined,
+      planTitle: b.type === 'plan' ? b.planTitle : undefined,
+      planStatus: b.type === 'plan' ? b.planStatus : undefined,
+      planDone: b.type === 'plan' ? b.planDone : undefined,
+      planTotal: b.type === 'plan' ? b.planTotal : undefined,
+      planSteps: b.type === 'plan' ? b.planSteps : undefined,
     } as MessageBlock)));
   }, [appendText, setStreamBlocks, addWidget, addAudio, setHitlRequest, setUsage, addMessage, setSessionId]);
 
@@ -259,6 +310,19 @@ export function useSSE() {
             label: '协调专家',
             mode: b.mode,
             agents: b.agents,
+            status: 'done',
+            isError: b.isError,
+          });
+        } else if (b.type === 'plan') {
+          msgBlocks.push({
+            type: 'plan',
+            label: b.planTitle || '执行计划',
+            planId: b.planId,
+            planTitle: b.planTitle,
+            planStatus: b.planStatus,
+            planDone: b.planDone,
+            planTotal: b.planTotal,
+            planSteps: b.planSteps,
             status: 'done',
             isError: b.isError,
           });

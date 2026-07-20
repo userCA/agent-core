@@ -13,8 +13,15 @@ export interface DelegationAgentItem {
   summary?: string;
 }
 
+export interface PlanStepItem {
+  id: string;
+  title: string;
+  status: string;
+  detail?: string | null;
+}
+
 export interface MessageBlock {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'skill' | 'delegation';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'skill' | 'delegation' | 'plan';
   text?: string;
   label?: string;
   detail?: string;
@@ -30,6 +37,17 @@ export interface MessageBlock {
   mode?: string;
   agents?: DelegationAgentItem[];
   delegationId?: string;
+  planId?: string;
+  planTitle?: string;
+  planStatus?: string;
+  planDone?: number;
+  planTotal?: number;
+  planSteps?: PlanStepItem[];
+  /** ID of the plan step this tool block belongs to */
+  planStepId?: string;
+  toolName?: string;
+  toolCallId?: string;
+  content?: string;
 }
 
 export interface ChatMessage {

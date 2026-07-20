@@ -46,6 +46,21 @@ def _delegation_action(result: Any) -> dict[str, Any] | None:
     return {"sse_event": "action", "data": data}
 
 
+def _plan_action(result: Any) -> dict[str, Any] | None:
+    """Map ToolResult.details.plan → action event (H5 SSE v1)."""
+    if result is None:
+        return None
+    details = getattr(result, "details", None)
+    if not isinstance(details, dict):
+        return None
+    payload = details.get("plan")
+    if not isinstance(payload, dict) or payload.get("type") != "plan":
+        return None
+    data = {"actionType": "plan.update", **payload}
+    data.pop("type", None)
+    return {"sse_event": "action", "data": data}
+
+
 class _ContentTracker:
     """Track content-block lifecycle (start → delta×N → done)."""
 
@@ -273,8 +288,11 @@ def agent_event_to_sse_json(
         deleg = _delegation_action(evt.partial_result)
         if deleg is not None:
             events.append(deleg)
+        plan = _plan_action(evt.partial_result)
+        if plan is not None:
+            events.append(plan)
         text = _extract_result_text(evt.partial_result)
-        if text or deleg is None:
+        if text or (deleg is None and plan is None):
             events.append({
                 "sse_event": "action",
                 "data": {
@@ -299,6 +317,9 @@ def agent_event_to_sse_json(
         deleg = _delegation_action(evt.result)
         if deleg is not None:
             events.append(deleg)
+        plan = _plan_action(evt.result)
+        if plan is not None:
+            events.append(plan)
 
         # Emit image content blocks for image generation tools
         if evt.tool_name in _IMAGE_TOOL_NAMES and not evt.is_error and tracker:

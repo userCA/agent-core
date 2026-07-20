@@ -4,6 +4,7 @@ import Markdown from '../shared/Markdown';
 import WidgetFrame from '../tools/WidgetFrame';
 import Icon from '../shared/Icon';
 import DelegationCard from './DelegationCard';
+import PlanCard from './PlanCard';
 import '../tools/StepsPanel.css';
 import '../tools/ToolStep.css';
 
@@ -54,6 +55,21 @@ export default function BlocksRenderer({ blocks }: Props) {
               mode={b.mode}
               status={b.status}
               agents={b.agents}
+              isError={b.isError}
+            />
+          );
+        }
+
+        if (b.type === 'plan') {
+          return (
+            <PlanCard
+              key={i}
+              title={b.planTitle || b.label}
+              status={b.status}
+              planStatus={b.planStatus}
+              done={b.planDone}
+              total={b.planTotal}
+              steps={b.planSteps}
               isError={b.isError}
             />
           );

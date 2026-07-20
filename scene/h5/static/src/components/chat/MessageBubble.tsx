@@ -122,7 +122,7 @@ export default function MessageBubble({ message }: Props) {
   // Use turnPhase-based split (streaming messages) with type-based fallback (history messages)
   const { intermediateBlocks } = message;
   const isReasoningStep = (b: NonNullable<typeof blocks>[number]) =>
-    b.type === 'think' || b.type === 'tool' || b.type === 'skill' || b.type === 'delegation';
+    b.type === 'think' || b.type === 'tool' || b.type === 'skill' || b.type === 'delegation' || b.type === 'plan';
   const stepBlocks = intermediateBlocks
     ? intermediateBlocks.filter(isReasoningStep)
     : (blocks?.filter(isReasoningStep) || []);

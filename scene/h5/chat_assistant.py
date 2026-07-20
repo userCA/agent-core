@@ -393,6 +393,20 @@ class ChatAssistant:
             default_multi_agent_options,
             multi_agent_enabled,
         )
+        from scene.h5.planning_config import planning_enabled
+
+        system_prompt_text = prompt.text
+        if planning_enabled():
+            from agent_core.planning import install_planning, planning_prompt_snippet
+
+            _, _, extensions = await install_planning(
+                tool_registry,
+                store=store,
+                session_id=resolved_session_id,
+                owner=resolved_owner,
+                extensions=extensions,
+            )
+            system_prompt_text = system_prompt_text.rstrip() + "\n\n" + planning_prompt_snippet()
 
         use_multi = (
             multi_agent_enabled() if enable_multi_agent is None else enable_multi_agent
@@ -403,7 +417,7 @@ class ChatAssistant:
             "tool_execution": "sequential",
             "before_tool_call": _auth_before_tool_call,
             "transform_context": _transform_context,
-            "max_turns": 10,
+            "max_turns": 20,
         }
         if use_multi:
             from agent_core.multi_agent import create_multi_agent_harness
@@ -425,7 +439,7 @@ class ChatAssistant:
                 session_id=resolved_session_id,
                 model=model,
                 tools=tool_list,
-                system_prompt=prompt.text,
+                system_prompt=system_prompt_text,
                 owner=resolved_owner,
                 tool_registry=tool_registry,
                 **harness_kwargs,
@@ -437,7 +451,7 @@ class ChatAssistant:
                 store=store,
                 session_id=resolved_session_id,
                 initial_state=AgentState(
-                    system_prompt=prompt.text,
+                    system_prompt=system_prompt_text,
                     model=model,
                     tools=tool_registry.to_definitions(),
                 ),

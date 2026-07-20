@@ -78,6 +78,7 @@ export interface ErrorDetail {
 // step.start / step.end { actionType, stepId, stepName, type? }
 // human_input.*:        { actionType, toolCallId, prompt, inputSchema }
 // delegation.update:    { actionType, delegation_id, phase, mode, agent, ... }
+// plan.update:          { actionType, phase, plan, done, total, ... }
 
 export interface ActionEvent {
   actionType: string;
@@ -99,6 +100,18 @@ export interface ActionEvent {
   status?: string;
   task?: string;
   summary?: string;
+  // plan.update fields
+  plan?: {
+    id: string;
+    title: string;
+    status: string;
+    steps: Array<{ id: string; title: string; status: string; detail?: string | null }>;
+    version: number;
+  } | null;
+  done?: number;
+  total?: number;
+  version?: number;
+  error_message?: string | null;
   [key: string]: any;
 }
 

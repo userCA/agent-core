@@ -52,7 +52,7 @@ interface _DelegationAgent {
 }
 
 interface _Block {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'file' | 'skill' | 'delegation';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'file' | 'skill' | 'delegation' | 'plan';
   content?: string;
   toolName?: string;
   toolCallId?: string;
@@ -71,6 +71,13 @@ interface _Block {
   delegationId?: string;
   mode?: string;
   agents?: _DelegationAgent[];
+  planId?: string;
+  planTitle?: string;
+  planStatus?: string;
+  planDone?: number;
+  planTotal?: number;
+  planSteps?: Array<{ id: string; title: string; status: string; detail?: string | null }>;
+  planStepId?: string;
 }
 
 export function useSSE() {
@@ -81,6 +88,9 @@ export function useSSE() {
   const turnStartIdxRef = useRef(0);
   // Current phase for blocks being created — ensures between-turn blocks (tool execution) get tagged
   const currentTurnPhaseRef = useRef<'intermediate' | 'final'>('intermediate');
+  // Track which plan step is currently in_progress for tool-to-step association
+  const currentPlanStepRef = useRef<string | null>(null);
+  const currentPlanStepTitleRef = useRef<string | null>(null);
 
   const {
     setStreaming, addMessage, setStreamingMessageId,
@@ -99,7 +109,11 @@ export function useSSE() {
     setStreamBlocks(blocks.map(b => ({
       type: b.type === 'file' ? 'text' : b.type as MessageBlock['type'],
       text: b.type === 'text' ? b.content : undefined,
-      label: b.type === 'tool' ? b.toolName : b.type === 'skill' ? b.toolName : b.type === 'delegation' ? '协调专家' : undefined,
+      label: b.type === 'tool' ? b.toolName
+        : b.type === 'skill' ? b.toolName
+        : b.type === 'delegation' ? '协调专家'
+        : b.type === 'plan' ? (b.planTitle || '执行计划')
+        : undefined,
       detail: b.type === 'video' ? b.videoUrl : b.type === 'image' ? b.imageUrl : b.type === 'file' ? b.fileUrl : b.content,
       isError: b.isError,
       status: b.status,
@@ -113,6 +127,16 @@ export function useSSE() {
       mode: b.type === 'delegation' ? b.mode : undefined,
       agents: b.type === 'delegation' ? b.agents : undefined,
       delegationId: b.type === 'delegation' ? b.delegationId : undefined,
+      planId: b.type === 'plan' ? b.planId : undefined,
+      planTitle: b.type === 'plan' ? b.planTitle : undefined,
+      planStatus: b.type === 'plan' ? b.planStatus : undefined,
+      planDone: b.type === 'plan' ? b.planDone : undefined,
+      planTotal: b.type === 'plan' ? b.planTotal : undefined,
+      planSteps: b.type === 'plan' ? b.planSteps : undefined,
+      planStepId: b.planStepId,
+      toolName: b.type === 'tool' ? b.toolName : undefined,
+      toolCallId: b.toolCallId,
+      content: b.type === 'tool' ? b.content : undefined,
     } as MessageBlock)));
   }, [setStreamBlocks]);
 
@@ -177,16 +201,17 @@ export function useSSE() {
     else if (type === 'state.snapshot' || type === 'state.delta') {
       // Future: sync agent state
     }
-    // -- Action events first (delegation.update also has `phase`, must not hit content branch) --
+    // -- Action events first (delegation/plan.update also have `phase`, must not hit content branch) --
     else if (actionType) {
       const ae = evt as ActionEvent;
       switch (actionType) {
         case 'tool_call.started': {
-          // delegate_task uses dedicated delegation cards instead of generic tool cards.
-          if (ae.name === 'delegate_task') break;
+          // Special tools use dedicated cards instead of generic tool cards.
+          if (ae.name === 'delegate_task' || ae.name === 'manage_plan') break;
           blocks.push({
             type: 'tool', content: JSON.stringify(ae.arguments),
             toolName: ae.name || ae.toolCallId || 'tool', toolCallId: ae.toolCallId, status: 'running',
+            planStepId: currentPlanStepRef.current || undefined,
           });
           break;
         }
@@ -236,6 +261,46 @@ export function useSSE() {
           }
           break;
         }
+
+        case 'plan.update': {
+          const plan = ae.plan;
+          const planId = plan?.id;
+          let block = blocks.find(
+            (blk) => blk.type === 'plan' && (planId ? blk.planId === planId : true),
+          );
+          if (!block) {
+            block = { type: 'plan', planId, status: 'running', planSteps: [] };
+            blocks.push(block);
+          }
+          if (planId) block.planId = planId;
+          if (plan) {
+            block.planTitle = plan.title;
+            block.planStatus = plan.status;
+            block.planSteps = plan.steps || [];
+            // Track current in_progress step for tool association
+            const inProgressStep = (plan.steps || []).find((s: { status: string }) => s.status === 'in_progress');
+            if (inProgressStep) {
+              currentPlanStepRef.current = inProgressStep.id;
+              currentPlanStepTitleRef.current = inProgressStep.title;
+            }
+          }
+          if (typeof ae.done === 'number') block.planDone = ae.done;
+          if (typeof ae.total === 'number') block.planTotal = ae.total;
+          const terminal =
+            ae.phase === 'completed' ||
+            ae.phase === 'cancelled' ||
+            ae.phase === 'error' ||
+            plan?.status === 'completed' ||
+            plan?.status === 'cancelled';
+          block.status = terminal ? 'done' : 'running';
+          block.isError = ae.phase === 'error';
+          // When plan completes, clear step tracking
+          if (terminal) {
+            currentPlanStepRef.current = null;
+            currentPlanStepTitleRef.current = null;
+          }
+          break;
+        }
         
         case 'skill.started': {
           blocks.push({
@@ -259,7 +324,7 @@ export function useSSE() {
           break;
         
         case 'tool_call.completed': {
-          if (ae.name === 'delegate_task') break;
+          if (ae.name === 'delegate_task' || ae.name === 'manage_plan') break;
           const b = blocks.find(blk => blk.toolCallId === ae.toolCallId && blk.type === 'tool');
           const resultOutput = ae.result?.output ?? '';
           const isError = ae.result?.isError ?? false;
@@ -500,6 +565,19 @@ export function useSSE() {
             status: 'done',
             isError: b.isError,
             delegationId: b.delegationId,
+          };
+        } else if (b.type === 'plan') {
+          mb = {
+            type: 'plan',
+            label: b.planTitle || '执行计划',
+            planId: b.planId,
+            planTitle: b.planTitle,
+            planStatus: b.planStatus,
+            planDone: b.planDone,
+            planTotal: b.planTotal,
+            planSteps: b.planSteps,
+            status: 'done',
+            isError: b.isError,
           };
         } else if (b.type === 'widget') {
           mb = { type: 'widget', widget: b.widget };

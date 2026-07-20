@@ -61,6 +61,34 @@ export interface DelegationEvent {
   session_id?: string;
 }
 
+export interface PlanStepPayload {
+  id: string;
+  title: string;
+  status: string;
+  detail?: string | null;
+}
+
+export interface PlanPayload {
+  id: string;
+  title: string;
+  status: string;
+  steps: PlanStepPayload[];
+  version: number;
+}
+
+export interface PlanEvent {
+  event: 'plan';
+  phase: string;
+  plan?: PlanPayload | null;
+  done?: number;
+  total?: number;
+  version?: number;
+  owner?: string;
+  session_id?: string;
+  updated_at?: string;
+  error_message?: string | null;
+}
+
 export interface DisplayPayload {
   widget?: WidgetDisplay;
   audio?: AudioDisplay;
@@ -159,6 +187,7 @@ export type SSEEvent =
   | ToolUpdateEvent
   | ToolEndEvent
   | DelegationEvent
+  | PlanEvent
   | HumanInputRequiredEvent
   | MessageEndEvent
   | ErrorEvent

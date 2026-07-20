@@ -13,6 +13,8 @@ function StatusBar({ blocks }: { blocks: MessageBlock[] }) {
   const label = running
     ? running.type === 'delegation'
       ? '正在协调专家...'
+      : running.type === 'plan'
+        ? '正在更新计划...'
       : running.type === 'tool' ? `正在调用 ${running.label || '工具'}...` : '思考中...'
     : '处理中...';
   return (

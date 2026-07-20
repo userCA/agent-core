@@ -32,6 +32,20 @@ def _delegation_from_result(result: Any) -> dict[str, Any] | None:
     return frame
 
 
+def _plan_from_result(result: Any) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    details = getattr(result, "details", None)
+    if not isinstance(details, dict):
+        return None
+    payload = details.get("plan")
+    if not isinstance(payload, dict) or payload.get("type") != "plan":
+        return None
+    frame = {"event": "plan", **payload}
+    frame.pop("type", None)
+    return frame
+
+
 def agent_event_to_sse_frames(evt: AgentEvent) -> list[dict[str, Any]]:
     """Convert an AgentEvent to zero or more SSE JSON frames."""
     frames: list[dict[str, Any]] = []
@@ -59,8 +73,11 @@ def agent_event_to_sse_frames(evt: AgentEvent) -> list[dict[str, Any]]:
         deleg = _delegation_from_result(evt.partial_result)
         if deleg is not None:
             frames.append(deleg)
+        plan = _plan_from_result(evt.partial_result)
+        if plan is not None:
+            frames.append(plan)
         text = _extract_result_text(evt.partial_result)
-        if text or deleg is None:
+        if text or (deleg is None and plan is None):
             frames.append(
                 {
                     "event": "tool_update",
@@ -74,6 +91,9 @@ def agent_event_to_sse_frames(evt: AgentEvent) -> list[dict[str, Any]]:
         deleg = _delegation_from_result(evt.result)
         if deleg is not None:
             frames.append(deleg)
+        plan = _plan_from_result(evt.result)
+        if plan is not None:
+            frames.append(plan)
         result_dict: dict[str, Any] = {
             "event": "tool_end",
             "tool_name": evt.tool_name,
@@ -120,13 +140,13 @@ def agent_event_to_sse_frames(evt: AgentEvent) -> list[dict[str, Any]]:
 def agent_event_to_sse_json(evt: AgentEvent) -> dict[str, Any] | None:
     """Convert an AgentEvent to a single SSE JSON dict (backward compatible).
 
-    Prefer non-delegation frames when multiple are produced.
+    Prefer non-delegation/plan frames when multiple are produced.
     """
     frames = agent_event_to_sse_frames(evt)
     if not frames:
         return None
     for frame in frames:
-        if frame.get("event") != "delegation":
+        if frame.get("event") not in ("delegation", "plan"):
             return frame
     return frames[0]
 

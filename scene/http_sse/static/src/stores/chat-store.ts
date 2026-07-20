@@ -13,8 +13,15 @@ export interface DelegationAgentItem {
   summary?: string;
 }
 
+export interface PlanStepItem {
+  id: string;
+  title: string;
+  status: string;
+  detail?: string | null;
+}
+
 export interface MessageBlock {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'delegation';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'delegation' | 'plan';
   text?: string;
   label?: string;
   detail?: string;
@@ -26,6 +33,12 @@ export interface MessageBlock {
   videoSeconds?: string;
   mode?: string;
   agents?: DelegationAgentItem[];
+  planId?: string;
+  planTitle?: string;
+  planStatus?: string;
+  planDone?: number;
+  planTotal?: number;
+  planSteps?: PlanStepItem[];
 }
 
 export interface ChatMessage {
