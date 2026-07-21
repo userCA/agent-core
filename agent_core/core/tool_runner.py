@@ -71,6 +71,7 @@ async def execute_tools(
                 tool_name=tool_call.name,
                 content=result.content,
                 is_error=is_error,
+                details=getattr(result, "details", None),
                 timestamp=time.time(),
             )
             context.messages.append(tool_result_msg)
@@ -152,6 +153,7 @@ async def execute_tools(
                 tool_name=tc.name,
                 content=result.content,
                 is_error=is_error,
+                details=getattr(result, "details", None),
                 timestamp=time.time(),
             )
             context.messages.append(tool_result_msg)
@@ -266,12 +268,19 @@ async def _run_single_tool(
                     "is_error": is_error,
                 }
             )
-            if hook_result and hook_result.get("result"):
-                result = ToolResult(
-                    content=hook_result["result"].get("content", result.content),
-                    details=hook_result["result"].get("details", result.details),
-                    display=hook_result["result"].get("display", result.display),
-                )
+            if hook_result and hook_result.get("result") is not None:
+                hr = hook_result["result"]
+                # Reducer may return a ToolResult instance; legacy hooks return a dict.
+                if hasattr(hr, "content") and not isinstance(hr, dict):
+                    result = hr
+                else:
+                    result = ToolResult(
+                        content=hr.get("content", result.content),
+                        details=hr.get("details", result.details),
+                        display=hr.get("display", result.display),
+                    )
+                if "is_error" in hook_result:
+                    is_error = bool(hook_result["is_error"])
         except Exception as exc:
             logger.warning("after_tool_call hook failed: %s", exc)
 

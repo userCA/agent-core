@@ -61,6 +61,7 @@ class ToolResultMessage(BaseModel):
     tool_name: str | None = None
     content: list[TextContent | ImageContent]
     is_error: bool = False
+    details: Any | None = None
     timestamp: float = Field(default_factory=time.time)
 
 

@@ -27,6 +27,10 @@ from agent_core.core.events import (
 from agent_core.core.messages import AssistantMessage, Usage
 from agent_core.core.stream_options import clone_stream_options
 from agent_core.core.tool_runner import execute_tools
+from agent_core.compaction.budget import (
+    PROMPT_BUDGET_EXCEEDED,
+    is_prompt_budget_exceeded,
+)
 from agent_core.providers.base import tools_to_provider_format
 from agent_core.providers.types import (
     StreamError,
@@ -73,6 +77,68 @@ async def _save_point(
     await emit(SavePoint(turn_count=turn_count))
 
 
+async def _ensure_prompt_budget(
+    *,
+    context: AgentContext,
+    config: AgentLoopConfig,
+) -> tuple[bool, str]:
+    """Pre-check prompt size; try one compaction if over budget.
+
+    Returns ``(True, "")`` when safe to call the provider, or
+    ``(False, detail)`` when the turn must abort with PROMPT_BUDGET_EXCEEDED.
+    """
+    ratio = config.prompt_budget_ratio
+    if ratio is None or ratio <= 0:
+        return True, ""
+
+    model = config.model
+    reserve_out = config.max_tokens if config.max_tokens is not None else model.max_output_tokens
+    exceeded, used, limit = is_prompt_budget_exceeded(
+        context.messages,
+        system_prompt=context.system_prompt,
+        context_window=model.context_window,
+        max_output_tokens=reserve_out,
+        ratio=ratio,
+    )
+    if not exceeded:
+        return True, ""
+
+    if config.compact_callback is not None:
+        _log.warning(
+            "Prompt budget exceeded before provider call "
+            "(used=%s limit=%s); attempting compaction",
+            used,
+            limit,
+        )
+        compacted = await config.compact_callback(context.messages)
+        if compacted:
+            exceeded, used, limit = is_prompt_budget_exceeded(
+                context.messages,
+                system_prompt=context.system_prompt,
+                context_window=model.context_window,
+                max_output_tokens=reserve_out,
+                ratio=ratio,
+            )
+            if not exceeded:
+                return True, ""
+
+    detail = f"{PROMPT_BUDGET_EXCEEDED}: estimated {used} tokens >= limit {limit}"
+    return False, detail
+
+
+def _budget_exceeded_assistant(config: AgentLoopConfig, detail: str) -> AssistantMessage:
+    return AssistantMessage(
+        content=[TextContent(text=detail)],
+        usage=Usage(),
+        stop_reason="error",
+        error_message=PROMPT_BUDGET_EXCEEDED,
+        retryable_error=False,
+        provider=config.model.provider,
+        model=config.model.id,
+        timestamp=time.time(),
+    )
+
+
 async def run_agent_loop(
     new_messages: list[Any],
     context: AgentContext,
@@ -100,10 +166,72 @@ async def run_agent_loop(
         if signal is not None and signal.is_set():
             break
         if config.max_turns is not None and turn_count >= config.max_turns:
+            # Safeguard: if last turn was a tool call, force one final LLM call
+            # without tools to produce a summary response for the user.
+            if (new_assistant_messages
+                    and new_assistant_messages[-1].has_tool_calls()):
+                _log.info(
+                    "max_turns (%s) reached with pending tool calls, "
+                    "forcing final summary turn without tools",
+                    config.max_turns,
+                )
+                await emit(TurnStart())
+                turn_count += 1
+
+                ok, budget_detail = await _ensure_prompt_budget(
+                    context=context, config=config
+                )
+                if not ok:
+                    assistant = _budget_exceeded_assistant(config, budget_detail)
+                    await emit(MessageStart(message=assistant))
+                    await emit(MessageEnd(message=assistant))
+                    context.messages.append(assistant)
+                    new_assistant_messages.append(assistant)
+                    await emit(TurnEnd(message=assistant, tool_results=[]))
+                    break
+
+                llm_messages = await config.convert_to_llm(context.messages)
+                if config.transform_context is not None:
+                    llm_messages = await config.transform_context(llm_messages, signal)
+
+                auth = await config.auth_resolver(config.model.provider)
+                assistant = AssistantMessage(
+                    content=[],
+                    usage=Usage(),
+                    stop_reason="stop",
+                    provider=config.model.provider,
+                    model=config.model.id,
+                    timestamp=time.time(),
+                )
+                await emit(MessageStart(message=assistant))
+                async for upd in _stream_assistant(
+                    config=config,
+                    llm_messages=llm_messages,
+                    tool_defs=[],  # No tools — force text-only response
+                    auth=auth,
+                    signal=signal,
+                    system_prompt=context.system_prompt,
+                    assistant=assistant,
+                ):
+                    await emit(upd)
+                await emit(MessageEnd(message=assistant))
+                context.messages.append(assistant)
+                new_assistant_messages.append(assistant)
+                await emit(TurnEnd(message=assistant, tool_results=[]))
             break
 
         await emit(TurnStart())
         turn_count += 1
+
+        ok, budget_detail = await _ensure_prompt_budget(context=context, config=config)
+        if not ok:
+            assistant = _budget_exceeded_assistant(config, budget_detail)
+            await emit(MessageStart(message=assistant))
+            await emit(MessageEnd(message=assistant))
+            context.messages.append(assistant)
+            new_assistant_messages.append(assistant)
+            await emit(TurnEnd(message=assistant, tool_results=[]))
+            break
 
         llm_messages = await config.convert_to_llm(context.messages)
         if config.transform_context is not None:

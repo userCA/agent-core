@@ -81,6 +81,8 @@ class AgentLoopConfig:
     retry_max_delay: float = 60.0
     tool_result_max_chars: int = 4000
     compact_callback: CompactCallback | None = None
+    # Prompt budget pre-check: None disables; default 0.95 of context_window.
+    prompt_budget_ratio: float | None = 0.95
     mutation_queue: Any | None = None
     get_steering_messages: MessageDrainer | None = None
     get_follow_up_messages: MessageDrainer | None = None

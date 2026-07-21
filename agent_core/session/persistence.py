@@ -93,15 +93,19 @@ class HarnessPersistence:
         elif result and hasattr(result, "text"):
             result_text = result.text
 
+        message: dict[str, Any] = {
+            "role": "tool_result",
+            "tool_call_id": evt.tool_call_id,
+            "tool_name": evt.tool_name,
+            "content": [{"type": "text", "text": result_text}] if result_text else [],
+            "is_error": getattr(evt, "is_error", False),
+            "timestamp": time.time(),
+        }
+        details = getattr(result, "details", None) if result is not None else None
+        if details is not None:
+            message["details"] = details
         entry = MessageEntry(
-            message={
-                "role": "tool_result",
-                "tool_call_id": evt.tool_call_id,
-                "tool_name": evt.tool_name,
-                "content": [{"type": "text", "text": result_text}] if result_text else [],
-                "is_error": getattr(evt, "is_error", False),
-                "timestamp": time.time(),
-            },
+            message=message,
             id=f"tool-{int(time.time() * 1000)}",
         )
         await self.append_entry(entry)

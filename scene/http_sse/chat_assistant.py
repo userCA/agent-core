@@ -350,6 +350,7 @@ class ChatAssistant:
             multi_agent_enabled,
         )
         from scene.http_sse.planning_config import planning_enabled
+        from scene.http_sse.compaction_config import compaction_enabled
 
         system_prompt_text = prompt.text
         if planning_enabled():
@@ -375,6 +376,11 @@ class ChatAssistant:
             "transform_context": _transform_context,
             "max_turns": 10,
         }
+        if compaction_enabled():
+            from agent_core.compaction import create_default_compactor
+
+            harness_kwargs["compactor"] = create_default_compactor()
+
         if use_multi:
             from agent_core.multi_agent import create_multi_agent_harness
 
