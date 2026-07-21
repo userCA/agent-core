@@ -140,6 +140,36 @@ def _budget_exceeded_assistant(config: AgentLoopConfig, detail: str) -> Assistan
     )
 
 
+def _ensure_single_representation(
+    *,
+    context: AgentContext,
+    config: AgentLoopConfig,
+) -> tuple[bool, str]:
+    """C4 gate before convert_to_llm. Returns (ok, detail)."""
+    from agent_core.compaction.single_representation import check_single_representation
+
+    return check_single_representation(
+        context.messages,
+        system_prompt=context.system_prompt,
+        mode=config.single_representation_mode,
+    )
+
+
+def _single_rep_assistant(config: AgentLoopConfig, detail: str) -> AssistantMessage:
+    from agent_core.compaction.single_representation import SINGLE_REPRESENTATION_VIOLATION
+
+    return AssistantMessage(
+        content=[TextContent(text=detail)],
+        usage=Usage(),
+        stop_reason="error",
+        error_message=SINGLE_REPRESENTATION_VIOLATION,
+        retryable_error=False,
+        provider=config.model.provider,
+        model=config.model.id,
+        timestamp=time.time(),
+    )
+
+
 async def run_agent_loop(
     new_messages: list[Any],
     context: AgentContext,
@@ -196,6 +226,18 @@ async def run_agent_loop(
                     await emit(TurnEnd(message=assistant, tool_results=[]))
                     break
 
+                ok, rep_detail = _ensure_single_representation(
+                    context=context, config=config
+                )
+                if not ok:
+                    assistant = _single_rep_assistant(config, rep_detail)
+                    await emit(MessageStart(message=assistant))
+                    await emit(MessageEnd(message=assistant))
+                    context.messages.append(assistant)
+                    new_assistant_messages.append(assistant)
+                    await emit(TurnEnd(message=assistant, tool_results=[]))
+                    break
+
                 llm_messages = await config.convert_to_llm(context.messages)
                 if config.transform_context is not None:
                     llm_messages = await config.transform_context(llm_messages, signal)
@@ -232,6 +274,16 @@ async def run_agent_loop(
         ok, budget_detail = await _ensure_prompt_budget(context=context, config=config)
         if not ok:
             assistant = _budget_exceeded_assistant(config, budget_detail)
+            await emit(MessageStart(message=assistant))
+            await emit(MessageEnd(message=assistant))
+            context.messages.append(assistant)
+            new_assistant_messages.append(assistant)
+            await emit(TurnEnd(message=assistant, tool_results=[]))
+            break
+
+        ok, rep_detail = _ensure_single_representation(context=context, config=config)
+        if not ok:
+            assistant = _single_rep_assistant(config, rep_detail)
             await emit(MessageStart(message=assistant))
             await emit(MessageEnd(message=assistant))
             context.messages.append(assistant)

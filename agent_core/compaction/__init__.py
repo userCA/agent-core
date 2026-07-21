@@ -22,6 +22,12 @@ from agent_core.compaction.semantic_compress import (
     semantic_compress,
     structured_fallback_compress,
 )
+from agent_core.compaction.single_representation import (
+    SINGLE_REPRESENTATION_VIOLATION,
+    RepresentationViolation,
+    check_single_representation,
+    validate_single_representation,
+)
 from agent_core.compaction.strategies import (
     estimate_tokens,
     should_compact_threshold,
@@ -35,11 +41,14 @@ __all__ = [
     "DEFAULT_PREVIEW_CHARS",
     "DEFAULT_TARGET_CHARS",
     "PROMPT_BUDGET_EXCEEDED",
+    "SINGLE_REPRESENTATION_VIOLATION",
     "CompactionResult",
     "Compactor",
     "CompressResult",
     "LLMSummaryCompactor",
+    "RepresentationViolation",
     "SummarizeFn",
+    "check_single_representation",
     "create_default_compactor",
     "estimate_prompt_tokens",
     "estimate_tokens",
@@ -52,4 +61,5 @@ __all__ = [
     "structured_fallback_compress",
     "structured_handoff_summary",
     "total_tokens",
+    "validate_single_representation",
 ]
