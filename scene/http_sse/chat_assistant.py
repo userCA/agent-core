@@ -60,32 +60,6 @@ async def _auth_before_tool_call(info: dict[str, Any]) -> dict[str, Any] | None:
         }
     }
 
-def _build_memory_extension(
-    backend: str, config: dict[str, Any], session_id: str
-) -> list[Any]:
-    if not backend:
-        return []
-    from agent_core.memory.extension import MemoryExtension
-
-    if backend == "inmemory":
-        from agent_core.memory.adapters import InMemoryMemoryStore
-        store = InMemoryMemoryStore()
-    elif backend == "mem0":
-        from agent_core.memory.adapters import Mem0MemoryStore
-        store = Mem0MemoryStore()
-    elif backend == "openviking":
-        from agent_core.memory.adapters import OpenVikingMemoryStore
-        store = OpenVikingMemoryStore(
-            url=config.get("url", "http://localhost:1933"),
-            api_key=config.get("api_key", ""),
-            api_keys=config.get("api_keys"),
-            resolve_api_key=config.get("resolve_api_key"),
-        )
-    else:
-        return []
-    return [MemoryExtension(store=store, session_id=session_id)]
-
-
 EventHandler = Callable[[AgentEvent], Awaitable[None] | None]
 
 
@@ -100,6 +74,7 @@ class ChatAssistant:
         tool_registry: ToolRegistry | None = None,
         cwd: str = "",
         multi_agent_handle: Any | None = None,
+        skill_trace_collector: Any | None = None,
     ) -> None:
         self._harness = harness
         self._tool_registry = tool_registry or ToolRegistry()
@@ -108,6 +83,7 @@ class ChatAssistant:
         self._session_unsub: Callable[[], None] | None = None
         self._handlers: list[EventHandler] = []
         self._multi_agent_handle = multi_agent_handle
+        self._skill_trace_collector = skill_trace_collector
 
     @classmethod
     async def create(
@@ -313,9 +289,20 @@ class ChatAssistant:
             return await _auto_retrieval.transform_context(llm_messages, signal)
 
         resolved_session_id = session_id or _generate_session_id()
-        extensions = _build_memory_extension(
-            memory_backend, memory_config or {}, resolved_session_id
+        from scene.http_sse.memory_config import (
+            build_memory_extensions,
+            resolve_memory_backend,
         )
+        from scene.http_sse.evolution_config import build_skill_trace_collector
+
+        extensions = build_memory_extensions(
+            resolve_memory_backend(memory_backend),
+            memory_config or {},
+            resolved_session_id,
+        )
+        skill_trace_collector = build_skill_trace_collector()
+        if skill_trace_collector is not None:
+            extensions.append(skill_trace_collector)
 
         # Companion extension — optional, wired when a companion queue is provided
         if companion_queue is not None and companion_uid:
@@ -427,6 +414,7 @@ class ChatAssistant:
             tool_registry=tool_registry,
             cwd=cwd,
             multi_agent_handle=multi_handle,
+            skill_trace_collector=skill_trace_collector,
         )
         await assistant.start()
         return assistant
@@ -434,6 +422,10 @@ class ChatAssistant:
     @property
     def harness(self) -> AgentHarness:
         return self._harness
+
+    @property
+    def skill_trace_collector(self) -> Any | None:
+        return self._skill_trace_collector
 
     async def start(self) -> None:
         """Start the harness and subscribe to agent events."""

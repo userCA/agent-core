@@ -828,6 +828,12 @@ class EvolutionAnalyzeRequest(BaseModel):
     min_traces: int = Field(default=10, ge=1, le=10000)
 
 
+class EvolutionFeedbackRequest(BaseModel):
+    trace_id: str = Field(..., min_length=1, max_length=200)
+    feedback: str = Field(..., min_length=1, max_length=4000)
+    was_helpful: bool | None = None
+
+
 class EvolutionProposalAction(BaseModel):
     skill_name: str = Field(..., min_length=1, max_length=100)
     reason: str | None = Field(default=None, max_length=500)
@@ -859,6 +865,24 @@ async def get_evolution_summary() -> dict[str, Any]:
                     trace_counts[name] = {"total": total, "success": success, "failure": failure}
 
     return {"trace_counts": trace_counts}
+
+
+@app.post("/skills/evolution/feedback")
+async def record_evolution_feedback(body: EvolutionFeedbackRequest) -> dict[str, Any]:
+    """Attach user feedback to a skill evolution trace (append-only)."""
+    from fastapi import HTTPException
+
+    from scene.h5.evolution_config import build_skill_trace_collector
+
+    collector = build_skill_trace_collector()
+    if collector is None:
+        raise HTTPException(status_code=404, detail="skill evolution disabled")
+    await collector.record_user_feedback(
+        body.trace_id,
+        body.feedback,
+        was_helpful=body.was_helpful,
+    )
+    return {"ok": True, "trace_id": body.trace_id}
 
 
 @app.post("/skills/evolution/analyze")

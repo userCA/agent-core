@@ -281,11 +281,11 @@ flowchart LR
 | 字段 | 内容 |
 |------|------|
 | **文档出处** | §4.4；Checklist「可观测性先行」 |
-| **现状** | `ChatAssistant` 支持 `memory_backend`，manager **默认空串** → 无 MemoryExtension；Skill Evolution REST 有，Collector 未挂 Extension；`record_user_feedback` 无 HTTP |
-| **缺口** | 库能力闲置，进化与记忆闭环断裂 |
-| **建议改动面** | Scene：`ENABLE_MEMORY` / 默认 inmemory；注册 `SkillTraceCollector`；`POST /feedback`；文档更新 |
-| **验收标准** | 默认路径下 analyze 能读到真实 trace；memory recall 出现在后续 turn；feedback 可写入 collector |
-| **优先级** | P2（工作量小，可提前到 P0 末尾做「接线周」） |
+| **现状** | Scene 默认接线：`ENABLE_MEMORY=1` → inmemory；`ENABLE_SKILL_EVOLUTION=1` → Collector；`POST /skills/evolution/feedback` |
+| **缺口** | 进程内 memory 无界；session dispose 未 forget；跨 user 作用域未做 |
+| **建议改动面** | （已交付接线）后续按需 forget / 换持久 backend |
+| **验收标准** | 默认路径下 analyze 能读到真实 trace；memory recall 出现在后续 turn；feedback 可写入 |
+| **优先级** | P2（已交付接线；运维 hardening 另立） |
 
 #### K2 — Capability Runtime 迁移（P3）
 
@@ -318,9 +318,8 @@ flowchart LR
 | 模块 | 库状态 | Scene 现状 | 建议 |
 |------|--------|------------|------|
 | Compaction | `LLMSummaryCompactor` + 结构化 handoff | http_sse/h5 默认注入（`ENABLE_COMPACTION`） | 保持；可后续换 LLM summarize |
-| MemoryExtension | 适配器齐全 | `memory_backend=""` 默认关闭 | 开关或开发默认 inmemory |
-| SkillTraceCollector | Extension 就绪 | 未注册；analyze API 常空跑 | create() 时注册 |
-| user_feedback | collector 方法存在 | 无 HTTP | 增加端点 |
+| MemoryExtension | 适配器齐全 | `ENABLE_MEMORY=1` 默认 inmemory（进程共享 store） | 保持；可换 mem0/openviking |
+| SkillTraceCollector | Extension 就绪 | `ENABLE_SKILL_EVOLUTION=1` 默认注册；`POST /skills/evolution/feedback` | 保持 |
 | Planning | 已接线 | `ENABLE_PLANNING=1` 默认开 | 保持 |
 | Multi-agent | 已接线 | 需 `ENABLE_MULTI_AGENT` | 保持可选 |
 | MCP | 已接线 | env / `.mcp.json` | 保持；补健康检查（见 phase2） |
@@ -439,8 +438,8 @@ flowchart TD
 | Multi-agent | §4.5 | 库+Scene | 开关 | 维持 |
 | SharedBlackboard | §4.5 | 未实现 | — | P2 |
 | working_memory | §4.1 | 未实现 | — | P2 |
-| Memory 跨会话 | §4.3 | 库可用 | 默认关 | P2/接线 |
-| Skill Evolution | §4.4 | 库可用 | Collector 未挂 | P2/接线 |
+| Memory 跨会话 | §4.3 | Scene 已接线（MVP） | 默认 inmemory | P2/接线 已交付 |
+| Skill Evolution | §4.4 | Scene 已接线（MVP） | Collector 默认挂 | P2/接线 已交付 |
 | Self-Feedback | §4.4 | 未实现 | — | P3 |
 | Capability Runtime | §4.5 | 未实现 | 清单 API | P3 |
 | MCP | — | 库+Scene | 已接线 | 维持+硬化 |
