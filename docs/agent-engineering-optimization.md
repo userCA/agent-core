@@ -92,7 +92,7 @@ flowchart LR
 
 | 策略（文档） | 成熟度 | 现状要点 |
 |--------------|--------|----------|
-| L1 ToolResultRefStore | 库可用（MVP） | `agent_core/artifacts/`：字符阈值外置为 `artifact_ref`；Scene 默认未接线；无 L4 取回 |
+| L1 ToolResultRefStore | Scene 已接线（MVP） | `ENABLE_ARTIFACTS=1` 默认外置；进程内 store；无 L4 取回 |
 | L2 SemanticCompressor | 未实现 | 无中等结果 LLM 蒸馏；仅有 substring 截断 |
 | L3 Compaction | Scene 已接线（MVP） | 结构化 handoff + 安全 cut-point；`ENABLE_COMPACTION=1` 默认注入 http_sse/h5 |
 | L4 DataBus | 未实现 | `retrieval/` 是 RAG，非 refId 依赖预取 |
@@ -421,7 +421,7 @@ flowchart TD
 
 | 能力 | 设计文档 | 代码 | Scene | 建议优先级 |
 |------|----------|------|------|------------|
-| L1 RefStore | §3.2 | 库可用（MVP） | — | P0 已交付库；Scene 接线待定 |
+| L1 RefStore | §3.2 | Scene 已接线（MVP） | 默认开 | P0 库+Scene |
 | L2 SemanticCompress | §3.2 | 未实现 | — | P1 |
 | L3 Compaction | §3.2 | Scene 已接线（MVP） | 默认开 | P0 已交付 |
 | L4 DataBus | §3.2 | 未实现 | — | P2 |
