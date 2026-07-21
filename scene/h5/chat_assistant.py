@@ -83,6 +83,7 @@ class ChatAssistant:
         multi_agent_handle: Any | None = None,
         skill_trace_collector: Any | None = None,
         artifact_store: Any | None = None,
+        state_store: Any | None = None,
     ) -> None:
         self._harness = harness
         self._tool_registry = tool_registry or ToolRegistry()
@@ -93,6 +94,7 @@ class ChatAssistant:
         self._multi_agent_handle = multi_agent_handle
         self._skill_trace_collector = skill_trace_collector
         self._artifact_store = artifact_store
+        self._state_store = state_store
 
         # Build tool_name -> Skill mapping for skill activation tracking
         self._tool_to_skill: dict[str, Skill] = {}
@@ -341,6 +343,7 @@ class ChatAssistant:
         )
         from scene.h5.evolution_config import build_skill_trace_collector
         from scene.h5.artifacts_config import build_artifact_extension
+        from scene.h5.state_kv_config import build_state_kv_extension
 
         extensions = build_memory_extensions(
             resolve_memory_backend(memory_backend),
@@ -353,6 +356,9 @@ class ChatAssistant:
         artifact_store, artifact_ext = build_artifact_extension()
         if artifact_ext is not None:
             extensions.append(artifact_ext)
+        state_store, state_ext = build_state_kv_extension()
+        if state_ext is not None:
+            extensions.append(state_ext)
 
         # Companion extension — optional, wired when a companion queue is provided
         if companion_queue is not None and companion_uid:
@@ -466,6 +472,7 @@ class ChatAssistant:
             multi_agent_handle=multi_handle,
             skill_trace_collector=skill_trace_collector,
             artifact_store=artifact_store,
+            state_store=state_store,
         )
         await assistant.start()
         return assistant
@@ -481,6 +488,10 @@ class ChatAssistant:
     @property
     def artifact_store(self) -> Any | None:
         return self._artifact_store
+
+    @property
+    def state_store(self) -> Any | None:
+        return self._state_store
 
     async def start(self) -> None:
         """Start the harness and subscribe to agent events."""

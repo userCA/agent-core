@@ -179,7 +179,7 @@ flowchart LR
 
 | 策略（文档） | 成熟度 | 现状要点 |
 |--------------|--------|----------|
-| parameterBindings / State KV | 未实现 | 跨步数据靠 LLM 搬运 |
+| parameterBindings / State KV | 库可用（MVP） | `state_kv`：`{{state.key}}` 系统注入；`__state_bind` 写入；Scene 默认开 |
 | PERO 编排 | 部分 | Plan 工具化；Execute=ReAct；无 Reflect/Optimize 阶段机 |
 | 断点续传 / Checkpoint | 部分 | 会话 transcript 持久化；无执行级 step checkpoint |
 | SSE 真相源 + 后台执行 | 部分 | 请求内流式；断连停推送；无事件账本 |
@@ -428,7 +428,7 @@ flowchart TD
 | 单一表示 | §3.3 | 未实现 | — | P0 |
 | 预算预检 | §3.5 | 库可用（MVP） | 随 loop 默认开 | P0 已交付 |
 | 工具截断 | — | 生产级 | 已接线 | 维持 |
-| parameterBindings | §4.1 | 未实现 | — | P1 |
+| parameterBindings | §4.1 | 库可用（MVP） | 默认开 | P1 部分交付 |
 | Plan / manage_plan | — | 库+Scene | 已接线 | 维持 |
 | PERO runtime | §4.2 | 未实现 | — | P3 |
 | Checkpoint / 后台执行 | §4.2 | 部分 | 部分 | P1 |

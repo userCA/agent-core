@@ -108,16 +108,22 @@ def test_tool_call_early_exit_on_block():
     assert result["reason"] == "forbidden"
 
 
-def test_tool_call_no_block_returns_none():
+def test_tool_call_merges_metadata_and_args():
     hooks = AgentHooks()
 
     def allow(evt):
-        return {"inject_metadata": {"extra": True}}
+        return {
+            "inject_metadata": {"extra": True},
+            "mutated_args": {"x": 1},
+        }
 
     hooks.on("tool_call", allow)
 
     result = asyncio.run(hooks.emit(ToolCallHookEvent(tool_name="safe")))
-    assert result is None
+    assert result == {
+        "inject_metadata": {"extra": True},
+        "mutated_args": {"x": 1},
+    }
 
 
 def test_tool_result_patch_accumulation():

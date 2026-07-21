@@ -261,15 +261,29 @@ async def _reduce_before_agent_start(
 async def _reduce_tool_call(
     event: ToolCallHookEvent, handlers: list[HookHandler]
 ) -> dict[str, Any] | None:
-    """Sequential, early exit on block."""
+    """Sequential: merge mutated_args / inject_metadata; early exit on block."""
+    merged_metadata: dict[str, Any] = {}
+    merged_args: dict[str, Any] = {}
     for handler in list(handlers):
         try:
             result = await _await_result(handler, event)
         except Exception as exc:
             raise normalize_hook_error(exc) from exc
-        if result and isinstance(result, dict) and result.get("block"):
-            return result
-    return None
+        if result and isinstance(result, dict):
+            if result.get("block"):
+                return result
+            meta = result.get("inject_metadata")
+            if isinstance(meta, dict):
+                merged_metadata.update(meta)
+            args = result.get("mutated_args")
+            if isinstance(args, dict):
+                merged_args.update(args)
+    out: dict[str, Any] = {}
+    if merged_metadata:
+        out["inject_metadata"] = merged_metadata
+    if merged_args:
+        out["mutated_args"] = merged_args
+    return out or None
 
 
 async def _reduce_tool_result(
