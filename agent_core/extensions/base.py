@@ -98,6 +98,8 @@ class ExtensionRunner:
         merged_metadata: dict[str, Any] = {}
         merged_args: dict[str, Any] = {}
         for ext in self._extensions:
+            if not hasattr(ext, "on_before_tool_call"):
+                continue
             try:
                 result = await ext.on_before_tool_call(self._ctx, tool_call)
                 if result and result.get("block"):
@@ -121,6 +123,8 @@ class ExtensionRunner:
         is_error = call_ctx.get("is_error", False)
         mutated_result = None
         for ext in self._extensions:
+            if not hasattr(ext, "on_after_tool_call"):
+                continue
             try:
                 hook = await ext.on_after_tool_call(self._ctx, tool_call, result, is_error)
                 if hook and hook.get("result"):
@@ -141,6 +145,8 @@ class ExtensionRunner:
 
     async def on_event(self, evt: AgentEvent) -> None:
         for ext in self._extensions:
+            if not hasattr(ext, "on_event"):
+                continue
             try:
                 await ext.on_event(self._ctx, evt)
             except Exception as exc:

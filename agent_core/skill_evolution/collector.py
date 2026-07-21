@@ -150,7 +150,9 @@ class SkillTraceCollector(Extension):
     # These are not dispatched automatically; callers may invoke them
     # directly when they have more precise data than on_event provides.
 
-    async def on_before_agent_start(self, ctx: ExtensionContext) -> dict | None:
+    async def on_before_agent_start(
+        self, ctx: ExtensionContext, prompt: str = "", system_prompt: str = ""
+    ) -> dict | None:
         """Reset state for a new agent run. Kept for API compatibility."""
         if not self.enabled:
             return None

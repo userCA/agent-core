@@ -119,17 +119,22 @@ export default function MessageBubble({ message }: Props) {
   }
 
   // assistant — split reasoning steps and content into separate cards
-  // Use turnPhase-based split (streaming messages) with type-based fallback (history messages)
+  // Intermediate text (from tool_use turns) is treated as reasoning content —
+  // it goes into the TraceCard (collapsed), not the content area.
   const { intermediateBlocks } = message;
-  const isReasoningStep = (b: NonNullable<typeof blocks>[number]) =>
-    b.type === 'think' || b.type === 'tool' || b.type === 'skill' || b.type === 'delegation' || b.type === 'plan';
+  const isReasoningStep = (b: NonNullable<typeof blocks>[number]) => {
+    if (b.type === 'think' || b.type === 'tool' || b.type === 'skill' || b.type === 'delegation' || b.type === 'plan') return true;
+    // Intermediate text (generated during tool_use turns) is also reasoning
+    if (b.type === 'text' && b.turnPhase === 'intermediate') return true;
+    return false;
+  };
   const stepBlocks = intermediateBlocks
     ? intermediateBlocks.filter(isReasoningStep)
     : (blocks?.filter(isReasoningStep) || []);
   const contentBlocks = intermediateBlocks
     ? intermediateBlocks.filter(b => !isReasoningStep(b))
-      // Intermediate content (text) before final — preserves chronological order
-      .concat(blocks?.filter(b => b.turnPhase !== 'intermediate') || [])
+      // Only final-phase blocks go to the content area
+      .concat(blocks?.filter(b => b.turnPhase !== 'intermediate' && !isReasoningStep(b)) || [])
     : (blocks?.filter(b => b.type === 'text' || b.type === 'widget' || b.type === 'video' || b.type === 'image') || []);
   const hasSteps = stepBlocks.length > 0;
   const hasContent = contentBlocks.length > 0 || !!content;

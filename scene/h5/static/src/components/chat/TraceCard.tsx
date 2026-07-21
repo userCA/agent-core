@@ -69,9 +69,10 @@ export default function TraceCard({ blocks }: Props) {
     return b.turnPhase ? b.turnPhase === 'intermediate' : true;
   };
   const stepBlocks = blocks.filter(isStep);
-  // Exclude text blocks — they are rendered by streaming bubble (during stream)
-  // or content card (after finalization), not inside the trace card.
-  const contentBlocks = blocks.filter((b) => !isStep(b) && b.type !== 'text');
+  // Non-step blocks rendered below the rail.
+  // Text blocks are allowed here — intermediate text from tool_use turns
+  // is passed as reasoning content and shown collapsed in the trace body.
+  const contentBlocks = blocks.filter((b) => !isStep(b));
 
   // Delegation/plan render as full cards; think/tool/skill as compact rail nodes
   // Tools with planStepId are grouped under their plan step, not shown flat.

@@ -171,8 +171,8 @@ class ChatAssistant:
 
             class _KBAdapter:
                 definition = _kb_rt.definition
-                async def execute(self, params: dict, context: ToolContext | None = None) -> ToolResult:
-                    return await _kb_rt.execute("", params, context)
+                async def execute(self, params: dict, **kwargs: Any) -> ToolResult:
+                    return await _kb_rt.execute("", params, kwargs.get("ctx"))
 
             tool_registry.register(_KBAdapter())
         tool_registry.register(ShowWidgetTool())

@@ -131,7 +131,7 @@ class CompanionExtension:
                 self._emit_state("concerned")
                 self._send(CompanionBubbleEvent(
                     self._uid,
-                    CompanionBubble(_error_comfort(bones.breed), ttl_ms=8000, priority="care"),
+                    CompanionBubble(_error_comfort(self._bones.breed), ttl_ms=8000, priority="care"),
                 ))
             else:
                 self._fsm.process("tool_ok")

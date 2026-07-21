@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-07-21 — Extension 系统防御性修复 + 中间文本收纳优化
+
+**问题**：H5 场景启动后多个 Extension 因缺少方法实现而报错，导致功能异常。
+
+**根因/方案**：
+- `ExtensionRunner.on_event` / `before_tool_call` / `after_tool_call` 未像 `on_before_agent_start` 一样做 `hasattr` 检查，对未实现该 hook 的扩展直接调用导致 AttributeError
+- `SkillTraceCollector.on_before_agent_start` 签名缺少 `prompt`/`system_prompt` 参数
+- `CompanionExtension.on_event` 中 `bones.breed` 引用了 `__init__` 局部变量而非 `self._bones`
+- `_KBAdapter.execute()` 不接受 tool_runner 传递的 `tool_call_id`/`ctx` kwargs
+
+**改动范围**：
+- `agent_core/extensions/base.py` — on_event/before_tool_call/after_tool_call 添加 hasattr 守卫
+- `agent_core/extensions/companion.py` — bones.breed → self._bones.breed
+- `agent_core/skill_evolution/collector.py` — on_before_agent_start 补齐 prompt/system_prompt 参数
+- `scene/h5/chat_assistant.py` — _KBAdapter.execute() 使用 **kwargs 兼容 tool_runner 传参
+- `scene/h5/static/src/components/chat/MessageBubble.tsx` — isReasoningStep 包含 turnPhase=intermediate 的文本块
+- `scene/h5/static/src/components/chat/TraceCard.tsx` — 允许 text 类型在 trace-content 区域渲染
+
+**影响面**：Extension 系统更健壮，未实现某些 hook 的扩展不再报错；中间文本（tool_use turn 生成的内容）收纳至 TraceCard 折叠区，减少信息干扰。
+
+---
+
 ## 2026-07-20 — H5 Delegation 卡片统一收敛至中间步骤
 
 **需求**：多智能体专家协调（delegation）卡片与 TraceCard 步骤卡片风格不统一，视觉割裂；且缺少可展开查看明细的交互。
