@@ -25,6 +25,16 @@ def artifacts_enabled() -> bool:
     )
 
 
+def semantic_compress_enabled() -> bool:
+    """L2 path for bodies ≥ compress_min (structured fallback; optional LLM)."""
+    return os.environ.get("ENABLE_SEMANTIC_COMPRESS", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
 def shared_artifact_store() -> Any:
     """Process-wide InMemoryArtifactStore (MVP; lost on restart)."""
     global _SHARED_STORE
@@ -58,12 +68,16 @@ def build_artifact_extension(
     """Return ``(store, extension)`` when enabled, else ``(None, None)``.
 
     Thresholds may be overridden via ``ARTIFACT_CHAR_THRESHOLD`` /
-    ``ARTIFACT_SUMMARY_CHARS`` env vars.
+    ``ARTIFACT_SUMMARY_CHARS`` env vars. L2 via ``ENABLE_SEMANTIC_COMPRESS``.
     """
     if not artifacts_enabled():
         return None, None
 
     from agent_core.artifacts import create_artifact_extension
+    from agent_core.compaction.semantic_compress import (
+        DEFAULT_COMPRESS_MIN_CHARS,
+        DEFAULT_TARGET_CHARS,
+    )
 
     thr = char_threshold
     if thr is None:
@@ -80,10 +94,33 @@ def build_artifact_extension(
             name="ARTIFACT_SUMMARY_CHARS",
         )
 
+    compress_min = _parse_non_negative_int(
+        os.environ.get("SEMANTIC_COMPRESS_MIN_CHARS", ""),
+        DEFAULT_COMPRESS_MIN_CHARS,
+        name="SEMANTIC_COMPRESS_MIN_CHARS",
+    )
+    compress_target = _parse_non_negative_int(
+        os.environ.get("SEMANTIC_COMPRESS_TARGET_CHARS", ""),
+        DEFAULT_TARGET_CHARS,
+        name="SEMANTIC_COMPRESS_TARGET_CHARS",
+    )
+    # Keep L2 summary under converter tool_result_max_chars (~4000).
+    _MAX_SAFE_TARGET = 3500
+    if compress_target > _MAX_SAFE_TARGET:
+        logger.warning(
+            "SEMANTIC_COMPRESS_TARGET_CHARS=%s exceeds %s; clamping",
+            compress_target,
+            _MAX_SAFE_TARGET,
+        )
+        compress_target = _MAX_SAFE_TARGET
+
     store = shared_artifact_store()
     _, ext = create_artifact_extension(
         store,
         char_threshold=thr,
         summary_chars=summ,
+        enable_l2_compress=semantic_compress_enabled(),
+        compress_min_chars=compress_min,
+        compress_target_chars=compress_target,
     )
     return store, ext

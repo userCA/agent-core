@@ -84,6 +84,65 @@ async def test_above_threshold_stores_and_replaces():
 
 
 @pytest.mark.asyncio
+async def test_l2_fallback_for_large_body_keeps_raw_preview():
+    store = InMemoryArtifactStore()
+    ext = ArtifactExternalizeExtension(
+        store,
+        char_threshold=100,
+        summary_chars=40,
+        enable_l2_compress=True,
+        compress_min_chars=10_000,
+        compress_target_chars=2000,
+        preview_chars=16,
+    )
+    ctx = ExtensionContext(session_id="s1", harness=_FakeHarness(), store=None)
+    full = "FIELD_NAME=ok\n" + ("X" * 12_000)
+    result = _text_result(full, details={"source": "big"})
+    out = await ext.on_after_tool_call(ctx, SimpleNamespace(name="bash", id="c1"), result, False)
+    assert out is not None
+    d = out["result"]["details"]
+    assert d["__compressMethod"] == "fallback"
+    assert d["__fallbackTruncated"] is True
+    assert d["__preview"] == full[:16]
+    assert "FIELD_NAME" in d["__preview"]
+    content = out["result"]["content"][0].text
+    assert "[artifact_ref]" in content
+    assert "preview:" not in content  # preview must not enter LLM envelope
+    assert len(d["__summary"]) <= 2000
+    art = await store.get(d["__refId"])
+    assert art is not None
+    assert art.content == full
+
+
+@pytest.mark.asyncio
+async def test_l2_llm_summary_does_not_rewrite_preview():
+    store = InMemoryArtifactStore()
+
+    async def compress_fn(t, *, target_chars, tool_name):
+        return "LLM_REWROTE_EVERYTHING"
+
+    ext = ArtifactExternalizeExtension(
+        store,
+        char_threshold=100,
+        compress_fn=compress_fn,
+        compress_min_chars=500,
+        compress_target_chars=100,
+        preview_chars=20,
+    )
+    ctx = ExtensionContext(session_id="s1", harness=_FakeHarness(), store=None)
+    full = "PREFIX_MATCH_VALUE" + ("Y" * 600)
+    out = await ext.on_after_tool_call(
+        ctx, SimpleNamespace(name="echo", id="c1"), _text_result(full), False
+    )
+    assert out is not None
+    d = out["result"]["details"]
+    assert d["__compressMethod"] == "llm"
+    assert d["__summary"] == "LLM_REWROTE_EVERYTHING"
+    assert d["__preview"] == full[:20]
+    assert d["__preview"].startswith("PREFIX_MATCH_VALUE")
+
+
+@pytest.mark.asyncio
 async def test_preserves_top_level_details_keys():
     """bash/plan/urls consumers read top-level details keys — must survive externalize."""
     store = InMemoryArtifactStore()

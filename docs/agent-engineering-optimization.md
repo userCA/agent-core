@@ -14,7 +14,7 @@
 | 阶段 | 成熟度 | 一句话 |
 |------|--------|--------|
 | Prompt | 可用 | `SystemPromptBuilder` + Skills + Context Files 已落地 |
-| Context | **半完成** | L1 RefStore MVP + L3 Compaction（Scene 默认）+ 预算预检 MVP；缺 L2/L4、单一表示校验 |
+| Context | **半完成** | L1+L2（语义压缩/结构化降级）+ L3 Compaction + 预算预检；缺 L4、单一表示校验 |
 | Harness | **轻量完成** | Thin Core + Thick Harness、HITL、Plan、Multi-agent 已有；缺断点续传、执行账本、声明式绑定 |
 | Agent OS | **未开始** | 五层架构 / 双平台 / 治理闭环属愿景，不在近半年必做范围 |
 
@@ -93,7 +93,7 @@ flowchart LR
 | 策略（文档） | 成熟度 | 现状要点 |
 |--------------|--------|----------|
 | L1 ToolResultRefStore | Scene 已接线（MVP） | `ENABLE_ARTIFACTS=1` 默认外置；进程内 store；无 L4 取回 |
-| L2 SemanticCompressor | 未实现 | 无中等结果 LLM 蒸馏；仅有 substring 截断 |
+| L2 SemanticCompressor | 库可用（MVP） | ≥10k 走 L2：可选 LLM + 结构化 fallback；preview 保持原始 substring |
 | L3 Compaction | Scene 已接线（MVP） | 结构化 handoff + 安全 cut-point；`ENABLE_COMPACTION=1` 默认注入 http_sse/h5 |
 | L4 DataBus | 未实现 | `retrieval/` 是 RAG，非 refId 依赖预取 |
 | 单一表示原则 | 未实现 | 内存全文 + converter 再截断 = 双重表示 |
@@ -422,7 +422,7 @@ flowchart TD
 | 能力 | 设计文档 | 代码 | Scene | 建议优先级 |
 |------|----------|------|------|------------|
 | L1 RefStore | §3.2 | Scene 已接线（MVP） | 默认开 | P0 库+Scene |
-| L2 SemanticCompress | §3.2 | 未实现 | — | P1 |
+| L2 SemanticCompress | §3.2 | 库可用（MVP） | 默认开（fallback） | P1 部分交付 |
 | L3 Compaction | §3.2 | Scene 已接线（MVP） | 默认开 | P0 已交付 |
 | L4 DataBus | §3.2 | 未实现 | — | P2 |
 | 单一表示 | §3.3 | 未实现 | — | P0 |
