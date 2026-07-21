@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from agent_core.artifacts.store import ArtifactStore
+from agent_core.artifacts.ref_index import ArtifactRefIndex
 from agent_core.compaction.semantic_compress import (
     DEFAULT_COMPRESS_MIN_CHARS,
     DEFAULT_PREVIEW_CHARS,
@@ -76,6 +77,7 @@ class ArtifactExternalizeExtension:
         compress_min_chars: int = DEFAULT_COMPRESS_MIN_CHARS,
         compress_target_chars: int = DEFAULT_TARGET_CHARS,
         preview_chars: int = DEFAULT_PREVIEW_CHARS,
+        ref_index: ArtifactRefIndex | None = None,
     ) -> None:
         self._store = store
         self._char_threshold = char_threshold
@@ -85,6 +87,7 @@ class ArtifactExternalizeExtension:
         self._compress_min_chars = compress_min_chars
         self._compress_target_chars = compress_target_chars
         self._preview_chars = preview_chars
+        self._ref_index = ref_index
 
     async def on_after_tool_call(
         self,
@@ -160,6 +163,15 @@ class ArtifactExternalizeExtension:
             if details is not None:
                 new_details["original_details"] = details
 
+        if self._ref_index is not None and ctx.session_id:
+            self._ref_index.register(
+                ref_id=ref_id,
+                session_id=ctx.session_id,
+                tool_name=tool_name,
+                chars=len(text),
+                summary=summary,
+            )
+
         return {
             "result": {
                 "content": [TextContent(text=ref_text)],
@@ -179,6 +191,7 @@ def create_artifact_extension(
     compress_min_chars: int = DEFAULT_COMPRESS_MIN_CHARS,
     compress_target_chars: int = DEFAULT_TARGET_CHARS,
     preview_chars: int = DEFAULT_PREVIEW_CHARS,
+    ref_index: ArtifactRefIndex | None = None,
 ) -> tuple[ArtifactStore, ArtifactExternalizeExtension]:
     """Return (store, extension) ready to append to Harness ``extensions``."""
     from agent_core.artifacts.store import InMemoryArtifactStore
@@ -193,5 +206,6 @@ def create_artifact_extension(
         compress_min_chars=compress_min_chars,
         compress_target_chars=compress_target_chars,
         preview_chars=preview_chars,
+        ref_index=ref_index,
     )
     return resolved, ext

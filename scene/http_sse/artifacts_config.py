@@ -115,6 +115,8 @@ def build_artifact_extension(
         compress_target = _MAX_SAFE_TARGET
 
     store = shared_artifact_store()
+    from agent_core.artifacts import shared_ref_index
+
     _, ext = create_artifact_extension(
         store,
         char_threshold=thr,
@@ -122,5 +124,38 @@ def build_artifact_extension(
         enable_l2_compress=semantic_compress_enabled(),
         compress_min_chars=compress_min,
         compress_target_chars=compress_target,
+        ref_index=shared_ref_index(),
     )
     return store, ext
+
+
+def databus_enabled() -> bool:
+    return os.environ.get("ENABLE_DATABUS", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def install_scene_databus(
+    tool_registry: Any,
+    *,
+    store: Any,
+    session_id: str,
+    extensions: list[Any] | None = None,
+) -> list[Any]:
+    """Register inspect_artifact + DataBus index when enabled and store is present."""
+    ext_list = list(extensions or [])
+    if not databus_enabled() or store is None or not artifacts_enabled():
+        return ext_list
+    from agent_core.artifacts import install_databus, shared_ref_index
+
+    _, _, ext_list = install_databus(
+        tool_registry,
+        store=store,
+        session_id=session_id,
+        ref_index=shared_ref_index(),
+        extensions=ext_list,
+    )
+    return ext_list

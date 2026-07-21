@@ -342,7 +342,10 @@ class ChatAssistant:
             resolve_memory_backend,
         )
         from scene.h5.evolution_config import build_skill_trace_collector
-        from scene.h5.artifacts_config import build_artifact_extension
+        from scene.h5.artifacts_config import (
+            build_artifact_extension,
+            install_scene_databus,
+        )
         from scene.h5.state_kv_config import build_state_kv_extension
 
         extensions = build_memory_extensions(
@@ -356,6 +359,12 @@ class ChatAssistant:
         artifact_store, artifact_ext = build_artifact_extension()
         if artifact_ext is not None:
             extensions.append(artifact_ext)
+        extensions = install_scene_databus(
+            tool_registry,
+            store=artifact_store,
+            session_id=resolved_session_id,
+            extensions=extensions,
+        )
         state_store, state_ext = build_state_kv_extension()
         if state_ext is not None:
             extensions.append(state_ext)

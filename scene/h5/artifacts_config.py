@@ -3,6 +3,8 @@
 from scene.http_sse.artifacts_config import (
     artifacts_enabled,
     build_artifact_extension,
+    databus_enabled,
+    install_scene_databus,
     semantic_compress_enabled,
     shared_artifact_store,
 )
@@ -10,6 +12,8 @@ from scene.http_sse.artifacts_config import (
 __all__ = [
     "artifacts_enabled",
     "build_artifact_extension",
+    "databus_enabled",
+    "install_scene_databus",
     "semantic_compress_enabled",
     "shared_artifact_store",
 ]

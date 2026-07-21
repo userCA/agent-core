@@ -14,7 +14,7 @@
 | 阶段 | 成熟度 | 一句话 |
 |------|--------|--------|
 | Prompt | 可用 | `SystemPromptBuilder` + Skills + Context Files 已落地 |
-| Context | **半完成** | L1+L2（语义压缩/结构化降级）+ L3 Compaction + 预算预检；缺 L4、单一表示校验 |
+| Context | **半完成** | L1+L2+L3+L4 Inspect（MVP）+ 预算预检；缺单一表示校验、依赖预取 |
 | Harness | **轻量完成** | Thin Core + Thick Harness、HITL、Plan、Multi-agent 已有；缺断点续传、执行账本、声明式绑定 |
 | Agent OS | **未开始** | 五层架构 / 双平台 / 治理闭环属愿景，不在近半年必做范围 |
 
@@ -95,7 +95,7 @@ flowchart LR
 | L1 ToolResultRefStore | Scene 已接线（MVP） | `ENABLE_ARTIFACTS=1` 默认外置；进程内 store；无 L4 取回 |
 | L2 SemanticCompressor | 库可用（MVP） | ≥10k 走 L2：可选 LLM + 结构化 fallback；preview 保持原始 substring |
 | L3 Compaction | Scene 已接线（MVP） | 结构化 handoff + 安全 cut-point；`ENABLE_COMPACTION=1` 默认注入 http_sse/h5 |
-| L4 DataBus | 未实现 | `retrieval/` 是 RAG，非 refId 依赖预取 |
+| L4 DataBus | 库可用（MVP） | `inspect_artifact` outline/search/get_context；RefIndex；Scene 默认开 |
 | 单一表示原则 | 未实现 | 内存全文 + converter 再截断 = 双重表示 |
 | Working Memory（Pinned/Insights） | 库可用（MVP） | `working_memory` 工具；Pinned 进 system；Insights 注入最新 user 前 |
 | Prompt 预算预检 | Scene/库可用（MVP） | turn 前粗估；先 compact 一次；仍超则 `PROMPT_BUDGET_EXCEEDED` 不调 provider |
@@ -424,7 +424,7 @@ flowchart TD
 | L1 RefStore | §3.2 | Scene 已接线（MVP） | 默认开 | P0 库+Scene |
 | L2 SemanticCompress | §3.2 | 库可用（MVP） | 默认开（fallback） | P1 部分交付 |
 | L3 Compaction | §3.2 | Scene 已接线（MVP） | 默认开 | P0 已交付 |
-| L4 DataBus | §3.2 | 未实现 | — | P2 |
+| L4 DataBus | §3.2 | 库可用（MVP） | 默认开 | P2 部分交付 |
 | 单一表示 | §3.3 | 未实现 | — | P0 |
 | 预算预检 | §3.5 | 库可用（MVP） | 随 loop 默认开 | P0 已交付 |
 | 工具截断 | — | 生产级 | 已接线 | 维持 |
