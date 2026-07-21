@@ -97,7 +97,7 @@ flowchart LR
 | L3 Compaction | Scene 已接线（MVP） | 结构化 handoff + 安全 cut-point；`ENABLE_COMPACTION=1` 默认注入 http_sse/h5 |
 | L4 DataBus | 未实现 | `retrieval/` 是 RAG，非 refId 依赖预取 |
 | 单一表示原则 | 未实现 | 内存全文 + converter 再截断 = 双重表示 |
-| Working Memory（Pinned/Insights） | 未实现 | `planning/` 是会话内计划，非跨步 working_memory |
+| Working Memory（Pinned/Insights） | 库可用（MVP） | `working_memory` 工具；Pinned 进 system；Insights 注入最新 user 前 |
 | Prompt 预算预检 | Scene/库可用（MVP） | turn 前粗估；先 compact 一次；仍超则 `PROMPT_BUDGET_EXCEEDED` 不调 provider |
 | 工具截断 | Scene 已接线 | 多层确定性截断已生产可用 |
 
@@ -184,9 +184,9 @@ flowchart LR
 | 断点续传 / Checkpoint | 部分 | 会话 transcript 持久化；无执行级 step checkpoint |
 | SSE 真相源 + 后台执行 | 部分 | 请求内流式；断连停推送；无事件账本 |
 | RecursionGuard / 重复调用硬拦 | 库可用（MVP） | 连续相同 tool+args ≥ N（默认 3）硬拦；`duplicate_tool_max_repeats` |
-| Action Space 动态裁剪 | 库可用 | `set_active_tools` / profile allowlist；无 plan-step 绑定 |
+| Action Space 动态裁剪 | 库可用（MVP） | `set_active_tools` + plan step `suggested_tools` 绑定 |
 | Multi-agent + SharedBlackboard | 部分 | delegate 已有；无跨 agent KV |
-| step_control / working_memory | 未实现 | 文档赋能工具，代码无 |
+| step_control / working_memory | 库可用（MVP） | `working_memory` 工具；Pinned/Insights；plan `suggested_tools` → `set_active_tools` |
 | HITL | Scene 已接线 | 完整；parallel 模式不支持 HITL |
 
 ### 3.2 优化项明细
@@ -437,7 +437,7 @@ flowchart TD
 | HITL | — | 生产级 | 已接线 | 维持 |
 | Multi-agent | §4.5 | 库+Scene | 开关 | 维持 |
 | SharedBlackboard | §4.5 | 未实现 | — | P2 |
-| working_memory | §4.1 | 未实现 | — | P2 |
+| working_memory | §4.1 | 库可用（MVP） | 默认开 | P2 部分交付 |
 | Memory 跨会话 | §4.3 | Scene 已接线（MVP） | 默认 inmemory | P2/接线 已交付 |
 | Skill Evolution | §4.4 | Scene 已接线（MVP） | Collector 默认挂 | P2/接线 已交付 |
 | Self-Feedback | §4.4 | 未实现 | — | P3 |

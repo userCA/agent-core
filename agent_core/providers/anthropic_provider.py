@@ -346,7 +346,8 @@ def _convert_messages(
         if role == "system":
             text = _extract_text(msg.get("content"))
             if text:
-                system = text
+                # Accumulate — do not clobber base system_prompt / prior injections.
+                system = f"{system}\n\n{text}" if system else text
             continue
         if role == "user":
             content = _to_anthropic_content(msg.get("content"))
@@ -387,7 +388,8 @@ def _merge_anthropic_messages(
         if role == "system":
             text = _extract_text(msg.get("content"))
             if text:
-                system = text
+                # Accumulate — do not clobber base system_prompt / prior injections.
+                system = f"{system}\n\n{text}" if system else text
             continue
         if role in ("user", "assistant"):
             out.append({"role": role, "content": list(msg.get("content", []))})

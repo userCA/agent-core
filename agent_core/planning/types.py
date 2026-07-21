@@ -17,22 +17,34 @@ class PlanStep:
     title: str
     status: PlanStepStatus = "pending"
     detail: str | None = None
+    # Optional tool allowlist for this step (H4 action space). Empty = no filter.
+    suggested_tools: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "id": self.id,
             "title": self.title,
             "status": self.status,
             "detail": self.detail,
         }
+        if self.suggested_tools:
+            data["suggested_tools"] = list(self.suggested_tools)
+        return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PlanStep:
+        raw_tools = data.get("suggested_tools") or []
+        suggested = (
+            [str(t) for t in raw_tools if isinstance(t, str) and t.strip()]
+            if isinstance(raw_tools, list)
+            else []
+        )
         return cls(
             id=str(data["id"]),
             title=str(data.get("title") or ""),
             status=data.get("status") or "pending",  # type: ignore[arg-type]
             detail=data.get("detail"),
+            suggested_tools=suggested,
         )
 
 
@@ -91,5 +103,9 @@ DEFAULT_PLANNING_HINT = (
     "3. Call manage_plan(action=set_status, step_id=X, status=completed) AFTER the step finishes\n"
     "4. Move to the next step\n"
     "Never batch-execute all steps and update statuses at the end. "
-    "Call complete_plan when all steps are done."
+    "Call complete_plan when all steps are done.\n\n"
+    "### Step tool scope (optional)\n"
+    "When creating steps, you may set suggested_tools to the tool names needed "
+    "for that step only. The runtime will restrict the available tool schema to "
+    "that allowlist (plus manage_plan / working_memory) while the step is current."
 )

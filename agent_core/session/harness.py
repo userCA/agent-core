@@ -454,6 +454,12 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
                     if result.get("message"):
                         context.messages.append(result["message"])
 
+            # Extensions (e.g. plan step action space) may call set_active_tools
+            # during before_agent_start — refresh tools for this turn's first LLM call.
+            from agent_core.session.tool_utils import filter_active_tools
+
+            context.tools = filter_active_tools(self.state.tools, self._active_tool_names)
+
             async def _emit_sink(evt: AgentEvent) -> None:
                 nonlocal last_assistant
                 if isinstance(evt, AgentEnd) and evt.messages:

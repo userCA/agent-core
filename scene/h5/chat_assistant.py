@@ -408,6 +408,12 @@ class ChatAssistant:
             )
             system_prompt_text = system_prompt_text.rstrip() + "\n\n" + planning_prompt_snippet()
 
+        from scene.h5.working_memory_config import install_scene_working_memory
+
+        _, extensions = install_scene_working_memory(
+            tool_registry, extensions=extensions
+        )
+
         use_multi = (
             multi_agent_enabled() if enable_multi_agent is None else enable_multi_agent
         )

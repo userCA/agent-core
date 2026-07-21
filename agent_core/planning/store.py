@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 PLAN_SNAPSHOT_TYPE = "plan_snapshot"
 
 
+def _parse_suggested_tools(raw: Any) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    return [str(t) for t in raw if isinstance(t, str) and t.strip()]
+
+
 class PlanStore:
     """Authoritative in-memory plan for one session; optionally persists snapshots."""
 
@@ -61,6 +67,7 @@ class PlanStore:
                     title=str(raw.get("title") or raw.get("task") or sid),
                     status=raw.get("status") or "pending",  # type: ignore[arg-type]
                     detail=raw.get("detail"),
+                    suggested_tools=_parse_suggested_tools(raw.get("suggested_tools")),
                 )
             )
         version = (self._plan.version + 1) if self._plan else 1
@@ -126,13 +133,17 @@ class PlanStore:
                     continue
                 sid = str(raw.get("id") or f"s{i + 1}")
                 seen.add(sid)
-                if sid in existing and "title" not in raw and "status" not in raw:
+                if sid in existing and "title" not in raw and "status" not in raw and "suggested_tools" not in raw:
                     step = existing[sid]
                     if raw.get("detail") is not None:
                         step.detail = str(raw["detail"])
                     merged.append(step)
                 else:
                     prev = existing.get(sid)
+                    if "suggested_tools" in raw:
+                        suggested = _parse_suggested_tools(raw.get("suggested_tools"))
+                    else:
+                        suggested = list(prev.suggested_tools) if prev else []
                     merged.append(
                         PlanStep(
                             id=sid,
@@ -140,6 +151,7 @@ class PlanStore:
                             status=raw.get("status")
                             or (prev.status if prev else "pending"),  # type: ignore[arg-type]
                             detail=raw.get("detail") if "detail" in raw else (prev.detail if prev else None),
+                            suggested_tools=suggested,
                         )
                     )
             plan.steps = merged

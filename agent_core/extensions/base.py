@@ -23,6 +23,10 @@ class HarnessFacade(Protocol):
 
     def abort(self) -> None: ...
 
+    async def set_active_tools(self, tool_names: list[str]) -> None:
+        """Restrict provider tool schema to *tool_names* for subsequent turns."""
+        ...
+
 
 @dataclass
 class ExtensionContext:

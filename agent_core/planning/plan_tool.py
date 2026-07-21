@@ -22,7 +22,8 @@ class ManagePlanTool:
             name=name,
             description=(
                 "Create or update the task plan/checklist for the current conversation. "
-                "action=replace: create/replace full plan with title + steps[{id?,title,status?}]. "
+                "action=replace: create/replace full plan with title + "
+                "steps[{id?,title,status?,detail?,suggested_tools?}]. "
                 "action=set_status: update one step (step_id+status+detail?) or updates=[{id,status,detail?}]. "
                 "action=revise: merge step list / title. "
                 "action=complete_plan | cancel_plan: finish the plan."
@@ -50,6 +51,13 @@ class ManagePlanTool:
                                 "title": {"type": "string"},
                                 "status": {"type": "string"},
                                 "detail": {"type": "string"},
+                                "suggested_tools": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": (
+                                        "Optional tool names allowed while this step is current"
+                                    ),
+                                },
                             },
                         },
                     },
