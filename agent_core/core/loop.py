@@ -31,6 +31,7 @@ from agent_core.compaction.budget import (
     PROMPT_BUDGET_EXCEEDED,
     is_prompt_budget_exceeded,
 )
+from agent_core.core.tool_guard import DuplicateToolCallGuard
 from agent_core.providers.base import tools_to_provider_format
 from agent_core.providers.types import (
     StreamError,
@@ -161,6 +162,11 @@ async def run_agent_loop(
 
     new_assistant_messages: list[Any] = []
     turn_count = 0
+    duplicate_guard: DuplicateToolCallGuard | None = None
+    if config.duplicate_tool_max_repeats and config.duplicate_tool_max_repeats > 0:
+        duplicate_guard = DuplicateToolCallGuard(
+            max_repeats=config.duplicate_tool_max_repeats
+        )
 
     while True:
         if signal is not None and signal.is_set():
@@ -337,6 +343,7 @@ async def run_agent_loop(
                 tool_results_out=tool_result_messages,
                 human_input_gate=config.human_input_gate,
                 mutation_queue=config.mutation_queue,
+                duplicate_guard=duplicate_guard,
             ):
                 await emit(evt)
 

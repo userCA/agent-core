@@ -183,7 +183,7 @@ flowchart LR
 | PERO 编排 | 部分 | Plan 工具化；Execute=ReAct；无 Reflect/Optimize 阶段机 |
 | 断点续传 / Checkpoint | 部分 | 会话 transcript 持久化；无执行级 step checkpoint |
 | SSE 真相源 + 后台执行 | 部分 | 请求内流式；断连停推送；无事件账本 |
-| RecursionGuard / 重复调用硬拦 | 部分 | `max_turns`；companion soft `repeated_tool`；无 tool+args 哈希拦 |
+| RecursionGuard / 重复调用硬拦 | 库可用（MVP） | 连续相同 tool+args ≥ N（默认 3）硬拦；`duplicate_tool_max_repeats` |
 | Action Space 动态裁剪 | 库可用 | `set_active_tools` / profile allowlist；无 plan-step 绑定 |
 | Multi-agent + SharedBlackboard | 部分 | delegate 已有；无跨 agent KV |
 | step_control / working_memory | 未实现 | 文档赋能工具，代码无 |
@@ -432,7 +432,7 @@ flowchart TD
 | Plan / manage_plan | — | 库+Scene | 已接线 | 维持 |
 | PERO runtime | §4.2 | 未实现 | — | P3 |
 | Checkpoint / 后台执行 | §4.2 | 部分 | 部分 | P1 |
-| RecursionGuard | §4.2 | 部分 | soft only | P1 |
+| RecursionGuard | §4.2 | 库可用（MVP 重复调用） | 默认开 | P1 部分交付 |
 | active_tools | §4.1 | 库可用 | 间接 | P2 步级 |
 | HITL | — | 生产级 | 已接线 | 维持 |
 | Multi-agent | §4.5 | 库+Scene | 开关 | 维持 |

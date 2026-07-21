@@ -14,6 +14,7 @@ from agent_core.core.human_input import HumanInputGate, RequiresHumanInput
 from agent_core.core.messages import AssistantMessage, ToolResultMessage
 
 if TYPE_CHECKING:
+    from agent_core.core.tool_guard import DuplicateToolCallGuard
     from agent_core.tools.base import ToolContext, ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ async def execute_tools(
     tool_results_out: list[Any],
     human_input_gate: HumanInputGate | None = None,
     mutation_queue: Any = None,
+    duplicate_guard: DuplicateToolCallGuard | None = None,
 ) -> AsyncIterator[Any]:
     # Lazy import to break circular dependency: core → tools → core
     from agent_core.tools.base import ToolResult  # noqa: F811
@@ -58,6 +60,7 @@ async def execute_tools(
             signal=signal,
             mutation_queue=mutation_queue,
             tool_timeout=tool_timeout,
+            duplicate_guard=duplicate_guard,
         )
         for tool_call, result, is_error in results:
             yield ToolExecutionEnd(
@@ -89,7 +92,15 @@ async def execute_tools(
 
             tool_task = asyncio.create_task(
                 _run_single_tool(
-                    tc, registry, before, after, signal, mutation_queue, _on_update, tool_timeout=tool_timeout
+                    tc,
+                    registry,
+                    before,
+                    after,
+                    signal,
+                    mutation_queue,
+                    _on_update,
+                    tool_timeout=tool_timeout,
+                    duplicate_guard=duplicate_guard,
                 )
             )
 
@@ -169,6 +180,7 @@ async def _run_single_tool(
     mutation_queue: Any | None = None,
     on_update: Any = None,
     tool_timeout: float | None = None,
+    duplicate_guard: DuplicateToolCallGuard | None = None,
 ) -> tuple[Any, Any, bool]:
     from agent_core.tools.base import ToolResult, ToolContext  # noqa: F811
 
@@ -180,6 +192,18 @@ async def _run_single_tool(
             content=[TextContent(text=f"Tool '{tool_call.name}' not found.")]
         )
         return tool_call, result, True
+
+    if duplicate_guard is not None:
+        blocked = duplicate_guard.check(
+            getattr(tool_call, "name", ""),
+            getattr(tool_call, "arguments", None),
+        )
+        if blocked:
+            result = ToolResult(
+                content=[TextContent(text=blocked)],
+                details={"__duplicate_blocked": True},
+            )
+            return tool_call, result, True
 
     _extra_metadata: dict[str, Any] = {}
 
@@ -297,12 +321,22 @@ async def _run_tools_parallel(
     mutation_queue: Any | None = None,
     tool_timeout: float | None = None,
     max_concurrent: int = 8,
+    duplicate_guard: DuplicateToolCallGuard | None = None,
 ) -> list[tuple[Any, ToolResult, bool]]:
     _sem = asyncio.Semaphore(max_concurrent)
 
     async def _bounded(c):
         async with _sem:
-            return await _run_single_tool(c, registry, before, after, signal, mutation_queue, tool_timeout=tool_timeout)
+            return await _run_single_tool(
+                c,
+                registry,
+                before,
+                after,
+                signal,
+                mutation_queue,
+                tool_timeout=tool_timeout,
+                duplicate_guard=duplicate_guard,
+            )
 
     tasks = [_bounded(c) for c in calls]
     return await asyncio.gather(*tasks)

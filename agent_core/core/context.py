@@ -83,6 +83,8 @@ class AgentLoopConfig:
     compact_callback: CompactCallback | None = None
     # Prompt budget pre-check: None disables; default 0.95 of context_window.
     prompt_budget_ratio: float | None = 0.95
+    # Consecutive identical tool+args allowed before hard block; None/0 disables.
+    duplicate_tool_max_repeats: int | None = 3
     mutation_queue: Any | None = None
     get_steering_messages: MessageDrainer | None = None
     get_follow_up_messages: MessageDrainer | None = None
