@@ -515,7 +515,33 @@ class SkillValidationGate:
         # Read current content
         old_content = skill_path.read_text(encoding="utf-8")
 
-        # Apply proposal
+        if proposal.operation == "add_case":
+            from .cases import PathCase, append_case, parse_case_content_from_proposal
+
+            query, path_seq = parse_case_content_from_proposal(proposal.new_content)
+            polarity = proposal.case_polarity if proposal.case_polarity in ("positive", "negative") else "positive"
+            append_case(
+                self.skill_dir,
+                PathCase(
+                    polarity=polarity,  # type: ignore[arg-type]
+                    query=query or "",
+                    path=path_seq or (proposal.new_content or "")[:300],
+                    skill_name=proposal.skill_name,
+                    source_trace_id=(proposal.source_traces[0] if proposal.source_traces else None),
+                ),
+            )
+            _log.info(
+                "[ValidationGate] Appended %s case for %s",
+                polarity,
+                proposal.skill_name,
+            )
+            return True
+
+        if proposal.operation == "retire_case":
+            _log.info("[ValidationGate] retire_case is a no-op on disk for now")
+            return True
+
+        # Apply proposal to SKILL.md
         new_content = self._apply_proposal(old_content, proposal)
 
         # Write back

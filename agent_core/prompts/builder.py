@@ -40,6 +40,7 @@ class SystemPromptBuilder:
         skills: list[Skill] | None = None,
         context_files: list[ContextFile] | None = None,
         date: datetime | None = None,
+        path_cases_section: str | None = None,
     ) -> SystemPrompt:
         sections: list[SystemPromptSection] = []
 
@@ -106,6 +107,12 @@ class SystemPromptBuilder:
                     lines.append(f'  <skill name="{skill.name}">{skill.description}</skill>')
             lines.append("</available_skills>")
             sections.append(SystemPromptSection(name="skills", content="\n".join(lines)))
+
+        # 6b. Optional path cases (P4) — already-formatted section text
+        if path_cases_section:
+            sections.append(
+                SystemPromptSection(name="path_cases", content="\n" + path_cases_section.strip())
+            )
 
         # 7. Meta
         now = date or datetime.now(tz=timezone.utc)

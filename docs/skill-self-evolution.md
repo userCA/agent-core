@@ -380,32 +380,49 @@ LLM 可用于：
 - 自然语言规则生成
 - 冲突语义理解
 
-## GRPO 风格路径相对进化（P0–P2）
+## GRPO 风格路径相对进化（P0–P4）
 
 在「成功/失败二值」之上，增加同目标多路径的组内相对比较（不训模型权重）：
 
-1. Collector 记录 `PathStep` 工具链，并写入 `task_key`
+1. Collector 记录 `PathStep` 工具链，并写入 `task_key`；`GroupRollout` 可打共享 `group_id`
 2. `HybridReward` 混合启发式 / Judge / 人工，算标量 \(r\)
 3. `build_groups` + `assign_advantages` 得到 \(A_i = r_i - \bar{r}\)
 4. `distill_group` 将高/低优势蒸馏为 Path Preference 规则与正负例提案
 5. `evaluate_acceptance_gates` 以 \(\Delta\bar{r}\) + 无关键回归 + 步数护栏放行
+6. **P3** `GroupRollout`：同 query 采 G 次；Scene 开关 `ENABLE_GROUP_ROLLOUT`（默认关）
+7. **P4** `cases/*.jsonl` + `SkillCaseRecallExtension`；开关 `ENABLE_SKILL_CASE_RECALL`（默认关）
 
 设计说明见 [`docs/superpowers/specs/2026-07-23-skill-grpo-evolution-design.md`](superpowers/specs/2026-07-23-skill-grpo-evolution-design.md)。
 
 ```python
 from agent_core.skill_evolution import (
     HybridReward,
+    GroupRollout,
     build_groups,
     score_group,
     distill_group,
     evaluate_acceptance_gates,
+    should_trigger_group_rollout,
 )
 
 groups = build_groups(traces, min_size=3)
 for g in groups:
     await score_group(g)
     proposals = distill_group(g, tau=0.15)
+
+# Active exploration (host supplies runner)
+if should_trigger_group_rollout(enabled=True, consecutive_failures=2):
+    await GroupRollout(collector=collector, g=3).run(query, runner)
 ```
+
+Scene 环境变量：
+
+| 变量 | 默认 | 含义 |
+|------|------|------|
+| `ENABLE_SKILL_EVOLUTION` | on | 轨迹采集 |
+| `ENABLE_GROUP_ROLLOUT` | **off** | 主动 G 采样 |
+| `GROUP_ROLLOUT_G` | 3 | 采样条数 |
+| `ENABLE_SKILL_CASE_RECALL` | **off** | 注入 top-k 路径案例 |
 
 ## 参考资料
 

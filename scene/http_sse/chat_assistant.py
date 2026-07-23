@@ -297,7 +297,10 @@ class ChatAssistant:
             build_memory_extensions,
             resolve_memory_backend,
         )
-        from scene.http_sse.evolution_config import build_skill_trace_collector
+        from scene.http_sse.evolution_config import (
+            build_skill_case_recall_extension,
+            build_skill_trace_collector,
+        )
         from scene.http_sse.artifacts_config import (
             build_artifact_extension,
             install_scene_databus,
@@ -312,6 +315,12 @@ class ChatAssistant:
         skill_trace_collector = build_skill_trace_collector()
         if skill_trace_collector is not None:
             extensions.append(skill_trace_collector)
+        case_recall = build_skill_case_recall_extension(
+            skill_dir=skills_dir or os.path.join(cwd, ".pi", "skills"),
+            skill_names=[s.name for s in skills],
+        )
+        if case_recall is not None:
+            extensions.append(case_recall)
         artifact_store, artifact_ext = build_artifact_extension()
         if artifact_ext is not None:
             extensions.append(artifact_ext)

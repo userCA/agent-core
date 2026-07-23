@@ -68,6 +68,9 @@ class SkillTraceCollector(Extension):
         self._loaded_skills: dict[str, list[str]] = {}
         self._pending_steps: list[PathStep] = []
         self._pending_args: dict[str, dict[str, Any]] = {}
+        self._active_group_id: str | None = None
+        self._active_task_key: str | None = None
+        self._consecutive_failures: int = 0
 
     @property
     def name(self) -> str:
@@ -84,6 +87,7 @@ class SkillTraceCollector(Extension):
             self._turn_count = 0
             self._pending_steps.clear()
             self._pending_args.clear()
+            # Keep _active_group_id / _active_task_key across starts within a GroupRollout.
 
         elif isinstance(evt, ToolExecutionStart):
             self._pending_args[evt.tool_call_id] = dict(evt.args or {})
@@ -117,7 +121,12 @@ class SkillTraceCollector(Extension):
         user_query = self._extract_user_query(ctx)
         outcome, error = self._determine_outcome(evt)
         steps = list(self._pending_steps)
-        task_key = self._normalize_task_key(user_query)
+        task_key = self._active_task_key or self._normalize_task_key(user_query)
+
+        if outcome == ExecutionOutcome.FAILURE:
+            self._consecutive_failures += 1
+        else:
+            self._consecutive_failures = 0
 
         for skill_name in skill_names:
             rule_ids = self._loaded_skills.get(skill_name, [])
@@ -134,6 +143,7 @@ class SkillTraceCollector(Extension):
                 },
                 steps=steps,
                 task_key=task_key,
+                group_id=self._active_group_id,
             )
             try:
                 await self.store.save_trace(trace)
@@ -209,6 +219,25 @@ class SkillTraceCollector(Extension):
                 return ExecutionOutcome.FAILURE, "tool execution error"
         return ExecutionOutcome.SUCCESS, ""
 
+    def set_rollout_context(
+        self,
+        group_id: str,
+        task_key: str | None = None,
+    ) -> None:
+        """Tag subsequent traces with a shared group_id (GroupRollout)."""
+        self._active_group_id = group_id
+        if task_key is not None:
+            self._active_task_key = task_key
+
+    def clear_rollout_context(self) -> None:
+        """Clear GroupRollout tagging after a multi-sample batch finishes."""
+        self._active_group_id = None
+        self._active_task_key = None
+
+    @property
+    def consecutive_failures(self) -> int:
+        return self._consecutive_failures
+
     # ── optional explicit API ─────────────────────────────────────────
     # These are not dispatched automatically; callers may invoke them
     # directly when they have more precise data than on_event provides.
@@ -216,7 +245,7 @@ class SkillTraceCollector(Extension):
     async def on_before_agent_start(
         self, ctx: ExtensionContext, prompt: str = "", system_prompt: str = ""
     ) -> dict | None:
-        """Reset state for a new agent run. Kept for API compatibility."""
+        """Reset per-run step buffers. Kept for API compatibility."""
         if not self.enabled:
             return None
         self._turn_count = 0

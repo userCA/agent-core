@@ -102,6 +102,9 @@ from .reward import HybridReward, heuristic_reward
 from .grouping import build_groups, normalize_task_key
 from .relative_score import assign_advantages, score_group
 from .distiller import distill_group
+from .group_rollout import GroupRollout, GroupRolloutResult, should_trigger_group_rollout
+from .cases import PathCase, append_case, load_cases, select_top_k_cases, format_cases_for_prompt
+from .case_recall import SkillCaseRecallExtension
 
 __all__ = [
     # Types
@@ -146,6 +149,15 @@ __all__ = [
     "assign_advantages",
     "score_group",
     "distill_group",
+    "GroupRollout",
+    "GroupRolloutResult",
+    "should_trigger_group_rollout",
+    "PathCase",
+    "append_case",
+    "load_cases",
+    "select_top_k_cases",
+    "format_cases_for_prompt",
+    "SkillCaseRecallExtension",
 ]
 
 __version__ = "0.1.0"

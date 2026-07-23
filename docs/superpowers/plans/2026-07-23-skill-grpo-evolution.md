@@ -12,43 +12,24 @@
 
 **范围：** 本计划覆盖 **P0–P2**（最小闭环）。P3/P4 见 spec §10，完成 P2 后再开独立计划。
 
-**状态（2026-07-23）：** P0–P2 已实现，`pytest tests/skill_evolution/` 88 passed。
+**状态（2026-07-23）：** P0–P4 已实现，`pytest tests/skill_evolution/` 96 passed。
 
 ---
 
 ## 文件结构
 
-### 新建
+### 新建（含 P3/P4）
 
 | 文件 | 职责 |
 |------|------|
-| `agent_core/skill_evolution/reward.py` | HybridReward：\(r_h\) / \(r_j\) / \(r_u\) 可插拔 |
-| `agent_core/skill_evolution/grouping.py` | `task_key` 归一化 + 离线成组 |
-| `agent_core/skill_evolution/relative_score.py` | 组内 \(A_i\) |
-| `agent_core/skill_evolution/distiller.py` | 高/低优势 → 规则/案例提案 |
-| `tests/skill_evolution/test_*.py` | 对应单测与 `test_grpo_pipeline.py` |
-
-### 修改
-
-| 文件 | 修改 |
-|------|------|
-| `types.py` / `collector.py` / `store.py` | 路径字段与事件采集 |
-| `validation.py` / `agent.py` / `__init__.py` | 门控、蒸馏接线、导出 |
+| `reward.py` / `grouping.py` / `relative_score.py` / `distiller.py` | P0–P2 打分与蒸馏 |
+| `group_rollout.py` | P3 主动 G 采样 |
+| `cases.py` / `case_recall.py` | P4 案例存储与注入 |
 
 ---
 
-### Tasks P0–P2
+### Tasks
 
-- [x] Task 1: PathStep + Trace 扩展字段
-- [x] Task 2: Store 序列化新字段
-- [x] Task 3: Collector 累积 ToolExecution → steps
-- [x] Task 4: HybridReward
-- [x] Task 5: grouping + relative_score
-- [x] Task 6: Distiller
-- [x] Task 7: ValidationGate \(\Delta\bar{r}\) + 护栏
-- [x] Task 8: OfflineEvolutionAgent 接线 + 导出
-
-## P3/P4（本计划不做）
-
-- [ ] P3：Scene 触发 GroupRollout（G 次采样）
-- [ ] P4：提示词 top-k 案例注入
+- [x] Task 1–8: P0–P2
+- [x] P3：GroupRollout + Scene 开关（默认关）
+- [x] P4：cases jsonl + top-k recall 扩展（默认关）
