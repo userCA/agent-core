@@ -191,8 +191,14 @@ class OfflineEvolutionAgent:
             f"[EvolutionAgent] Split: {len(success_traces)} success, {len(failure_traces)} failure"
         )
 
-        # Step 3: Parallel proposal generation
+        # Step 3: Parallel proposal generation (+ GRPO path distillation)
         proposals = await self._generate_proposals(success_traces, failure_traces)
+        path_proposals = await self._generate_path_proposals(new_traces)
+        if path_proposals:
+            _log.info(
+                f"[EvolutionAgent] Path-distilled {len(path_proposals)} proposals from groups"
+            )
+            proposals = proposals + path_proposals
         _log.info(f"[EvolutionAgent] Generated {len(proposals)} raw proposals")
 
         if not proposals:
@@ -227,6 +233,29 @@ class OfflineEvolutionAgent:
             "final_proposals": [p.to_dict() for p in final_proposals],
             "merge_rationale": merged.merge_rationale,
         }
+
+    async def _generate_path_proposals(
+        self,
+        traces: list[SkillEvolutionTrace],
+        *,
+        min_group_size: int = 3,
+        tau: float = 0.15,
+    ) -> list[PatchProposal]:
+        """Group similar tasks, score relatively, distill path preferences/cases."""
+        from .distiller import distill_group
+        from .grouping import build_groups
+        from .relative_score import score_group
+
+        groups = build_groups(traces, min_size=min_group_size)
+        proposals: list[PatchProposal] = []
+        for group in groups:
+            gid = str(uuid.uuid4())
+            for t in group:
+                if not t.group_id:
+                    t.group_id = gid
+            await score_group(group)
+            proposals.extend(distill_group(group, tau=tau))
+        return proposals
 
     async def _generate_proposals(
         self,

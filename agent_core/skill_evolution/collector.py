@@ -26,10 +26,16 @@ import uuid
 from typing import Any
 
 from agent_core.extensions.base import Extension, ExtensionContext
-from agent_core.core.events import AgentEvent, AgentStart, TurnEnd
+from agent_core.core.events import (
+    AgentEvent,
+    AgentStart,
+    ToolExecutionEnd,
+    ToolExecutionStart,
+    TurnEnd,
+)
 
 from .store import SkillEvolutionStore
-from .types import ExecutionOutcome, SkillEvolutionTrace
+from .types import ExecutionOutcome, PathStep, SkillEvolutionTrace
 
 
 _log = logging.getLogger(__name__)
@@ -42,7 +48,8 @@ class SkillTraceCollector(Extension):
     """Extension that collects skill execution traces for self-evolution.
 
     Primary mechanism: on_event(ctx, evt) — fires on every agent event.
-    On AgentStart: resets turn counter.
+    On AgentStart: resets turn counter and pending path steps.
+    On ToolExecutionStart/End: accumulates PathStep for the current run.
     On TurnEnd:   extracts skill names from system_prompt (via ctx.harness.state),
                   determines outcome from message/tool results, persists trace.
 
@@ -59,6 +66,8 @@ class SkillTraceCollector(Extension):
         self.enabled = enabled
         self._turn_count = 0
         self._loaded_skills: dict[str, list[str]] = {}
+        self._pending_steps: list[PathStep] = []
+        self._pending_args: dict[str, dict[str, Any]] = {}
 
     @property
     def name(self) -> str:
@@ -73,6 +82,26 @@ class SkillTraceCollector(Extension):
 
         if isinstance(evt, AgentStart):
             self._turn_count = 0
+            self._pending_steps.clear()
+            self._pending_args.clear()
+
+        elif isinstance(evt, ToolExecutionStart):
+            self._pending_args[evt.tool_call_id] = dict(evt.args or {})
+
+        elif isinstance(evt, ToolExecutionEnd):
+            args = self._pending_args.pop(evt.tool_call_id, {})
+            error_summary = ""
+            if evt.is_error:
+                error_summary = self._summarize_result(evt.result, max_len=120)
+            self._pending_steps.append(
+                PathStep(
+                    tool_name=evt.tool_name,
+                    args_summary=self._summarize_args(args),
+                    is_error=bool(evt.is_error),
+                    error_summary=error_summary,
+                    tool_call_id=evt.tool_call_id or "",
+                )
+            )
 
         elif isinstance(evt, TurnEnd):
             self._turn_count += 1
@@ -87,6 +116,8 @@ class SkillTraceCollector(Extension):
 
         user_query = self._extract_user_query(ctx)
         outcome, error = self._determine_outcome(evt)
+        steps = list(self._pending_steps)
+        task_key = self._normalize_task_key(user_query)
 
         for skill_name in skill_names:
             rule_ids = self._loaded_skills.get(skill_name, [])
@@ -101,15 +132,47 @@ class SkillTraceCollector(Extension):
                     "turn_index": self._turn_count,
                     **({"error": error} if error else {}),
                 },
+                steps=steps,
+                task_key=task_key,
             )
             try:
                 await self.store.save_trace(trace)
                 _log.debug(
-                    "Saved trace %s skill=%s outcome=%s",
-                    trace.trace_id, skill_name, outcome.value,
+                    "Saved trace %s skill=%s outcome=%s steps=%d",
+                    trace.trace_id, skill_name, outcome.value, len(steps),
                 )
             except Exception:
                 _log.exception("Failed to save trace for skill=%s", skill_name)
+
+    @staticmethod
+    def _normalize_task_key(query: str) -> str:
+        from .grouping import normalize_task_key
+
+        return normalize_task_key(query)
+
+    @staticmethod
+    def _summarize_args(args: dict[str, Any], max_len: int = 200) -> str:
+        if not args:
+            return ""
+        # Prefer short values first so key names survive truncation.
+        parts: list[str] = []
+        for key in sorted(args.keys(), key=lambda k: (len(str(args[k])), k)):
+            val = args[key]
+            text = str(val)
+            if len(text) > 60:
+                text = text[:57] + "..."
+            parts.append(f"{key}={text}")
+        joined = ", ".join(parts)
+        if len(joined) > max_len:
+            return joined[: max_len - 3] + "..."
+        return joined
+
+    @staticmethod
+    def _summarize_result(result: Any, max_len: int = 120) -> str:
+        text = str(result) if result is not None else ""
+        if len(text) > max_len:
+            return text[: max_len - 3] + "..."
+        return text
 
     @staticmethod
     def _extract_skill_names(ctx: ExtensionContext) -> list[str]:
@@ -158,6 +221,8 @@ class SkillTraceCollector(Extension):
             return None
         self._turn_count = 0
         self._loaded_skills.clear()
+        self._pending_steps.clear()
+        self._pending_args.clear()
         return None
 
     async def on_skill_loaded(

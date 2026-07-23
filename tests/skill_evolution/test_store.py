@@ -10,7 +10,11 @@ from agent_core.skill_evolution.store import (
     JsonlSkillEvolutionStore,
     create_skill_evolution_store,
 )
-from agent_core.skill_evolution.types import SkillEvolutionTrace, ExecutionOutcome
+from agent_core.skill_evolution.types import (
+    SkillEvolutionTrace,
+    ExecutionOutcome,
+    PathStep,
+)
 
 
 class TestInMemorySkillEvolutionStore:
@@ -213,3 +217,52 @@ class TestCreateSkillEvolutionStore:
     def test_invalid_store_type(self):
         with pytest.raises(ValueError, match="Unknown store type"):
             create_skill_evolution_store("invalid")
+
+
+class TestJsonlPathFieldsRoundtrip:
+    async def test_jsonl_roundtrip_path_fields(self, tmp_path):
+        path = tmp_path / "traces.jsonl"
+        store = JsonlSkillEvolutionStore(path)
+        await store.save_trace(SkillEvolutionTrace(
+            trace_id="rt1",
+            skill_name="s",
+            steps=[PathStep(
+                tool_name="grep",
+                args_summary="foo",
+                is_error=True,
+                error_summary="boom",
+            )],
+            group_id="g",
+            task_key="tk",
+            reward=0.5,
+            advantage=-0.1,
+            human_signal={"vote": "dislike"},
+            execution_outcome=ExecutionOutcome.FAILURE,
+        ))
+        traces = await store.get_traces(skill_name="s")
+        assert len(traces) == 1
+        t = traces[0]
+        assert t.steps[0].tool_name == "grep"
+        assert t.steps[0].is_error is True
+        assert t.steps[0].error_summary == "boom"
+        assert t.group_id == "g"
+        assert t.task_key == "tk"
+        assert t.reward == 0.5
+        assert t.advantage == -0.1
+        assert t.human_signal["vote"] == "dislike"
+        assert t.execution_outcome == ExecutionOutcome.FAILURE
+
+    async def test_jsonl_legacy_row_without_steps(self, tmp_path):
+        path = tmp_path / "legacy.jsonl"
+        path.write_text(
+            '{"trace_id":"old1","timestamp":1.0,"skill_name":"s",'
+            '"execution_outcome":"success","loaded_rules":[],'
+            '"execution_details":{},"new_rules_discovered":[]}\n',
+            encoding="utf-8",
+        )
+        store = JsonlSkillEvolutionStore(path)
+        traces = await store.get_traces(skill_name="s")
+        assert len(traces) == 1
+        assert traces[0].steps == []
+        assert traces[0].group_id is None
+        assert traces[0].execution_outcome == ExecutionOutcome.SUCCESS

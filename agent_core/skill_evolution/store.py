@@ -16,7 +16,68 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Iterator
 
-from .types import SkillEvolutionTrace
+from .types import ExecutionOutcome, PathStep, SkillEvolutionTrace
+
+
+def _trace_to_dict(trace: SkillEvolutionTrace) -> dict:
+    outcome = trace.execution_outcome
+    outcome_val = outcome.value if isinstance(outcome, ExecutionOutcome) else str(outcome)
+    return {
+        "trace_id": trace.trace_id,
+        "timestamp": trace.timestamp,
+        "session_id": trace.session_id,
+        "user_query": trace.user_query,
+        "skill_name": trace.skill_name,
+        "loaded_rules": trace.loaded_rules,
+        "execution_outcome": outcome_val,
+        "execution_details": trace.execution_details,
+        "new_rules_discovered": trace.new_rules_discovered,
+        "user_feedback": trace.user_feedback,
+        "regression_info": trace.regression_info,
+        "steps": [s.to_dict() for s in (trace.steps or [])],
+        "group_id": trace.group_id,
+        "task_key": trace.task_key,
+        "reward": trace.reward,
+        "advantage": trace.advantage,
+        "human_signal": trace.human_signal,
+    }
+
+
+def _trace_from_dict(data: dict) -> SkillEvolutionTrace:
+    raw_outcome = data.get("execution_outcome", "success")
+    if isinstance(raw_outcome, ExecutionOutcome):
+        outcome = raw_outcome
+    else:
+        try:
+            outcome = ExecutionOutcome(raw_outcome)
+        except ValueError:
+            outcome = ExecutionOutcome.SUCCESS
+
+    steps_data = data.get("steps") or []
+    steps = [
+        PathStep.from_dict(s) if isinstance(s, dict) else s
+        for s in steps_data
+    ]
+
+    return SkillEvolutionTrace(
+        trace_id=data["trace_id"],
+        timestamp=data.get("timestamp", 0.0),
+        session_id=data.get("session_id"),
+        user_query=data.get("user_query", ""),
+        skill_name=data.get("skill_name", ""),
+        loaded_rules=data.get("loaded_rules", []),
+        execution_outcome=outcome,
+        execution_details=data.get("execution_details", {}),
+        new_rules_discovered=data.get("new_rules_discovered", []),
+        user_feedback=data.get("user_feedback"),
+        regression_info=data.get("regression_info"),
+        steps=steps,
+        group_id=data.get("group_id"),
+        task_key=data.get("task_key", ""),
+        reward=data.get("reward"),
+        advantage=data.get("advantage"),
+        human_signal=data.get("human_signal"),
+    )
 
 
 class SkillEvolutionStore(ABC):
@@ -142,19 +203,7 @@ class JsonlSkillEvolutionStore(SkillEvolutionStore):
     async def save_trace(self, trace: SkillEvolutionTrace) -> None:
         """Append trace as a single JSON line."""
         with open(self.storage_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({
-                "trace_id": trace.trace_id,
-                "timestamp": trace.timestamp,
-                "session_id": trace.session_id,
-                "user_query": trace.user_query,
-                "skill_name": trace.skill_name,
-                "loaded_rules": trace.loaded_rules,
-                "execution_outcome": trace.execution_outcome.value,
-                "execution_details": trace.execution_details,
-                "new_rules_discovered": trace.new_rules_discovered,
-                "user_feedback": trace.user_feedback,
-                "regression_info": trace.regression_info,
-            }) + "\n")
+            f.write(json.dumps(_trace_to_dict(trace)) + "\n")
 
     async def get_traces(
         self,
@@ -179,19 +228,7 @@ class JsonlSkillEvolutionStore(SkillEvolutionStore):
                     continue
 
                 data = json.loads(line)
-                trace = SkillEvolutionTrace(
-                    trace_id=data["trace_id"],
-                    timestamp=data["timestamp"],
-                    session_id=data.get("session_id"),
-                    user_query=data.get("user_query", ""),
-                    skill_name=data.get("skill_name", ""),
-                    loaded_rules=data.get("loaded_rules", []),
-                    execution_outcome=data.get("execution_outcome", "success"),
-                    execution_details=data.get("execution_details", {}),
-                    new_rules_discovered=data.get("new_rules_discovered", []),
-                    user_feedback=data.get("user_feedback"),
-                    regression_info=data.get("regression_info"),
-                )
+                trace = _trace_from_dict(data)
 
                 # Apply filters
                 if skill_name and trace.skill_name != skill_name:

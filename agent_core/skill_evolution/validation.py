@@ -26,6 +26,36 @@ from .types import PatchProposal, TestCase, ValidationResult
 _log = logging.getLogger(__name__)
 
 
+def evaluate_acceptance_gates(
+    score_delta: float,
+    *,
+    threshold: float = 0.05,
+    critical_regressions: int = 0,
+    old_avg_steps: float | None = None,
+    new_avg_steps: float | None = None,
+    max_step_worsen: float = 0.15,
+) -> tuple[bool, str]:
+    """Official S_v acceptance: Δr̄, no critical regression, step budget.
+
+    Returns (passed, reason).
+    """
+    if critical_regressions > 0:
+        return False, f"critical_regressions={critical_regressions}"
+    if score_delta < threshold:
+        return False, f"score_delta={score_delta:.4f} < threshold={threshold}"
+    if (
+        old_avg_steps is not None
+        and new_avg_steps is not None
+        and old_avg_steps > 0
+        and new_avg_steps > old_avg_steps * (1.0 + max_step_worsen)
+    ):
+        return (
+            False,
+            f"steps_worsened={new_avg_steps:.2f}/{old_avg_steps:.2f} > {max_step_worsen:.0%}",
+        )
+    return True, "ok"
+
+
 class SkillValidationGate:
     """Validates proposed skill changes against test cases.
 
@@ -51,6 +81,8 @@ class SkillValidationGate:
         timeout_per_test: float = 30.0,
         agent_runner: Callable | None = None,
         require_human_review: bool = True,
+        max_step_worsen: float = 0.15,
+        critical_drop: float = 0.4,
     ):
         """Initialize the validation gate.
 
@@ -61,12 +93,16 @@ class SkillValidationGate:
             agent_runner: Optional async callable that runs an agent with modified skill.
             require_human_review: If True, proposals with recommendation != "accept"
                 are blocked from auto-apply. Set False for fully automated pipelines.
+            max_step_worsen: Max allowed relative increase in average steps (default 15%)
+            critical_drop: Treat as critical regression when old_score - new_score >= this
         """
         self.skill_dir = Path(skill_dir)
         self.test_threshold = test_threshold
         self.timeout_per_test = timeout_per_test
         self.agent_runner = agent_runner
         self.require_human_review = require_human_review
+        self.max_step_worsen = max_step_worsen
+        self.critical_drop = critical_drop
 
         self._test_cases: dict[str, list[TestCase]] = {}
 
@@ -132,21 +168,21 @@ class SkillValidationGate:
         old_scores = await self._run_tests(cases, old_skill_content, is_new=False)
         new_scores = await self._run_tests(cases, new_skill_content, is_new=True)
 
-        # Step 4: Calculate aggregate score delta
+        # Step 4: Calculate aggregate score delta (official Δr̄ proxy)
         old_avg = sum(old_scores.values()) / len(old_scores) if old_scores else 0
         new_avg = sum(new_scores.values()) / len(new_scores) if new_scores else 0
         score_delta = new_avg - old_avg
 
-        # Step 5: Determine pass/fail
-        passed = score_delta >= self.test_threshold
-
-        # Build detailed results
+        # Step 5: Critical regressions + acceptance gates
+        critical_regressions = 0
         test_results = []
         failed_cases = []
         for tc in cases:
             old_score = old_scores.get(tc.test_id, 0)
             new_score = new_scores.get(tc.test_id, 0)
             improved = new_score > old_score
+            if old_score - new_score >= self.critical_drop:
+                critical_regressions += 1
 
             result_msg = f"{'✓' if improved else '✗'} {tc.test_id}: {old_score:.2f} → {new_score:.2f}"
             test_results.append((tc.test_id, improved, result_msg))
@@ -154,10 +190,16 @@ class SkillValidationGate:
             if not improved:
                 failed_cases.append(tc.test_id)
 
-        # Generate recommendation
+        passed, gate_reason = evaluate_acceptance_gates(
+            score_delta,
+            threshold=self.test_threshold,
+            critical_regressions=critical_regressions,
+            max_step_worsen=self.max_step_worsen,
+        )
+
         if passed:
             recommendation = "accept"
-        elif score_delta < -self.test_threshold:
+        elif score_delta < -self.test_threshold or critical_regressions:
             recommendation = "reject"
         else:
             recommendation = "needs_review"
@@ -173,7 +215,7 @@ class SkillValidationGate:
 
         _log.info(
             f"[ValidationGate] Result: {result.recommendation} "
-            f"(delta={score_delta:+.2f}, threshold={self.test_threshold})"
+            f"(delta={score_delta:+.2f}, threshold={self.test_threshold}, gate={gate_reason})"
         )
 
         return result
@@ -249,6 +291,17 @@ class SkillValidationGate:
             # Remove the target rule
             pattern = rf"## 规则 \d+：.*?(?=## 规则|\Z)"
             return re.sub(pattern, "", old_content, count=1)
+
+        elif operation in ("add_case", "retire_case"):
+            # Cases live beside SKILL.md; for in-content validation, append a marker block.
+            polarity = proposal.case_polarity or "positive"
+            if operation == "retire_case":
+                return old_content
+            block = (
+                f"\n\n## Path Case ({polarity})\n\n"
+                f"{new_content or ''}\n"
+            )
+            return old_content.rstrip() + block
 
         else:
             _log.warning(f"[ValidationGate] Unknown operation: {operation}")

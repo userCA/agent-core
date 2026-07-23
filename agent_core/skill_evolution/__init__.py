@@ -69,6 +69,7 @@ from .types import (
     EvolutionSummary,
     MergedProposal,
     PatchProposal,
+    PathStep,
     RuleReference,
     SkillEvolutionTrace,
     TestCase,
@@ -91,11 +92,16 @@ from .agent import (
 from .validation import (
     SkillValidationGate,
     create_validation_gate,
+    evaluate_acceptance_gates,
 )
 from .audit import (
     write_audit_entry,
     read_audit_log,
 )
+from .reward import HybridReward, heuristic_reward
+from .grouping import build_groups, normalize_task_key
+from .relative_score import assign_advantages, score_group
+from .distiller import distill_group
 
 __all__ = [
     # Types
@@ -103,6 +109,7 @@ __all__ = [
     "EvolutionSummary",
     "MergedProposal",
     "PatchProposal",
+    "PathStep",
     "RuleReference",
     "SkillEvolutionTrace",
     "TestCase",
@@ -125,10 +132,20 @@ __all__ = [
     # Validation
     "SkillValidationGate",
     "create_validation_gate",
+    "evaluate_acceptance_gates",
 
     # Audit
     "write_audit_entry",
     "read_audit_log",
+
+    # GRPO-style path evolution
+    "HybridReward",
+    "heuristic_reward",
+    "build_groups",
+    "normalize_task_key",
+    "assign_advantages",
+    "score_group",
+    "distill_group",
 ]
 
 __version__ = "0.1.0"

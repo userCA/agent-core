@@ -40,24 +40,48 @@ class RuleReference:
 
 
 @dataclass
+class PathStep:
+    """One tool-execution step within a skill-guided trajectory."""
+
+    tool_name: str
+    args_summary: str = ""
+    is_error: bool = False
+    duration_ms: float | None = None
+    error_summary: str = ""
+    tool_call_id: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "tool_name": self.tool_name,
+            "args_summary": self.args_summary,
+            "is_error": self.is_error,
+            "duration_ms": self.duration_ms,
+            "error_summary": self.error_summary,
+            "tool_call_id": self.tool_call_id,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> PathStep:
+        return cls(
+            tool_name=data.get("tool_name", ""),
+            args_summary=data.get("args_summary", ""),
+            is_error=bool(data.get("is_error", False)),
+            duration_ms=data.get("duration_ms"),
+            error_summary=data.get("error_summary", ""),
+            tool_call_id=data.get("tool_call_id", ""),
+        )
+
+
+@dataclass
 class SkillEvolutionTrace:
     """A complete trace of a single skill invocation.
 
     This is the fundamental unit of data for skill self-evolution.
     Each trace captures what happened when a skill was loaded and applied.
 
-    Attributes:
-        trace_id: Unique identifier for this trace
-        timestamp: Unix timestamp when trace was recorded
-        session_id: Associated agent session ID
-        user_query: The original user query that triggered skill loading
-        skill_name: Which skill was loaded (e.g., "dev-process-backend")
-        loaded_rules: List of rule IDs that were active during this invocation
-        execution_outcome: Whether the guided task succeeded/failed
-        execution_details: Additional context about what happened
-        new_rules_discovered: Rules that were added as result of this trace
-        user_feedback: Explicit feedback from user (if provided)
-        regression_info: If this trace detected a regression, details here
+    Path-level fields (steps, group_id, task_key, reward, advantage, human_signal)
+    support GRPO-style group-relative skill evolution; older traces may leave
+    them empty/None.
     """
     trace_id: str
     timestamp: float = field(default_factory=time.time)
@@ -70,6 +94,12 @@ class SkillEvolutionTrace:
     new_rules_discovered: list[dict] = field(default_factory=list)
     user_feedback: str | None = None
     regression_info: dict[str, Any] | None = None
+    steps: list[PathStep] = field(default_factory=list)
+    group_id: str | None = None
+    task_key: str = ""
+    reward: float | None = None
+    advantage: float | None = None
+    human_signal: dict[str, Any] | None = None
 
     def mark_success(self, details: dict[str, Any] | None = None):
         """Mark this trace as successful."""
@@ -104,22 +134,31 @@ class PatchProposal:
         proposal_id: Unique identifier for this proposal
         source_traces: Trace IDs that led to this proposal
         skill_name: Target skill to modify
-        operation: Type of change ("add", "modify", "delete", "merge")
+        operation: Type of change ("add", "modify", "delete", "merge",
+            "add_case", "retire_case")
         target_rule_id: Which rule to modify (for modify/delete/merge)
         new_content: New rule content (for add/modify)
         rationale: Why this change is proposed
         confidence: Estimated likelihood this change helps (0.0-1.0)
         supporting_evidence: Trace excerpts that support this proposal
+        case_polarity: For case ops — "positive" | "negative" | None
+        base_version: Skill version this proposal was computed against
+        expected_delta_r: Expected reward lift on the eval set
+        source_group_ids: GRPO-style groups that sourced this proposal
     """
     proposal_id: str
     source_traces: list[str]  # trace_ids
     skill_name: str
-    operation: str  # "add" | "modify" | "delete" | "merge"
+    operation: str  # "add" | "modify" | "delete" | "merge" | "add_case" | "retire_case"
     target_rule_id: str | None = None
     new_content: str | None = None
     rationale: str = ""
     confidence: float = 0.5
     supporting_evidence: list[str] = field(default_factory=list)
+    case_polarity: str | None = None
+    base_version: str | None = None
+    expected_delta_r: float | None = None
+    source_group_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for serialization."""
@@ -133,6 +172,10 @@ class PatchProposal:
             "rationale": self.rationale,
             "confidence": self.confidence,
             "supporting_evidence": self.supporting_evidence,
+            "case_polarity": self.case_polarity,
+            "base_version": self.base_version,
+            "expected_delta_r": self.expected_delta_r,
+            "source_group_ids": self.source_group_ids,
         }
 
 

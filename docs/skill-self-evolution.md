@@ -380,10 +380,38 @@ LLM 可用于：
 - 自然语言规则生成
 - 冲突语义理解
 
+## GRPO 风格路径相对进化（P0–P2）
+
+在「成功/失败二值」之上，增加同目标多路径的组内相对比较（不训模型权重）：
+
+1. Collector 记录 `PathStep` 工具链，并写入 `task_key`
+2. `HybridReward` 混合启发式 / Judge / 人工，算标量 \(r\)
+3. `build_groups` + `assign_advantages` 得到 \(A_i = r_i - \bar{r}\)
+4. `distill_group` 将高/低优势蒸馏为 Path Preference 规则与正负例提案
+5. `evaluate_acceptance_gates` 以 \(\Delta\bar{r}\) + 无关键回归 + 步数护栏放行
+
+设计说明见 [`docs/superpowers/specs/2026-07-23-skill-grpo-evolution-design.md`](superpowers/specs/2026-07-23-skill-grpo-evolution-design.md)。
+
+```python
+from agent_core.skill_evolution import (
+    HybridReward,
+    build_groups,
+    score_group,
+    distill_group,
+    evaluate_acceptance_gates,
+)
+
+groups = build_groups(traces, min_size=3)
+for g in groups:
+    await score_group(g)
+    proposals = distill_group(g, tau=0.15)
+```
+
 ## 参考资料
 
 - **Trace2Skill**: [Distill Trajectory-Local Lessons into Transferable Agent Skills](https://arxiv.org/abs/xxxx.xxxxx)
 - **EvoSkill**: [Automated Skill Discovery for Multi-Agent Systems](https://arxiv.org/abs/xxxx.xxxxx)
+- **GRPO 映射（本仓库）**: 组内相对优势 → Skill 蒸馏，非权重更新
 
 ## API 参考
 
@@ -394,3 +422,7 @@ LLM 可用于：
 - [`agent_core/skill_evolution/collector.py`](../agent_core/skill_evolution/collector.py)
 - [`agent_core/skill_evolution/agent.py`](../agent_core/skill_evolution/agent.py)
 - [`agent_core/skill_evolution/validation.py`](../agent_core/skill_evolution/validation.py)
+- [`agent_core/skill_evolution/reward.py`](../agent_core/skill_evolution/reward.py)
+- [`agent_core/skill_evolution/grouping.py`](../agent_core/skill_evolution/grouping.py)
+- [`agent_core/skill_evolution/relative_score.py`](../agent_core/skill_evolution/relative_score.py)
+- [`agent_core/skill_evolution/distiller.py`](../agent_core/skill_evolution/distiller.py)
