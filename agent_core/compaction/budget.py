@@ -11,12 +11,35 @@ PROMPT_BUDGET_EXCEEDED = "PROMPT_BUDGET_EXCEEDED"
 DEFAULT_BUDGET_RATIO = 0.95
 
 
-def estimate_prompt_tokens(messages: list[Any], *, system_prompt: str = "") -> int:
-    """Rough prompt token estimate (messages + system prompt)."""
+def estimate_prompt_tokens(
+    messages: list[Any],
+    *,
+    system_prompt: str = "",
+    tool_schemas: list[Any] | None = None,
+) -> int:
+    """Rough prompt token estimate (messages + system prompt + tool schemas)."""
     used = total_tokens(messages)
     if system_prompt:
         used += max(1, len(system_prompt) // 4 + 20)
+    if tool_schemas:
+        used += estimate_tool_tokens(tool_schemas)
     return used
+
+
+def estimate_tool_tokens(tool_schemas: list[Any]) -> int:
+    """Estimate token cost of tool definitions in the provider request."""
+    import json
+    total = 0
+    for t in tool_schemas:
+        if isinstance(t, dict):
+            total += len(json.dumps(t)) // 4 + 5
+        elif hasattr(t, "model_dump"):
+            total += len(json.dumps(t.model_dump())) // 4 + 5
+        elif hasattr(t, "definition"):
+            d = t.definition
+            if hasattr(d, "model_dump"):
+                total += len(json.dumps(d.model_dump())) // 4 + 5
+    return total
 
 
 def prompt_budget_limit(
@@ -49,6 +72,7 @@ def is_prompt_budget_exceeded(
     context_window: int,
     max_output_tokens: int = 1024,
     ratio: float = DEFAULT_BUDGET_RATIO,
+    tool_schemas: list[Any] | None = None,
 ) -> tuple[bool, int, int]:
     """Return ``(exceeded, used_tokens, limit_tokens)``.
 
@@ -63,5 +87,5 @@ def is_prompt_budget_exceeded(
     )
     if limit <= 0:
         return False, 0, 0
-    used = estimate_prompt_tokens(messages, system_prompt=system_prompt)
+    used = estimate_prompt_tokens(messages, system_prompt=system_prompt, tool_schemas=tool_schemas)
     return used >= limit, used, limit

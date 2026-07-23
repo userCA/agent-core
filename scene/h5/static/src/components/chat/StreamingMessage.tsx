@@ -131,8 +131,9 @@ export default function StreamingMessage() {
           </div>
         )}
 
-        {/* Trace card rendered AFTER streaming text — only when non-text blocks exist */}
-        {streamBlocks.some(b => b.type !== 'text') && (
+        {/* Trace card — shows intermediate steps + streaming text during reasoning.
+            Hidden for final text-only turns (text shown in streaming bubble instead). */}
+        {streamBlocks.length > 0 && (currentText.length === 0 || streamBlocks.some(b => b.type !== 'text')) && (
           <div className={`bubble bubble-assistant bubble-trace-only${!isStreaming ? ' fade-out' : ''}`}>
             <div className="msg-content">
               <TraceCard blocks={streamBlocks} />

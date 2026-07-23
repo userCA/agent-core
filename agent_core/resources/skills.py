@@ -91,6 +91,15 @@ def load_skill_from_file(file_path: str, diagnostics: ResourceDiagnostics) -> Sk
     if raw_tools:
         tools = [t.strip() for t in str(raw_tools).split(",") if t.strip()]
 
+    # Parse optional category field
+    category = str(frontmatter.get("category", "")).strip()
+
+    # Parse optional trigger_keywords field (comma-separated)
+    raw_keywords = frontmatter.get("trigger_keywords", "")
+    trigger_keywords: list[str] = []
+    if raw_keywords:
+        trigger_keywords = [k.strip() for k in str(raw_keywords).split(",") if k.strip()]
+
     return Skill(
         name=name,
         description=frontmatter["description"],
@@ -103,4 +112,6 @@ def load_skill_from_file(file_path: str, diagnostics: ResourceDiagnostics) -> Sk
         ),
         disable_model_invocation=frontmatter.get("disable-model-invocation") is True,
         tools=tools,
+        category=category,
+        trigger_keywords=trigger_keywords,
     )

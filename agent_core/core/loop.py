@@ -100,6 +100,7 @@ async def _ensure_prompt_budget(
         context_window=model.context_window,
         max_output_tokens=reserve_out,
         ratio=ratio,
+        tool_schemas=context.tools,
     )
     if not exceeded:
         return True, ""
@@ -119,6 +120,7 @@ async def _ensure_prompt_budget(
                 context_window=model.context_window,
                 max_output_tokens=reserve_out,
                 ratio=ratio,
+                tool_schemas=context.tools,
             )
             if not exceeded:
                 return True, ""
@@ -296,7 +298,24 @@ async def run_agent_loop(
             llm_messages = await config.transform_context(llm_messages, signal)
 
         auth = await config.auth_resolver(config.model.provider)
-        tool_defs = tools_to_provider_format(context.tools)
+        # Catalog mode: when tool count exceeds threshold, only send core
+        # tools + tool_detail to the provider.  The system prompt already
+        # contains the full tool directory.
+        catalog_threshold = config.tool_catalog_threshold
+        if (
+            catalog_threshold is not None
+            and not config.disable_tool_routing
+            and len(context.tools) > catalog_threshold
+        ):
+            from agent_core.session.tool_utils import filter_catalog_tools
+            provider_tools = filter_catalog_tools(context.tools)
+            _log.info(
+                "CATALOG MODE active: %d tools -> %d core tools (threshold=%d)",
+                len(context.tools), len(provider_tools), catalog_threshold,
+            )
+        else:
+            provider_tools = context.tools
+        tool_defs = tools_to_provider_format(provider_tools)
 
         max_retries = config.max_retries
         retry_base_delay = config.retry_base_delay

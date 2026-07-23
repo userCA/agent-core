@@ -33,6 +33,8 @@ class Skill:
     source: SourceInfo
     disable_model_invocation: bool = False
     tools: list[str] = field(default_factory=list)
+    category: str = ""
+    trigger_keywords: list[str] = field(default_factory=list)
 
 
 @dataclass

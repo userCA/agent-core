@@ -45,6 +45,14 @@ class Tool(Protocol):
 
 
 @dataclass
+class ToolCatalogEntry:
+    """Lightweight tool catalog entry for system prompt directory listing."""
+    name: str
+    snippet: str
+    category: str | None = None
+
+
+@dataclass
 class ToolInfo:
     name: str
     description: str
@@ -78,6 +86,26 @@ class ToolRegistry:
 
     def to_definitions(self) -> list[ToolDefinition]:
         return [t.definition for t in self._tools.values()]
+
+    def get_catalog(self) -> list[ToolCatalogEntry]:
+        """Return lightweight catalog entries (name + one-line snippet)."""
+        entries: list[ToolCatalogEntry] = []
+        for t in self._tools.values():
+            d = t.definition
+            snippet = d.prompt_snippet or d.description.split("。")[0].split(".")[0]
+            entries.append(ToolCatalogEntry(
+                name=d.name,
+                snippet=snippet,
+                category=getattr(d, "category", None),
+            ))
+        return entries
+
+    def get_definitions_by_names(self, names: set[str]) -> list[ToolDefinition]:
+        """Return full ToolDefinitions for the given name set."""
+        return [
+            t.definition for name, t in self._tools.items()
+            if name in names
+        ]
 
     def __contains__(self, name: str) -> bool:
         return name in self._tools

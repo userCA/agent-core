@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from agent_core.prompts.guidelines import generate_guidelines
 from agent_core.prompts.snippets import extract_snippet
 from agent_core.resources.types import ContextFile, Skill
-from agent_core.tools.base import ToolDefinition
+from agent_core.tools.base import ToolCatalogEntry, ToolDefinition
 
 
 class SystemPromptSection(BaseModel):
@@ -41,6 +41,8 @@ class SystemPromptBuilder:
         context_files: list[ContextFile] | None = None,
         date: datetime | None = None,
         path_cases_section: str | None = None,
+        catalog_mode: bool = False,
+        catalog_entries: list[ToolCatalogEntry] | None = None,
     ) -> SystemPrompt:
         sections: list[SystemPromptSection] = []
 
@@ -55,22 +57,50 @@ class SystemPromptBuilder:
         # 2. Tools
         tools = active_tools or []
         tool_lines: list[str] = []
-        if tools:
+        if catalog_mode and catalog_entries:
+            # Catalog mode: lightweight directory listing
             tool_lines.append("")
-            tool_lines.append("## Tools")
+            tool_lines.append("## Tool Catalog")
             tool_lines.append("")
             tool_lines.append("You have access to the following tools:")
             tool_lines.append("")
-            for tool in sorted(tools, key=lambda t: t.name):
-                snippet = extract_snippet(tool)
-                tool_lines.append(f"- {tool.name}: {snippet}")
-        sections.append(SystemPromptSection(name="tools", content="\n".join(tool_lines)))
+            for entry in sorted(catalog_entries, key=lambda e: e.name):
+                tool_lines.append(f"- {entry.name}: {entry.snippet}")
+            tool_lines.append("")
+            tool_lines.append(
+                "Use the `tool_detail` tool to get full parameter definitions "
+                "for any tool before calling it."
+            )
+            sections.append(SystemPromptSection(
+                name="tools", content="\n".join(tool_lines),
+            ))
+            # In catalog mode, use active_tools for guidelines only
+            guidelines = generate_guidelines(tools)
+            if guidelines:
+                guideline_text = "\n".join(["", "## Guidelines", ""] + guidelines)
+                sections.append(SystemPromptSection(
+                    name="guidelines", content=guideline_text,
+                ))
+        else:
+            # Normal mode: full tool descriptions
+            if tools:
+                tool_lines.append("")
+                tool_lines.append("## Tools")
+                tool_lines.append("")
+                tool_lines.append("You have access to the following tools:")
+                tool_lines.append("")
+                for tool in sorted(tools, key=lambda t: t.name):
+                    snippet = extract_snippet(tool)
+                    tool_lines.append(f"- {tool.name}: {snippet}")
+            sections.append(SystemPromptSection(name="tools", content="\n".join(tool_lines)))
 
-        # 3. Guidelines
-        guidelines = generate_guidelines(tools)
-        if guidelines:
-            guideline_text = "\n".join(["", "## Guidelines", ""] + guidelines)
-            sections.append(SystemPromptSection(name="guidelines", content=guideline_text))
+            # 3. Guidelines
+            guidelines = generate_guidelines(tools)
+            if guidelines:
+                guideline_text = "\n".join(["", "## Guidelines", ""] + guidelines)
+                sections.append(SystemPromptSection(
+                    name="guidelines", content=guideline_text,
+                ))
 
         # 4. Global tool output guidelines
         tool_guidelines: list[str] = [

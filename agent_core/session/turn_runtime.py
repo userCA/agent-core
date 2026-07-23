@@ -241,6 +241,8 @@ def build_loop_config(
     compact_callback: Any | None,
     tool_result_max_chars: int,
     human_input_gate: Any,
+    tool_catalog_threshold: int | None = None,
+    disable_tool_routing: bool = False,
 ) -> AgentLoopConfig:
     async def auth_resolver(provider_name: str):
         return await auth_source.resolve(provider_name)
@@ -272,6 +274,8 @@ def build_loop_config(
         prepare_next_turn=host.prepare_next_turn,
         flush_pending_writes=host.flush_pending_writes,
         stream_options=clone_stream_options(snapshot.stream_options),
+        tool_catalog_threshold=tool_catalog_threshold,
+        disable_tool_routing=disable_tool_routing,
     )
     config.stream_fn = make_stream_fn(
         provider=provider,

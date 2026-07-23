@@ -135,7 +135,7 @@
     font-size: 12.5px; line-height: 1.65;
     color: var(--ink-muted);
     padding: 5px 4px 8px 2px;
-    white-space: pre-wrap; word-break: break-word;
+    white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere;
 }
 .t-body-inner.t-error { color: var(--danger, #c0392b); }
 

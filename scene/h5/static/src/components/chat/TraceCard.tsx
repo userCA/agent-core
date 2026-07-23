@@ -54,8 +54,8 @@ function renderContentBlock(b: MessageBlock, i: number) {
 }
 
 export default function TraceCard({ blocks }: Props) {
-  // think/tool/skill/delegation/plan are reasoning steps. text is excluded
-  // (rendered by streaming bubble or MessageBubble content card).
+  // think/tool/skill/delegation/plan are reasoning steps.
+  // Text blocks stay as content blocks — rendered in trace-content area (streaming-friendly).
   const isStep = (b: MessageBlock) => {
     if (
       b.type !== 'think' &&
@@ -69,9 +69,8 @@ export default function TraceCard({ blocks }: Props) {
     return b.turnPhase ? b.turnPhase === 'intermediate' : true;
   };
   const stepBlocks = blocks.filter(isStep);
-  // Non-step blocks rendered below the rail.
-  // Text blocks are allowed here — intermediate text from tool_use turns
-  // is passed as reasoning content and shown collapsed in the trace body.
+  // Non-step blocks rendered below the rail (text/widget/video/image).
+  // Intermediate text flows here as streaming content during reasoning.
   const contentBlocks = blocks.filter((b) => !isStep(b));
 
   // Delegation/plan render as full cards; think/tool/skill as compact rail nodes

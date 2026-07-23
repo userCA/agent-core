@@ -91,10 +91,12 @@ export function useSSE() {
   // Track which plan step is currently in_progress for tool-to-step association
   const currentPlanStepRef = useRef<string | null>(null);
   const currentPlanStepTitleRef = useRef<string | null>(null);
+  // Fade-out timeout ref — prevents stale cleanup from interfering with new streams
+  const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     setStreaming, addMessage, setStreamingMessageId,
-    appendText, setStreamBlocks,
+    setStreamBlocks,
     setUsage, resetSteps, enqueuePending, dequeuePending,
     addWidget, addAudio, setHitlRequest,
   } = useChatStore();
@@ -168,6 +170,17 @@ export function useSSE() {
       }
       // Update current phase — blocks created between turns (tool execution) inherit this
       currentTurnPhaseRef.current = phase;
+      if (phase === 'final') {
+        // Final turn: replay this turn's text to streaming bubble
+        let turnText = '';
+        for (let i = turnStartIdxRef.current; i < blocks.length; i++) {
+          if (blocks[i].type === 'text') turnText += blocks[i].content || '';
+        }
+        if (turnText) useChatStore.setState({ currentText: turnText });
+      } else {
+        // Intermediate turn: clear bubble — text stays in TraceCard only
+        useChatStore.setState({ currentText: '' });
+      }
       // Detect error stop reason and show toast (error bubble comes from message.error)
       if (e.stopReason === 'error' && !errorShownRef.current) {
         errorShownRef.current = true;
@@ -390,7 +403,8 @@ export function useSSE() {
           } else {
             blocks.push({ type: 'text', content: cb.content });
           }
-          appendText(cb.content);
+          // Text deltas go to streamBlocks only (rendered in TraceCard).
+          // Streaming bubble receives text only at message.end for final turns.
         }
         // phase=done: text block complete — no-op (content already assembled via deltas)
       }
@@ -495,9 +509,14 @@ export function useSSE() {
         _flushPending();
       }
     }
-  }, [appendText, _flushPending, addWidget, addAudio, setHitlRequest, setUsage, addMessage, setSessionId]);
+  }, [_flushPending, addWidget, addAudio, setHitlRequest, setUsage, addMessage, setSessionId]);
 
   const _runStream = useCallback(async (text: string, files?: File[]) => {
+    // Cancel any pending fade-out cleanup from a previous stream
+    if (fadeTimeoutRef.current) {
+      clearTimeout(fadeTimeoutRef.current);
+      fadeTimeoutRef.current = null;
+    }
     setStreaming(true);
     resetSteps();
     blocksRef.current = [];
@@ -637,15 +656,20 @@ export function useSSE() {
       useToastStore.getState().addToast(msg, 'error');
       addMessage({ id: `err-${Date.now()}`, role: 'error', content: msg, timestamp: Date.now() });
     } finally {
-      setStreaming(false);
       setStreamingMessageId(null);
       abortRef.current = null;
-      // Clear text immediately so finalized message appears without delay
-      useChatStore.setState({ currentText: '' });
-      // Defer remaining cleanup (blocks/widgets/audios) for fade-out
-      setTimeout(() => { resetSteps(); }, 260);
+      // Defer ALL cleanup for fade-out animation (260ms).
+      // Keep isStreaming=true and currentText intact during fade-out so
+      // ChatContainer's hideLastBubble stays true — prevents the finalized
+      // message from flashing before the StreamingMessage fully fades.
+      fadeTimeoutRef.current = setTimeout(() => {
+        fadeTimeoutRef.current = null;
+        setStreaming(false);
+        useChatStore.setState({ currentText: '' });
+        resetSteps();
+      }, 260);
       const pending = dequeuePending();
-      if (pending) { setTimeout(() => _runStream(pending), 100); }
+      if (pending) { setTimeout(() => _runStream(pending), 300); }
     }
   }, [setStreaming, setStreamingMessageId, addMessage, dequeuePending, processEvent, resetSteps, _flushPending]);
 

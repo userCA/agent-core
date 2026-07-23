@@ -87,6 +87,9 @@
 | nextTurn 队列 | ✅ 完成 | idle 用 `next_turn`；abort 保留；steer/follow_up 仅 turn 中允许 |
 | run_when_idle | ✅ 完成 | listener 安全调度，避免 `wait_for_idle` 死锁 |
 | Reentrancy 测试 | ✅ 完成 | `test_harness_reentrancy.py` / resources / lifecycle 首 turn+restore |
+| 工具目录化 (Phase 1) | ✅ 完成 | ToolCatalogTool 元工具 + catalog_mode + tool_catalog_threshold，工具 >30 时仅发送核心 schema |
+| Skill 分组路由 (Phase 2) | ✅ 完成 | category + trigger_keywords + SkillRouter，每轮按用户消息动态过滤 skill |
+| 全口径预算 (Phase 4) | ✅ 完成 | tool schema token 纳入 budget pre-check，防止上下文窗口爆炸 |
 | Session tree / leaf | ❌ 不做 | 与 TS navigateTree 不对齐；文档非目标 |
 | SkillStart/SkillEnd emit | ⏳ planned | 待 `skill()` 公开 API |
 | HarnessSession facade | ⏳ planned | 扩展侧 pending-write 门面（TS 亦未完成） |

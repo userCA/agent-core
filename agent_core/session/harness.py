@@ -85,6 +85,9 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
         tool_result_max_chars: int = 4000,
         steering_mode: QueueMode = "one-at-a-time",
         followup_mode: QueueMode = "one-at-a-time",
+        tool_catalog_threshold: int | None = None,
+        disable_tool_routing: bool = False,
+        skill_routing: bool = False,
     ) -> None:
         self.state: AgentState = initial_state or AgentState()
         self._provider = provider
@@ -102,6 +105,9 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
         self._retry_base_delay = retry_base_delay
         self._retry_max_delay = retry_max_delay
         self._tool_result_max_chars = tool_result_max_chars
+        self._tool_catalog_threshold = tool_catalog_threshold
+        self._disable_tool_routing = disable_tool_routing
+        self._skill_routing = skill_routing
         if convert_to_llm is not None:
             self._convert_to_llm = convert_to_llm
         elif hasattr(provider, "create_message_converter"):
@@ -442,6 +448,8 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
                 compact_callback=compact_cb,
                 tool_result_max_chars=self._tool_result_max_chars,
                 human_input_gate=self._human_input_gate,
+                tool_catalog_threshold=self._tool_catalog_threshold,
+                disable_tool_routing=self._disable_tool_routing,
             )
 
             before_agent_start = chain_before_agent_start_hooks(self.hooks)
@@ -459,6 +467,52 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
             from agent_core.session.tool_utils import filter_active_tools
 
             context.tools = filter_active_tools(self.state.tools, self._active_tool_names)
+
+            # Skill routing: filter skills section in system_prompt per user message
+            if self._skill_routing and new_messages:
+                all_skills = self._resources.get("skills", [])
+                if all_skills:
+                    from agent_core.routing.skill_router import route_skills
+                    user_text = new_messages[0].content[0].text if new_messages[0].content else ""
+                    active_skills = route_skills(user_text, all_skills)
+                    active_names = {s.name for s in active_skills}
+                    # Rebuild <available_skills> section with filtered skills
+                    import re as _re
+                    def _replace_skills(match: Any) -> str:
+                        lines = ["<available_skills>"]
+                        for s in active_skills:
+                            if not s.disable_model_invocation:
+                                lines.append(f'  <skill name="{s.name}">{s.description}</skill>')
+                        lines.append("</available_skills>")
+                        return "\n".join(lines)
+                    context.system_prompt = _re.sub(
+                        r"<available_skills>.*?</available_skills>",
+                        _replace_skills,
+                        context.system_prompt,
+                        flags=_re.DOTALL,
+                    )
+
+            # Catalog mode: register tool_detail meta-tool and ensure it's always available
+            threshold = self._tool_catalog_threshold
+            if (
+                threshold is not None
+                and not self._disable_tool_routing
+                and len(context.tools) > threshold
+                and self._tool_registry is not None
+            ):
+                from agent_core.tools.tool_catalog import ToolCatalogTool
+                from agent_core.session.tool_utils import resolve_tool_name
+
+                catalog_tool = ToolCatalogTool(self._tool_registry)
+                # Register in the tool registry so the executor can find it
+                if self._tool_registry.get("tool_detail") is None:
+                    self._tool_registry.register(catalog_tool)
+                # Inject into context.tools if not already present
+                tool_names_in_ctx = {
+                    resolve_tool_name(t, i) for i, t in enumerate(context.tools)
+                }
+                if "tool_detail" not in tool_names_in_ctx:
+                    context.tools.append(catalog_tool)
 
             async def _emit_sink(evt: AgentEvent) -> None:
                 nonlocal last_assistant

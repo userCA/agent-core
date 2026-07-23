@@ -443,6 +443,15 @@ class ChatAssistant:
             "transform_context": _transform_context,
             "max_turns": 20,
         }
+
+        # Phase 1/2 tool & skill routing — controlled via env vars
+        _catalog_threshold = os.environ.get("TOOL_CATALOG_THRESHOLD")
+        if _catalog_threshold:
+            harness_kwargs["tool_catalog_threshold"] = int(_catalog_threshold)
+        if os.environ.get("DISABLE_TOOL_ROUTING", "0").strip().lower() in ("1", "true", "yes"):
+            harness_kwargs["disable_tool_routing"] = True
+        if os.environ.get("ENABLE_SKILL_ROUTING", "0").strip().lower() in ("1", "true", "yes"):
+            harness_kwargs["skill_routing"] = True
         if compaction_enabled():
             from agent_core.compaction import create_default_compactor
 

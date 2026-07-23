@@ -1,5 +1,69 @@
 # Changelog
 
+## 2026-07-23 18:10 — 中间文本流式展示在推理卡片内容区 + 长 URL 溢出修复
+
+**需求**：中间确认文本（如“好的，我来生成...”）应在推理卡片底部流式展示，而不是作为独立流式气泡。
+
+**修复**：
+- `useSSE.ts`：text delta 不再调用 `appendText`，文本仅进入 `streamBlocks`；`message.end(final)` 时回放文本到流式气泡；移除 `appendText` 引用
+- `TraceCard.tsx`：恢复 text block 为内容块（非 step），渲染在 `trace-content` 区域，支持流式展示
+- `StreamingMessage.tsx`：TraceCard 渲染守卫扩展，当 `currentText` 为空且有文本块时也显示（覆盖纯文本中间轮次）
+- `TraceCard.css`：`.t-body-inner` 改用 `word-break: break-all` + `overflow-wrap: anywhere`，修复长 URL 溢出
+
+---
+
+## 2026-07-23 17:45 — 修复流式消息过渡闪烁 + 中间文本仅在推理卡片展示
+
+**问题**：
+1. 推理完成后，最终结果卡片会短暂闪烁出现又消失，过渡不平滑
+2. 中间过程的确认文本（如“好的，我来生成...”）同时出现在流式气泡和推理卡片中
+
+**根因**：
+1. `_runStream` 的 `finally` 块中，`setStreaming(false)` 和 `currentText=''` 立即执行，导致 `hideLastBubble` 立刻变为 `false`，最终消息在 fade-out 动画未完成时就出现
+2. 中间阶段的文本通过 `appendText` 进入 `currentText`（流式气泡），同时作为 text block 进入 `streamBlocks`（TraceCard）
+
+**修复**：
+- `useSSE.ts`：`message.start` 和 `message.end`(intermediate) 时清除 `currentText`，中间文本不进入流式气泡
+- `useSSE.ts`：`finally` 块延迟全部清理（`setStreaming`、`currentText`、`resetSteps`）至 fade-out 动画结束后，确保过渡平滑
+- `useSSE.ts`：新增 `fadeTimeoutRef` 防止旧流清理干扰新流
+- `TraceCard.tsx`：中间阶段 text block 作为推理步骤（isStep）渲染，标签为“说明”
+- `StreamingMessage.tsx`：TraceCard 接收完整 streamBlocks，不做中间文本过滤
+
+**影响范围**：StreamingMessage、TraceCard、useSSE、ChatContainer
+
+---
+
+## 2026-07-23 — 大规模 Skill/Tool 架构治理（Phase 1 + Phase 2 + Phase 4）
+
+**需求**：当 skill/tool 数量达到 100+ 时，防止上下文窗口爆炸并保证工具选择精准度。
+
+**方案**：四阶段渐进式治理，每阶段独立可启用、向后兼容。
+
+**Phase 1 — 工具目录化**：
+- `ToolRegistry` 新增 `get_catalog()` 和 `get_definitions_by_names()` 方法
+- 新增 `ToolCatalogTool` 元工具 (`tools/tool_catalog.py`)，LLM 可按需查询任意工具的完整 schema
+- `SystemPromptBuilder` 支持 `catalog_mode`，工具段落仅渲染 name + 一句话目录
+- `AgentLoopConfig` 新增 `tool_catalog_threshold` 和 `disable_tool_routing` 字段
+- agent loop 在工具数超过阈值时，仅发送核心工具 + tool_detail 给 provider
+- **修复**：`tool_detail` 元工具同时注册到 `ToolRegistry`，解决工具执行器找不到 tool_detail 的问题
+
+**Phase 2 — Skill 分组 + 按需激活**：
+- `Skill` dataclass 新增 `category` 和 `trigger_keywords` 字段
+- SKILL.md frontmatter 支持解析新字段
+- 新增 `routing/skill_router.py`：关键词匹配 + 无 keywords 始终激活 + 交叉验证
+- Harness 集成：每轮按用户消息过滤 skill，动态替换 `<available_skills>`
+
+**Phase 4 — 全口径上下文预算**：
+- `estimate_prompt_tokens()` 新增 `tool_schemas` 参数
+- `estimate_tool_tokens()` 新增函数
+- agent loop 的 budget pre-check 将 tool schemas 纳入预算计算
+
+**H5 场景集成**：
+- `ChatAssistant.create()` 通过环境变量 `TOOL_CATALOG_THRESHOLD`、`ENABLE_SKILL_ROUTING`、`DISABLE_TOOL_ROUTING` 控制新功能
+- 实测验证：37 工具 → 7 核心工具，LLM 通过 catalog 识别工具 + tool_detail 查询 schema + 成功调用
+
+**影响面**：所有新参数有默认值，现有场景行为完全不变。通过 `tool_catalog_threshold` 和 `skill_routing` 显式启用。
+
 ## 2026-07-21 — Extension 系统防御性修复 + 中间文本收纳优化
 
 **问题**：H5 场景启动后多个 Extension 因缺少方法实现而报错，导致功能异常。

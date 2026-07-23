@@ -94,3 +94,8 @@ class AgentLoopConfig:
     prepare_next_turn: PrepareNextTurn | None = None
     flush_pending_writes: Callable[[], Awaitable[None]] | None = None
     stream_options: dict[str, Any] | None = None
+    # Tool catalog routing: when tool count exceeds this threshold,
+    # only core tools + tool_detail are sent to the provider.
+    tool_catalog_threshold: int | None = None
+    # Escape hatch: disable all tool routing, pass everything to LLM.
+    disable_tool_routing: bool = False
