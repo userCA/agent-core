@@ -271,7 +271,7 @@ class ChatAssistant:
             from agent_core.providers.types import Model
 
             provider = OpenAIProvider(
-                base_url=os.environ.get("AGNES_BASE_URL", "https://agnes-ai.cn/v1"),
+                base_url=os.environ.get("AGNES_BASE_URL", "https://apihub.agnes-ai.com/v1"),
                 provider_name="agnes",
                 models=[
                     Model(

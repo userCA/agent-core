@@ -15,7 +15,7 @@ from agent_core.tools.base import Tool, ToolContext, ToolDefinition, ToolResult
 
 logger = logging.getLogger(__name__)
 
-_AGNES_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://agnes-ai.cn/v1")
+_AGNES_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://apihub.agnes-ai.com/v1")
 API_BASE = f"{_AGNES_BASE_URL.rstrip('/')}/videos"
 API_KEY = os.environ.get("AGNES_API_KEY", "")
 REQUEST_TIMEOUT = 30

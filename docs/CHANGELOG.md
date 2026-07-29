@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-29 20:31 — Agnes API 端点恢复
+
+**变更**：Agnes 默认端点恢复为 `https://apihub.agnes-ai.com/v1`，保留 `AGNES_BASE_URL` 环境变量统一配置机制。
+
+**影响面**：4 个文件的默认值 + `.env`
+
+---
+
 ## 2026-07-29 19:37 — Provider URL 统一收敛至环境变量
 
 **问题**：MiniMax、DeepSeek、Agnes 的 API 地址硬编码在多个 scene 文件中，域名变更需逐一修改。
