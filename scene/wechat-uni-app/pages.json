@@ -1,0 +1,82 @@
+{
+  "pages": [
+    {
+      "path": "pages/chat/index",
+      "style": {
+        "navigationBarTitleText": "咪兔",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/history/index",
+      "style": {
+        "navigationBarTitleText": "历史"
+      }
+    },
+    {
+      "path": "pages/companion/index",
+      "style": {
+        "navigationBarTitleText": "伴侣"
+      }
+    },
+    {
+      "path": "pages/skills/index",
+      "style": {
+        "navigationBarTitleText": "技能"
+      }
+    },
+    {
+      "path": "pages/settings/index",
+      "style": {
+        "navigationBarTitleText": "设置"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "咪兔",
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "backgroundColor": "#F5F5F5",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#333333",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/chat/index",
+        "text": "对话",
+        "iconPath": "static/tab-chat.png",
+        "selectedIconPath": "static/tab-chat-active.png"
+      },
+      {
+        "pagePath": "pages/history/index",
+        "text": "历史",
+        "iconPath": "static/tab-history.png",
+        "selectedIconPath": "static/tab-history-active.png"
+      },
+      {
+        "pagePath": "pages/companion/index",
+        "text": "伴侣",
+        "iconPath": "static/tab-chat.png",
+        "selectedIconPath": "static/tab-chat-active.png"
+      },
+      {
+        "pagePath": "pages/settings/index",
+        "text": "设置",
+        "iconPath": "static/tab-history.png",
+        "selectedIconPath": "static/tab-history-active.png"
+      }
+    ]
+  },
+  "uniIdRouter": {}
+}
