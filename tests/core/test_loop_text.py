@@ -115,6 +115,12 @@ def test_run_agent_loop_emit_sink():
     assert types[-1] == "AgentEnd"
     assert "TurnStart" in types
     assert "TurnEnd" in types
+    # run_id is auto-generated and present in AgentStart event
+    agent_start = next(e for e in collected if isinstance(e, AgentStart))
+    assert agent_start.run_id.startswith("run-")
+    # session_id is propagated to config
+    assert config.session_id == ""  # not set in this test
+    assert config.run_id == agent_start.run_id
     text_updates = [
         e for e in collected if isinstance(e, MessageUpdate) and e.delta.type == "text_delta"
     ]

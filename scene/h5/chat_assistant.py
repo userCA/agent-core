@@ -508,6 +508,13 @@ class ChatAssistant:
             state_store=state_store,
         )
         await assistant.start()
+
+        # Debug replay recorder — optional, enabled via ENABLE_RUN_REPLAY=1
+        from scene.http_sse.replay import replay_enabled, RunReplayRecorder
+        if replay_enabled():
+            recorder = RunReplayRecorder(session_id=resolved_session_id)
+            assistant.on_event(recorder.handle_event)
+
         return assistant
 
     @property

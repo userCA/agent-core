@@ -99,3 +99,6 @@ class AgentLoopConfig:
     tool_catalog_threshold: int | None = None
     # Escape hatch: disable all tool routing, pass everything to LLM.
     disable_tool_routing: bool = False
+    # Observability identity fields; set by harness/scene layer.
+    session_id: str = ""
+    run_id: str = ""

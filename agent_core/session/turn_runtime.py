@@ -276,6 +276,7 @@ def build_loop_config(
         stream_options=clone_stream_options(snapshot.stream_options),
         tool_catalog_threshold=tool_catalog_threshold,
         disable_tool_routing=disable_tool_routing,
+        session_id=host.session_id,
     )
     config.stream_fn = make_stream_fn(
         provider=provider,

@@ -90,6 +90,34 @@
 | 工具目录化 (Phase 1) | ✅ 完成 | ToolCatalogTool 元工具 + catalog_mode + tool_catalog_threshold，工具 >30 时仅发送核心 schema |
 | Skill 分组路由 (Phase 2) | ✅ 完成 | category + trigger_keywords + SkillRouter，每轮按用户消息动态过滤 skill |
 | 全口径预算 (Phase 4) | ✅ 完成 | tool schema token 纳入 budget pre-check，防止上下文窗口爆炸 |
+| 结构化日志 | ✅ 完成 | `ContextFormatter` 自动注入 `session_id`/`run_id`/`turn_index`，http_sse + H5 场景均已接入 |
+| LLM Trace 接入 | ✅ 完成 | `trace_llm_call` 包裹所有 LLM 调用点，捕获 usage/latency/stop_reason |
+| Run/Turn OTEL Span | ✅ 完成 | `observe()` 创建 `agent.run` span；`trace_turn()` 创建 `agent.turn` span |
+| run_id 生成 | ✅ 完成 | `AgentStart` 事件携带 `run_id`，可跨日志/事件流/replay 文件关联 |
+| 调试回放 | ✅ 完成 | `RunReplayRecorder`（`ENABLE_RUN_REPLAY=1`）将 run 事件摘要落本地 JSON，http_sse + H5 场景均已接入 |
+| OTEL Exporter | ✅ 完成 | `configure_otel_exporter()` 支持 console/otlp，http_sse + H5 场景 lifespan 均已配置 |
 | Session tree / leaf | ❌ 不做 | 与 TS navigateTree 不对齐；文档非目标 |
 | SkillStart/SkillEnd emit | ⏳ planned | 待 `skill()` 公开 API |
 | HarnessSession facade | ⏳ planned | 扩展侧 pending-write 门面（TS 亦未完成） |
+
+## 微信小程序（uni-app）功能
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| UID 登录 | 🟢 P0 已完成 | UID 输入 + 快速登录 + 持久化 |
+| 流式对话 | 🟢 P0 已完成 | chunked SSE + 分片解析 + UTF-8 跨 chunk 安全解码 |
+| 消息气泡 | 🟢 P0 已完成 | user/assistant/error 三种样式 + 推理步骤卡片 |
+| 流式中止 | 🟢 P0 已完成 | 点击中止按钮停止流式输出 |
+| 会话历史 | 🟢 P1 已完成 | 会话列表 + 搜索 + 切换 + 删除 |
+| HITL 人工干预 | 🟢 P1 已完成 | human_input 表单（text/textarea/select）+ 提交 |
+| 图片上传 | 🟢 P1 已完成 | 相册/拍摄选图 + uni.uploadFile + 发送 |
+| 伴侣养成 | 🟢 P1 已完成 | 品种/稀有度/属性/亲密度/怪癖/外观 + 互动按钮 |
+| 技能管理 | 🟢 P2 已完成 | 技能列表 + 开关持久化 + 创建/导入 + 进化面板 |
+| Persona 切换 | 🟢 P2 已完成 | 专家角色列表 + 切换影响后续对话 |
+| 主题切换 | 🟢 P2 已完成 | 亮色/暗色 + 持久化 + 系统主题检测 + 6 页面 class 绑定 |
+| 认证设置 | 🟢 P2 已完成 | AuthPanel 弹窗 + 保存/清除 |
+| Markdown 渲染 | 🟢 P3 已完成 | 轻量正则解析→rich-text，代码块/标题/列表/链接，含 XSS 防护 |
+| 语音输入 | 🟢 P3 已完成 | RecorderManager 麦克风按钮 + HITL audio_record 字段 |
+| 水墨视觉 Token | 🟢 P3 已完成 | 亮色/暗色 CSS 变量体系 + 安全区域适配 |
+| 伴侣心情可视化 | 🟢 P3 已完成 | 心情角标 emoji + 心情卡片（9 种情绪映射） |
+| 消息分页加载 | 🟢 P3 已完成 | 50 条/页窗口化 + 滚动顶自动加载更多 |

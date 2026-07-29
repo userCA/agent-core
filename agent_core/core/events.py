@@ -36,6 +36,7 @@ class _EventBase(BaseModel):
 
 class AgentStart(_EventBase):
     type: Literal["agent_start"] = "agent_start"
+    run_id: str = ""
 
 
 class AgentEnd(_EventBase):

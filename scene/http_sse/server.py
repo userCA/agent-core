@@ -54,6 +54,14 @@ manager = SessionManager(cwd=_PROJECT_ROOT, session_store_dir=os.path.join(_PROJ
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Enable structured logging with context vars (session_id/run_id/turn)
+    from agent_core.logging_config import configure_logging
+    configure_logging(level=os.environ.get("AGENT_CORE_LOG_LEVEL", "INFO"))
+
+    # Optional OTEL exporter (console or otlp/Jaeger) — no-op if not configured
+    from agent_core.observability import configure_otel_exporter
+    configure_otel_exporter()
+
     await manager.start()
 
     # Configure companion naming provider (reuses same auth as chat)

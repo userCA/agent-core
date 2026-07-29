@@ -1,5 +1,115 @@
 # Changelog
 
+## 2026-07-29 17:39 — H5 场景可观测性补齐
+
+**问题**：H5 场景有独立的 `server.py`/`chat_assistant.py`，未接入可观测性基础设施，导致结构化日志（`ContextFormatter`）、OTEL exporter、调试回放（`RunReplayRecorder`）在 H5 场景均不生效。
+
+**修复**：
+- `scene/h5/server.py` lifespan 添加 `configure_logging()` + `configure_otel_exporter()` 调用，与 http_sse 对齐
+- `scene/h5/chat_assistant.py` `create()` 添加 `RunReplayRecorder` 订阅（`ENABLE_RUN_REPLAY=1` 时启用）
+
+**影响面**：`scene/h5/server.py`、`scene/h5/chat_assistant.py`，复用已有 `agent_core/logging_config.py` 和 `scene/http_sse/replay.py`，无新增依赖
+
+---
+
+## 2026-07-29 17:14 — 可观测性与调试能力（轨 A）
+
+**需求**：解决“调试看不清”痛点——一次失败聊天难以定位第几 turn、哪个 tool/LLM。
+
+**方案**：
+- **结构化日志**：`logging_config.py` 新增 `ContextFormatter` 与 `set_log_context()`，基于 `contextvars` 自动在日志中注入 `session_id`/`run_id`/`turn_index`，`grep run=xxx` 即可串起整条调用链
+- **LLM Trace 接入**：`observability.py` 的 `trace_llm_call` 包裹 `loop.py` 所有 LLM 调用点（首次 + 重试 + 强制总结），捕获 `input_tokens`/`output_tokens`/`latency_ms`/`stop_reason`
+- **OTEL Span 层级**：`observe()` 创建 `agent.run` 顶层 span；新增 `trace_turn()` 创建 `agent.turn` span；工具 span 通过已有 hook 自动父子关联
+- **run_id 统一标识**：`AgentLoopConfig` 新增 `session_id`/`run_id` 字段，`AgentStart` 事件携带 `run_id`，跨日志/事件流/replay 文件均可关联
+- **调试回放**：`scene/http_sse/replay.py` 新增 `RunReplayRecorder`，环境变量 `ENABLE_RUN_REPLAY=1` 启用，每次 run 的事件摘要（turn/tool/usage/stop_reason）落本地 JSON 文件
+- **OTEL Exporter**：`configure_otel_exporter()` 支持 `OTEL_EXPORTER=console` 或 `otlp`，在 server lifespan 自动配置
+
+**影响面**：
+- `agent_core/logging_config.py`、`agent_core/observability.py`、`agent_core/core/loop.py`、`agent_core/core/context.py`、`agent_core/core/events.py`、`agent_core/session/turn_runtime.py`、`scene/http_sse/chat_assistant.py`、`scene/http_sse/server.py`
+- 新增 `scene/http_sse/replay.py`、`tests/core/test_observability.py`
+- OTEL 保持可选依赖，未安装时全部 no-op
+
+---
+
+## 2026-07-29 12:39 — H5→微信小程序（uni-app）P3 体验与边界能力
+
+**需求**：P3 阶段——Markdown 渲染、语音输入、水墨视觉 Token、伴侣心情可视化、长会话性能优化。
+
+**方案**：
+- 新增 `utils/markdown.js`：轻量正则 MD→HTML 解析器，支持代码块/标题/加粗/斜体/列表/链接/分隔线，含 XSS 转义 + 链接 URL 协议过滤
+- chat 页面：assistant 消息通过 `<rich-text>` 渲染 Markdown，Widget 工具调用占位卡片
+- 语音输入：`RecorderManager` 麦克风按钮集成主输入栏 + HITL `audio_record` 字段类型
+- App.vue：水墨风 CSS Token 体系（亮色/暗色两套变量），安全区域适配
+- 伴侣页：心情角标 emoji + 心情卡片（9 种情绪映射）+ 双层空值降级
+- 消息窗口分页：50 条/页，滚动到顶部自动加载更多
+
+**Warning 修复**：
+- 6 个页面绑定 `theme-dark` class，暗色主题切换生效
+- Markdown 链接 URL 增加 `javascript:/data:/vbscript:` 协议过滤 + `"` 转义
+- RecorderManager 回调增加 `_pageAlive` 守卫 + `onUnload` 生命周期清理
+- 图片上传失败时 `catch` 块清理 `uploadedImages` 数组
+
+**影响面**：仅小程序前端新增/修改代码，不影响 H5 前端和后端
+
+---
+
+## 2026-07-28 22:00 — H5→微信小程序（uni-app）P2 技能/Persona/主题
+
+**需求**：P2 阶段——技能开关与进化、Persona 切换、主题切换、认证设置、模型选择。
+
+**方案**：
+- API client 扩展：`fetchCapabilities`、`importSkill`、`fetchPersonas`、进化系列接口（summary/analyze/proposals/accept/reject/audit）
+- session store 扩展：`personas` 列表、`setPersonaId`、`loadPersonas`
+- skill store 新建：技能列表/工具列表、开关状态持久化（uni storage）、进化分析/提议/审计
+- theme store 新建：亮色/暗色主题切换、uni storage 持久化、系统主题检测
+- skills 页面：搜索、卡片式技能列表、开关 switch、创建弹窗、.md 导入（chooseMessageFile）、进化面板（traces/analyze/proposals/diff/accept/reject/audit）、工具列表分页
+- settings 页面：用户资料卡片、认证弹窗（AuthPanel）、Persona 列表切换、主题开关、模型选择、退出登录
+- pages.json 更新：tabBar 添加设置入口
+
+**影响面**：仅小程序前端新增代码，不影响 H5 前端和后端
+
+---
+
+## 2026-07-28 20:01 — H5→微信小程序（uni-app）P1 会话/HITL/媒体/伴侣
+
+**需求**：P1 阶段——历史会话切换/删除、HITL 提交、选图上传、伴侣基础信息可读。
+
+**方案**：
+- session store 扩展：会话列表加载/删除、`loadSessions` / `deleteSession` / `removeSession`
+- chat store 扩展：`loadMessages` 加载历史消息、`submitHitl` 提交人工输入
+- API client 扩展：`uploadFile`（`uni.uploadFile`）、`fetchCompanion`、`hatchCompanion`
+- companion store 新建：`bones`/`emotion`/`reveal`/`reset`，SSE companion 事件接口
+- history 页面：搜索、日期分组、切换会话加载消息、删除确认
+- chat 页面：HITL 表单卡片（text/textarea/select）、图片上传按钮（`uni.chooseMedia`）
+- companion 页面：品种/稀有度/属性/亲密度进度条/怪癖/外观/互动按钮
+- pages.json 更新：tabBar 添加伴侣入口
+
+**影响面**：仅小程序前端新增代码，不影响 H5 前端和后端
+
+---
+
+## 2026-07-28 18:30 — H5→微信小程序（uni-app）P0 迁移落地
+
+**需求**：将 H5 核心对话功能移植到微信小程序，复用后端 API，不改造后端。
+
+**方案**：
+- 使用 uni-app + Vue 3 框架，Vue 3 `reactive` 替代 Zustand 状态管理
+- `wx.request` + `enableChunked` + `onChunkReceived` 替代 `fetch` + `ReadableStream` 实现 SSE 流式接收
+- SSE 解析器支持 UTF-8 多字节字符跨 chunk 边界的安全解码
+
+**改动范围**：
+- 新增 `scene/wechat-uni-app/api/`：`config.js`（API_BASE 配置）、`sse-parser.js`（SSE 分片解析器）、`client.js`（HTTP 客户端 + chunked SSE）
+- 新增 `scene/wechat-uni-app/stores/`：`session.js`（认证状态）、`chat.js`（消息/流式/SSE 事件处理）
+- 新增 `pages/login/index.vue`（UID 登录）、`pages/chat/index.vue`（流式对话页面）
+- 更新 `App.vue`：启动鉴权检查 + 未登录自动跳转
+- 更新 `pages.json`：6 页面 + tabBar（对话/历史）
+- 更新 `manifest.json`：应用名称“咪兔”
+- 占位页面：history、companion、skills、settings
+
+**影响面**：仅小程序前端新增代码，不影响 H5 前端和后端
+
+---
+
 ## 2026-07-23 18:10 — 中间文本流式展示在推理卡片内容区 + 长 URL 溢出修复
 
 **需求**：中间确认文本（如“好的，我来生成...”）应在推理卡片底部流式展示，而不是作为独立流式气泡。
