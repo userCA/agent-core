@@ -1,10 +1,13 @@
 # Changelog
 
-## 2026-07-29 19:22 — Agnes API 地址更新
+## 2026-07-29 19:25 — Agnes API 地址更新 + 统一配置
 
-**变更**：Agnes 服务域名从 `apihub.agnes-ai.com` 更换为 `agnes-ai.cn`。
+**变更**：
+- Agnes 服务域名从 `apihub.agnes-ai.com` 更换为 `agnes-ai.cn`
+- 抽取 `AGNES_BASE_URL` 环境变量统一配置，4 处硬编码改为 `os.environ.get("AGNES_BASE_URL", "https://agnes-ai.cn/v1")`，将来只需改 `.env` 即可
 
 **影响面**：
+- `.env`：新增 `AGNES_BASE_URL`
 - `scene/h5/chat_assistant.py`、`scene/http_sse/chat_assistant.py`：provider base_url
 - `agent_core/tools/agnes_image_tool.py`：图片生成 API
 - `agent_core/tools/agnes_video_tool.py`：视频生成 API

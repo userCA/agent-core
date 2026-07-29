@@ -11,7 +11,8 @@ import httpx
 from agent_core.core.content import TextContent
 from agent_core.tools.base import Tool, ToolContext, ToolDefinition, ToolResult
 
-API_BASE = "https://agnes-ai.cn/v1/images/generations"
+_AGNES_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://agnes-ai.cn/v1")
+API_BASE = f"{_AGNES_BASE_URL.rstrip('/')}/images/generations"
 API_KEY = os.environ.get("AGNES_API_KEY", "")
 TIMEOUT = 120
 
