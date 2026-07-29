@@ -111,7 +111,7 @@ class ChatAssistant:
             from agent_core.providers.types import Model
 
             provider = OpenAIProvider(
-                base_url="https://api.minimax.chat/v1",
+                base_url=os.environ.get("MINIMAX_BASE_URL", "https://api.minimax.chat/v1"),
                 provider_name="minimax",
                 models=[
                     Model(

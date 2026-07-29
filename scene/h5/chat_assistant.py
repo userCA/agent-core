@@ -256,7 +256,7 @@ class ChatAssistant:
             from agent_core.providers.types import Model
 
             provider = OpenAIProvider(
-                base_url="https://api.minimax.chat/v1",
+                base_url=os.environ.get("MINIMAX_BASE_URL", "https://api.minimax.chat/v1"),
                 provider_name="minimax",
                 models=[
                     Model(
@@ -286,7 +286,7 @@ class ChatAssistant:
             from agent_core.providers.types import Model
 
             provider = OpenAIProvider(
-                base_url="https://api.deepseek.com",
+                base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
                 provider_name="deepseek",
                 models=[
                     Model(

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-07-29 19:37 — Provider URL 统一收敛至环境变量
+
+**问题**：MiniMax、DeepSeek、Agnes 的 API 地址硬编码在多个 scene 文件中，域名变更需逐一修改。
+
+**修复**：抽取 `MINIMAX_BASE_URL`、`DEEPSEEK_BASE_URL`、`AGNES_BASE_URL` 三个环境变量，全部 provider 初始化改为 `os.environ.get("XXX_BASE_URL", 默认值)` 模式。将来更换域名只需修改 `.env` 文件。
+
+**影响面**：
+- `scene/h5/{chat_assistant,server}.py`
+- `scene/http_sse/{chat_assistant,server}.py`
+- `scene/voice_ws/chat_assistant.py`
+- `scene/cli/chat_assistant.py`
+- `agent_core/tools/agnes_{image,video}_tool.py`
+
+---
+
 ## 2026-07-29 19:25 — Agnes API 地址更新 + 统一配置
 
 **变更**：

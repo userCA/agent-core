@@ -73,7 +73,7 @@ async def lifespan(app: FastAPI):
 
         auth = await AuthSource.env("MINIMAX_API_KEY").resolve("minimax")
         provider = OpenAIProvider(
-            base_url="https://api.minimax.chat/v1",
+            base_url=os.environ.get("MINIMAX_BASE_URL", "https://api.minimax.chat/v1"),
             provider_name="minimax",
             models=[
                 Model(provider="minimax", id="minimax-m2.7",
