@@ -15,7 +15,7 @@ from agent_core.tools.base import Tool, ToolContext, ToolDefinition, ToolResult
 
 logger = logging.getLogger(__name__)
 
-API_BASE = "https://apihub.agnes-ai.com/v1/videos"
+API_BASE = "https://agnes-ai.cn/v1/videos"
 API_KEY = os.environ.get("AGNES_API_KEY", "")
 REQUEST_TIMEOUT = 30
 QUICK_POLL_SECONDS = 30   # quick poll window before returning task_id

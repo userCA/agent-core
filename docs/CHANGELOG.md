@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-29 19:22 — Agnes API 地址更新
+
+**变更**：Agnes 服务域名从 `apihub.agnes-ai.com` 更换为 `agnes-ai.cn`。
+
+**影响面**：
+- `scene/h5/chat_assistant.py`、`scene/http_sse/chat_assistant.py`：provider base_url
+- `agent_core/tools/agnes_image_tool.py`：图片生成 API
+- `agent_core/tools/agnes_video_tool.py`：视频生成 API
+
+---
+
 ## 2026-07-29 17:39 — H5 场景可观测性补齐
 
 **问题**：H5 场景有独立的 `server.py`/`chat_assistant.py`，未接入可观测性基础设施，导致结构化日志（`ContextFormatter`）、OTEL exporter、调试回放（`RunReplayRecorder`）在 H5 场景均不生效。
