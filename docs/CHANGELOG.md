@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-07-30 19:35 — 修复 HITL 重跑崩溃 + 短剧流水线 prompt 优化
+
+**问题**：用户提交 HITL 表单后，服务崩溃显示“服务暂时不可用”。
+
+**根因**：`tool_runner.py` 第 148 行 HITL 收到用户输入后重跑工具，但 `_run_single_tool` 没有 try-except 包裹。如果工具再次抛出 `RequiresHumanInput`（如 `confirm` 工具），异常直接传播导致崩溃。
+
+**修复**：
+- `agent_core/core/tool_runner.py`：HITL 重跑包裹 try-except，二次 `RequiresHumanInput` 返回错误结果而非崩溃
+- `agent_core/tools/short_drama_pipeline.py`：`prompt_guidelines` 明确禁止 HITL 后再调 `confirm`
+
+**影响面**：
+- `agent_core/core/tool_runner.py`：所有 HITL 工具的重跑安全性
+- `agent_core/tools/short_drama_pipeline.py`：prompt 指南
+
 ## 2026-07-30 16:09 — 修复 DeepSeek 模型不支持图片导致 400 错误 + 图片占位提示
 
 **问题**：用户使用 DeepSeek V4 Flash 模型时上传图片，API 返回 400 错误（`unknown variant 'image_url', expected 'text'`），前端显示“服务暂时不可用”。

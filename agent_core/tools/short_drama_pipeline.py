@@ -335,7 +335,8 @@ class ShortDramaPipelineTool:
                 "先从自然语言提取 title、characters、shots（≤8 镜），再调用本工具。",
                 "characters 中 anchor_urls 可留空；工具会通过 HITL 让用户上传锚点图后自动继续。",
                 "禁止在无用户锚点的情况下用 generate_image 发明新角色脸。",
-                "HITL 返回锚点图后，系统会自动续跑，无需用户再说「继续」。",
+                "HITL 返回锚点图后，系统会自动续跑本工具，无需用户再说「继续」。",
+                "重要：HITL 完成后不要再调用 confirm 工具，直接用 create_short_drama 继续执行即可。",
             ],
             timeout_seconds=PIPELINE_TIMEOUT_SECONDS,
         )

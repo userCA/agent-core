@@ -145,17 +145,26 @@ async def execute_tools(
                     values = await future
                     if isinstance(tc.arguments, dict):
                         tc.arguments.update(values)
-                    _, result, is_error = await _run_single_tool(
-                        tc,
-                        registry,
-                        before,
-                        after,
-                        signal,
-                        mutation_queue,
-                        _on_update,
-                        tool_timeout=tool_timeout,
-                        duplicate_guard=duplicate_guard,
-                    )
+                    try:
+                        _, result, is_error = await _run_single_tool(
+                            tc,
+                            registry,
+                            before,
+                            after,
+                            signal,
+                            mutation_queue,
+                            _on_update,
+                            tool_timeout=tool_timeout,
+                            duplicate_guard=duplicate_guard,
+                        )
+                    except RequiresHumanInput:
+                        result = ToolResult(
+                            content=[TextContent(
+                                text="Tool still requires human input after submission. "
+                                "Please proceed with available information."
+                            )]
+                        )
+                        is_error = True
             yield ToolExecutionEnd(
                 tool_call_id=tc.id,
                 tool_name=tc.name,
