@@ -331,12 +331,14 @@ class ShortDramaPipelineTool:
                 "create_short_drama $ARGUMENTS — 短剧流水线（锚点静帧→图生视频→拼接成片）"
             ),
             prompt_guidelines=[
-                "用户要制作短剧、分镜剧情视频、MV 时，必须调用 create_short_drama，不要零散多次 generate_video。",
+                "用户要制作短剧、分镜剧情视频、MV 时，必须立即调用 create_short_drama，不要零散多次 generate_video。",
                 "先从自然语言提取 title、characters、shots（≤8 镜），再调用本工具。",
-                "characters 中 anchor_urls 可留空；工具会通过 HITL 让用户上传锚点图后自动继续。",
+                "characters 中 anchor_urls 必须留空数组 []；工具会自动通过 HITL 让用户上传锚点图。",
                 "禁止在无用户锚点的情况下用 generate_image 发明新角色脸。",
+                "禁止向用户索要图片 URL/路径——系统已自动存储用户上传图片，工具可直接引用。",
+                "禁止先调 manage_plan 或 confirm，必须直接调 create_short_drama。",
                 "HITL 返回锚点图后，系统会自动续跑本工具，无需用户再说「继续」。",
-                "重要：HITL 完成后不要再调用 confirm 工具，直接用 create_short_drama 继续执行即可。",
+                "重要：HITL 完成后不要再调用 confirm 工具。",
             ],
             timeout_seconds=PIPELINE_TIMEOUT_SECONDS,
         )

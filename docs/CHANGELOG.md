@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-07-30 19:47 — 修复 LLM 不直接调用 create_short_drama 而索要图片 URL
+
+**问题**：用户上传图片后，LLM 调 `manage_plan` 创建计划而非直接调 `create_short_drama`，然后生成文本要求用户“提供图片链接”。
+
+**根因**：图片占位提示文本太模糊（“[用户上传了 N 张图片作为附件]”），LLM 不知道图片已存储在系统中、工具可直接引用。
+
+**修复**：
+- `agent_core/session/turn_runtime.py`：占位提示改为明确的系统指令，说明图片已存储、工具可直接引用、禁止索要 URL、`anchor_urls` 留空即可
+- `agent_core/tools/short_drama_pipeline.py`：`prompt_guidelines` 新增“禁止向用户索要图片 URL”“禁止先调 manage_plan 或 confirm”
+
+**影响面**：
+- `agent_core/session/turn_runtime.py`：所有非视觉模型的图片占位提示
+- `agent_core/tools/short_drama_pipeline.py`：短剧工具 prompt 指南
+
 ## 2026-07-30 19:35 — 修复 HITL 重跑崩溃 + 短剧流水线 prompt 优化
 
 **问题**：用户提交 HITL 表单后，服务崩溃显示“服务暂时不可用”。

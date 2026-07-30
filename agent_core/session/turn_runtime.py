@@ -271,7 +271,13 @@ def build_loop_config(
                             new_content.append(c)
                     if img_count:
                         new_content.append(
-                            TextContent(text=f"[用户上传了 {img_count} 张图片作为附件，可用于工具调用的 anchor_urls]")
+                            TextContent(text=(
+                                f"[系统提示：用户已在消息中上传了 {img_count} 张图片。"
+                                "这些图片已存储在系统中，工具可直接引用，无需向用户索要 URL。"
+                                "调用 create_short_drama 等工具时，anchor_urls 留空数组即可，"
+                                "工具会通过内置 HITL 流程自动获取已上传的图片。"
+                                "禁止要求用户提供图片链接或路径。]"
+                            ))
                         )
                     cleaned.append(UserMessage(content=new_content, timestamp=m.timestamp))
                 else:
