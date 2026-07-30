@@ -7,7 +7,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any, AsyncIterator
 
-from agent_core.core.content import TextContent
+from agent_core.core.content import TextContent, ToolCallContent
 from agent_core.core.context import AgentLoopConfig
 from agent_core.core.events import HumanInputRequired, ToolExecutionEnd, ToolExecutionStart, ToolExecutionUpdate
 from agent_core.core.human_input import HumanInputGate, RequiresHumanInput
@@ -143,11 +143,18 @@ async def execute_tools(
                         input_schema=exc.input_schema,
                     )
                     values = await future
+                    # Create a copy with merged args so the original
+                    # ToolCallContent (stored in message history) is not
+                    # polluted with large HITL payloads (e.g. base64 images).
+                    merged_tc = tc
                     if isinstance(tc.arguments, dict):
-                        tc.arguments.update(values)
+                        merged_args = {**tc.arguments, **values}
+                        merged_tc = ToolCallContent(
+                            id=tc.id, name=tc.name, arguments=merged_args,
+                        )
                     try:
                         _, result, is_error = await _run_single_tool(
-                            tc,
+                            merged_tc,
                             registry,
                             before,
                             after,

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-07-30 20:15 — 修复 HITL 图片数据污染上下文导致 token 超限
+
+**问题**：同一会话中 HITL 上传图片后，后续请求报 `context_length_exceeded`（5M tokens），因为 base64 图片数据留在消息历史中。
+
+**根因**：
+1. `tool_runner.py` 的 `tc.arguments.update(values)` 就地修改了原始 tool call 参数，HITL 的 base64 data URI 被永久写入 AssistantMessage 历史
+2. `message_converter.py` 序列化 tool call arguments 时无长度限制
+
+**修复**：
+- `agent_core/core/tool_runner.py`：HITL 重跑时创建 ToolCallContent 副本而非就地修改原始参数，避免 base64 数据污染消息历史
+- `agent_core/providers/message_converter.py`：新增 `_truncate_tool_args()` 截断超过 4000 字符的 arguments
+
+**影响面**：
+- `agent_core/core/tool_runner.py`：所有 HITL 工具的参数传递方式
+- `agent_core/providers/message_converter.py`：所有 tool call 参数序列化
+
 ## 2026-07-30 19:47 — 修复 LLM 不直接调用 create_short_drama 而索要图片 URL
 
 **问题**：用户上传图片后，LLM 调 `manage_plan` 创建计划而非直接调 `create_short_drama`，然后生成文本要求用户“提供图片链接”。

@@ -8,6 +8,8 @@ from typing import Any
 from agent_core.core.content import ImageContent, TextContent, ToolCallContent
 from agent_core.core.messages import AssistantMessage, CustomMessage, ToolResultMessage, UserMessage
 
+_MAX_TOOL_ARGS_CHARS = 4000
+
 
 def create_default_converter(tool_result_max_chars: int = 4000):
     """Return a ConvertToLlm callable that formats messages to OpenAI-compatible dicts."""
@@ -29,7 +31,7 @@ def create_default_converter(tool_result_max_chars: int = 4000):
                         {
                             "id": tc.id,
                             "type": "function",
-                            "function": {"name": tc.name, "arguments": _json.dumps(tc.arguments)},
+                            "function": {"name": tc.name, "arguments": _truncate_tool_args(tc.arguments)},
                         }
                         for tc in tool_calls
                     ]
@@ -48,6 +50,18 @@ def create_default_converter(tool_result_max_chars: int = 4000):
         return out
 
     return convert
+
+
+def _truncate_tool_args(args: Any) -> str:
+    """Serialize tool call arguments, truncating to _MAX_TOOL_ARGS_CHARS.
+
+    Prevents large payloads (e.g. base64 images from HITL) from bloating
+    the context window when serialized into the LLM message history.
+    """
+    text = _json.dumps(args)
+    if len(text) <= _MAX_TOOL_ARGS_CHARS:
+        return text
+    return text[:_MAX_TOOL_ARGS_CHARS] + f'\n...[truncated, {len(text)} chars total]'
 
 
 def _user_content_to_openai(content: list[Any]) -> Any:
