@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-07-30 16:09 — 修复 DeepSeek 模型不支持图片导致 400 错误
+## 2026-07-30 16:09 — 修复 DeepSeek 模型不支持图片导致 400 错误 + 图片占位提示
 
 **问题**：用户使用 DeepSeek V4 Flash 模型时上传图片，API 返回 400 错误（`unknown variant 'image_url', expected 'text'`），前端显示“服务暂时不可用”。
 
@@ -9,13 +9,15 @@
 **修复**：
 - `agent_core/providers/types.py`：`Model` 新增 `supports_vision: bool = True` 字段
 - `scene/h5/chat_assistant.py`：DeepSeek 三个模型设 `supports_vision=False`
-- `agent_core/session/turn_runtime.py`：`build_loop_config` 中当 `model.supports_vision=False` 时，自动包裹 converter 剥离 `ImageContent` 块
+- `agent_core/session/turn_runtime.py`：当 `model.supports_vision=False` 时，自动将 `ImageContent` 替换为文本占位提示（“[用户上传了 N 张图片作为附件，可用于工具调用的 anchor_urls]”），LLM 知道有锚点图可用但无需理解图片内容
 - `agent_core/core/loop.py`：LLM 调用返回 `error` 时记录 `error_message` 到日志
+
+**设计理念**：大模型只负责文本编排（解析剧情→characters+shots），图片作为数据流经工具层（Agnes API），不需要模型理解多媒体内容。
 
 **影响面**：
 - `agent_core/providers/types.py`：Model 类型新增字段（默认 True，向后兼容）
 - `scene/h5/chat_assistant.py`：DeepSeek 模型定义
-- `agent_core/session/turn_runtime.py`：converter 包裹逻辑
+- `agent_core/session/turn_runtime.py`：converter 包裹逻辑 + 图片占位提示
 - `agent_core/core/loop.py`：错误日志
 
 ---

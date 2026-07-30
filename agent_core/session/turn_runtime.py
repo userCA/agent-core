@@ -251,18 +251,29 @@ def build_loop_config(
     model = snapshot.model if snapshot.model is not None else host.state.model
 
     # Strip image/media content for models that don't support vision.
-    # Without this, providers like DeepSeek return 400 on image_url blocks.
+    # Replace ImageContent with a text placeholder so the LLM still knows
+    # the user uploaded anchor images (needed for short drama pipeline).
     raw_convert = convert_to_llm
     if model and not getattr(model, "supports_vision", True):
         async def _strip_media_convert(messages: list[Any]) -> list[dict[str, Any]]:
-            from agent_core.core.content import ImageContent
+            from agent_core.core.content import ImageContent, TextContent
             from agent_core.core.messages import UserMessage
 
             cleaned: list[Any] = []
             for m in messages:
                 if isinstance(m, UserMessage):
-                    text_only = [c for c in m.content if not isinstance(c, ImageContent)]
-                    cleaned.append(UserMessage(content=text_only, timestamp=m.timestamp))
+                    new_content: list[Any] = []
+                    img_count = 0
+                    for c in m.content:
+                        if isinstance(c, ImageContent):
+                            img_count += 1
+                        else:
+                            new_content.append(c)
+                    if img_count:
+                        new_content.append(
+                            TextContent(text=f"[用户上传了 {img_count} 张图片作为附件，可用于工具调用的 anchor_urls]")
+                        )
+                    cleaned.append(UserMessage(content=new_content, timestamp=m.timestamp))
                 else:
                     cleaned.append(m)
             return await raw_convert(cleaned)
