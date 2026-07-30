@@ -249,6 +249,25 @@ def build_loop_config(
 
     snapshot = create_turn_snapshot(host)
     model = snapshot.model if snapshot.model is not None else host.state.model
+
+    # Strip image/media content for models that don't support vision.
+    # Without this, providers like DeepSeek return 400 on image_url blocks.
+    raw_convert = convert_to_llm
+    if model and not getattr(model, "supports_vision", True):
+        async def _strip_media_convert(messages: list[Any]) -> list[dict[str, Any]]:
+            from agent_core.core.content import ImageContent
+            from agent_core.core.messages import UserMessage
+
+            cleaned: list[Any] = []
+            for m in messages:
+                if isinstance(m, UserMessage):
+                    text_only = [c for c in m.content if not isinstance(c, ImageContent)]
+                    cleaned.append(UserMessage(content=text_only, timestamp=m.timestamp))
+                else:
+                    cleaned.append(m)
+            return await raw_convert(cleaned)
+        convert_to_llm = _strip_media_convert
+
     config = AgentLoopConfig(
         model=model,
         stream_fn=provider.stream,

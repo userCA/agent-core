@@ -308,6 +308,8 @@ async def run_agent_loop(
                         assistant.usage.input_tokens,
                         assistant.usage.output_tokens, _llm_ms,
                     )
+                    if assistant.stop_reason == "error" and assistant.error_message:
+                        _log.warning("LLM error: %s", assistant.error_message[:300])
                     await emit(MessageEnd(message=assistant))
                     context.messages.append(assistant)
                     new_assistant_messages.append(assistant)

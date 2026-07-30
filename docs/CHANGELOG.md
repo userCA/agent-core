@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-07-30 16:09 — 修复 DeepSeek 模型不支持图片导致 400 错误
+
+**问题**：用户使用 DeepSeek V4 Flash 模型时上传图片，API 返回 400 错误（`unknown variant 'image_url', expected 'text'`），前端显示“服务暂时不可用”。
+
+**根因**：DeepSeek 不支持多模态图片输入，但消息转换器将 `ImageContent` 转换为 `image_url` 格式发给 API。
+
+**修复**：
+- `agent_core/providers/types.py`：`Model` 新增 `supports_vision: bool = True` 字段
+- `scene/h5/chat_assistant.py`：DeepSeek 三个模型设 `supports_vision=False`
+- `agent_core/session/turn_runtime.py`：`build_loop_config` 中当 `model.supports_vision=False` 时，自动包裹 converter 剥离 `ImageContent` 块
+- `agent_core/core/loop.py`：LLM 调用返回 `error` 时记录 `error_message` 到日志
+
+**影响面**：
+- `agent_core/providers/types.py`：Model 类型新增字段（默认 True，向后兼容）
+- `scene/h5/chat_assistant.py`：DeepSeek 模型定义
+- `agent_core/session/turn_runtime.py`：converter 包裹逻辑
+- `agent_core/core/loop.py`：错误日志
+
+---
+
 ## 2026-07-30 15:43 — 修复图片上传导致 PROMPT_BUDGET_EXCEEDED 错误
 
 **问题**：用户上传人物锚点图后发送短剧指令，立即报 `PROMPT_BUDGET_EXCEEDED`（used=1,844,060 vs limit=113,408）。

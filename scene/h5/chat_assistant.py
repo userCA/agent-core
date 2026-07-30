@@ -300,18 +300,21 @@ class ChatAssistant:
                         id="deepseek-v4-flash",
                         context_window=128_000,
                         max_output_tokens=8192,
+                        supports_vision=False,
                     ),
                     Model(
                         provider="deepseek",
                         id="deepseek-chat",
                         context_window=64_000,
                         max_output_tokens=8192,
+                        supports_vision=False,
                     ),
                     Model(
                         provider="deepseek",
                         id="deepseek-reasoner",
                         context_window=64_000,
                         max_output_tokens=8192,
+                        supports_vision=False,
                     ),
                 ],
             )

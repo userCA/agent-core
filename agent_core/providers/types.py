@@ -21,6 +21,7 @@ class Model(BaseModel):
     max_output_tokens: int
     supports_reasoning: bool = False
     supports_xhigh_thinking: bool = False
+    supports_vision: bool = True
     cost: ModelCost = ModelCost()
 
 
