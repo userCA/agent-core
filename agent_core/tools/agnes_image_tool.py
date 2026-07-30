@@ -11,7 +11,7 @@ import httpx
 from agent_core.core.content import TextContent
 from agent_core.tools.base import Tool, ToolContext, ToolDefinition, ToolResult
 
-_AGNES_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://apihub.agnes-ai.com/v1")
+_AGNES_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://api.agnes-ai.cn/v1")
 API_BASE = f"{_AGNES_BASE_URL.rstrip('/')}/images/generations"
 API_KEY = os.environ.get("AGNES_API_KEY", "")
 TIMEOUT = 120
@@ -69,7 +69,7 @@ class AgnesImageTool(Tool):
             )
 
         body: dict[str, Any] = {
-            "model": "agnes-image-2.0-flash",
+            "model": "agnes-image-2.1-flash",
             "prompt": prompt,
             "size": size,
         }

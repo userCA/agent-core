@@ -12,7 +12,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-_AGNES_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://apihub.agnes-ai.com/v1")
+_AGNES_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://api.agnes-ai.cn/v1")
 _IMAGE_API = f"{_AGNES_BASE_URL.rstrip('/')}/images/generations"
 _VIDEO_API = f"{_AGNES_BASE_URL.rstrip('/')}/videos"
 _API_KEY = os.environ.get("AGNES_API_KEY", "")
@@ -59,7 +59,7 @@ async def generate_image_urls(
         raise RuntimeError("未设置 AGNES_API_KEY 环境变量")
 
     body: dict[str, Any] = {
-        "model": "agnes-image-2.0-flash",
+        "model": "agnes-image-2.1-flash",
         "prompt": prompt,
         "size": size,
     }

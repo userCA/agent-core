@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-07-30 20:43 — 更新 Agnes API 地址和模型名称
+
+**问题**：Agnes API 旧地址 `apihub.agnes-ai.com` 不可达，新地址为 `api.agnes-ai.cn`。图片模型从 `agnes-image-2.0-flash` 更新为 `agnes-image-2.1-flash`。
+
+**修复**：
+- `.env`：更新 `AGNES_BASE_URL` 和 `AGNES_API_KEY`
+- `agent_core/tools/agnes_client.py`：默认 URL 和模型名更新
+- `agent_core/tools/agnes_image_tool.py`：默认 URL 和模型名更新
+- `agent_core/tools/agnes_video_tool.py`：默认 URL 更新
+- `scene/h5/chat_assistant.py`：默认 URL 更新
+- `scene/http_sse/chat_assistant.py`：默认 URL 更新
+
+**影响面**：所有 Agnes API 调用
+
 ## 2026-07-30 20:15 — 修复 HITL 图片数据污染上下文导致 token 超限
 
 **问题**：同一会话中 HITL 上传图片后，后续请求报 `context_length_exceeded`（5M tokens），因为 base64 图片数据留在消息历史中。
