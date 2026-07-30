@@ -940,6 +940,11 @@ if not os.path.isdir(UPLOADS_DIR):
     os.makedirs(UPLOADS_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
+RENDERS_DIR = os.path.join(manager._cwd, ".pi", "renders")
+if not os.path.isdir(RENDERS_DIR):
+    os.makedirs(RENDERS_DIR, exist_ok=True)
+app.mount("/renders", StaticFiles(directory=RENDERS_DIR), name="renders")
+
 
 @app.get("/")
 async def index() -> HTMLResponse:

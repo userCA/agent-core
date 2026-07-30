@@ -36,6 +36,7 @@
 | TraceCard | ✅ 完成 | 推理线程折叠卡片 + image/video/widget 内容块渲染 + skill 节点（绿色）+ 独立视觉样式（2px边框+阴影）+ 完成后摘要显示 + 基于 stopReason 的中间/最终结果分类 + delegation 统一收敛至步骤轨道（紫色节点+可展开 agent 明细）+ 中间文本收纳至折叠区 |
 | Skill Action 可见性 | ✅ 完成 | skill.started/skill.completed action 事件 + TraceCard 绿色节点 + SKILL.md tools 字段关联 + 历史消息恢复（tool_to_skill 映射持久化） |
 | Image Content Block | ✅ 完成 | 后端 image content block 发射 + streaming Markdown 去重 + 前端专用图片块渲染 + 会话重载恢复 |
+| 短剧流水线 | ✅ 完成 | `create_short_drama`：HITL 人物锚点 → 分镜静帧 → 图生视频 → ffmpeg 拼接；Plan 进度面板 + 成片 video block |
 | StreamingMessage | ✅ 完成 | typing dots + cursor blink |
 | SuggestionPills | ✅ 完成 | 水平滚动建议 |
 | H5ChatInput | ✅ 完成 | 输入框 + shadow-card + 图片预览缩略图 + 附件显示 |

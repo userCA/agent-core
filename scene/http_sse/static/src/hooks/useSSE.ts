@@ -189,15 +189,17 @@ export function useSSE() {
         }
         if (evt.display?.audio) addAudio(evt.display.audio);
         // Detect video URL from result text (frontend parses instead of relying on display field)
-        if ((evt.tool_name === 'generate_video' || evt.tool_name === 'check_video_status') && evt.result) {
-          const vm = (evt.result as string).match(/https?:\/\/\S+\.mp4\b/);
+        if ((evt.tool_name === 'generate_video' || evt.tool_name === 'check_video_status' || evt.tool_name === 'create_short_drama' || evt.tool_name === 'concat_videos') && evt.result) {
+          const vm = (evt.result as string).match(/https?:\/\/\S+\.mp4\b/) ||
+            (evt.result as string).match(/(\/renders\/\S+\.mp4)/);
           if (vm) {
+            const videoUrl = vm[0].startsWith('/') ? `${window.location.origin}${vm[0]}` : vm[0];
             const sm = (evt.result as string).match(/分辨率\**:\s*(\S+)/);
             const tm = (evt.result as string).match(/时长\**:\s*([\d.]+)s/);
             blocks.push({
               type: 'video',
-              content: vm[0],
-              videoUrl: vm[0],
+              content: videoUrl,
+              videoUrl: videoUrl,
               videoSize: sm?.[1],
               videoSeconds: tm?.[1],
               status: 'done',

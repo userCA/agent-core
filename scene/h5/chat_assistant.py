@@ -47,25 +47,31 @@ def _generate_session_id() -> str:
 
 
 async def _auth_before_tool_call(info: dict[str, Any]) -> dict[str, Any] | None:
-    """Inject AIGC auth headers into ToolContext.metadata."""
+    """Inject scene metadata into ToolContext for selected tools."""
     tool_call = info.get("tool_call")
     if tool_call is None:
         return None
     name = getattr(tool_call, "name", "")
-    if not name.startswith("create_"):
-        return None
+    inject: dict[str, Any] = {}
 
-    headers = current_request_headers.get({})
-    return {
-        "inject_metadata": {
-            "aigc_auth": {
-                "uid": headers.get("uid"),
-                "deviceid": headers.get("deviceid"),
-                "channel": headers.get("channel"),
-                "pacmtoken": headers.get("pacmtoken"),
-            }
+    if name.startswith("create_"):
+        headers = current_request_headers.get({})
+        inject["aigc_auth"] = {
+            "uid": headers.get("uid"),
+            "deviceid": headers.get("deviceid"),
+            "channel": headers.get("channel"),
+            "pacmtoken": headers.get("pacmtoken"),
         }
-    }
+
+    if name in ("create_short_drama", "concat_videos"):
+        inject["cwd"] = os.getcwd()
+        inject["public_base_url"] = os.environ.get(
+            "PUBLIC_BASE_URL", "http://127.0.0.1:8001"
+        ).rstrip("/")
+
+    if not inject:
+        return None
+    return {"inject_metadata": inject}
 
 EventHandler = Callable[[AgentEvent], Awaitable[None] | None]
 
@@ -416,15 +422,29 @@ class ChatAssistant:
         system_prompt_text = prompt.text
         if planning_enabled():
             from agent_core.planning import install_planning, planning_prompt_snippet
+            from agent_core.tools.short_drama_pipeline import create_short_drama_tool
+            from agent_core.tools.video_concat_tool import concat_videos_tool
 
-            _, _, extensions = await install_planning(
+            plan_store, _, extensions = await install_planning(
                 tool_registry,
                 store=store,
                 session_id=resolved_session_id,
                 owner=resolved_owner,
                 extensions=extensions,
             )
+            if tool_registry.get("concat_videos") is None:
+                tool_registry.register(concat_videos_tool)
+            if tool_registry.get("create_short_drama") is None:
+                tool_registry.register(create_short_drama_tool(plan_store=plan_store))
             system_prompt_text = system_prompt_text.rstrip() + "\n\n" + planning_prompt_snippet()
+        else:
+            from agent_core.tools.short_drama_pipeline import create_short_drama_tool
+            from agent_core.tools.video_concat_tool import concat_videos_tool
+
+            if tool_registry.get("concat_videos") is None:
+                tool_registry.register(concat_videos_tool)
+            if tool_registry.get("create_short_drama") is None:
+                tool_registry.register(create_short_drama_tool(plan_store=None))
 
         from scene.h5.working_memory_config import install_scene_working_memory
 

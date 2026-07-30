@@ -329,9 +329,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
               } catch { /* args JSON parse failed, skip widget */ }
             }
             // If generate_video or check_video_status, reconstruct video block from persisted result
-            if ((toolName === 'generate_video' || toolName === 'check_video_status') && content) {
-              const videoMatch = content.match(/https?:\/\/\S+\.mp4\b/);
+            if ((toolName === 'generate_video' || toolName === 'check_video_status' || toolName === 'create_short_drama' || toolName === 'concat_videos') && content) {
+              const videoMatch = content.match(/https?:\/\/\S+\.mp4\b/) ||
+                content.match(/(\/renders\/\S+\.mp4)/);
               if (videoMatch) {
+                const rawUrl = videoMatch[0];
+                const videoUrl = rawUrl.startsWith('/') ? rawUrl : rawUrl;
                 const sizeMatch = content.match(/\u5206\u8fa8\u7387\**:\s*(\S+)/);
                 const secMatch = content.match(/\u65f6\u957f\**:\s*([\d.]+)s/);
                 currentAssistant.blocks.push({

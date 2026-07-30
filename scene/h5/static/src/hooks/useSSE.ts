@@ -348,15 +348,17 @@ export function useSSE() {
           }
           if (ae.result?.display?.audio) addAudio(ae.result.display.audio);
           // Detect video URL from result output
-          if ((ae.name === 'generate_video' || ae.name === 'check_video_status') && resultOutput) {
-            const vm = (resultOutput as string).match(/https?:\/\/\S+\.mp4\b/);
+          if ((ae.name === 'generate_video' || ae.name === 'check_video_status' || ae.name === 'create_short_drama' || ae.name === 'concat_videos') && resultOutput) {
+            const vm = (resultOutput as string).match(/https?:\/\/\S+\.mp4\b/) ||
+              (resultOutput as string).match(/(\/renders\/\S+\.mp4)/);
             if (vm) {
+              const videoUrl = vm[0].startsWith('/') ? `${window.location.origin}${vm[0]}` : vm[0];
               const sm = (resultOutput as string).match(/\u5206\u8fa8\u7387\**:\s*(\S+)/);
               const tm = (resultOutput as string).match(/\u65f6\u957f\**:\s*([\d.]+)s/);
               blocks.push({
                 type: 'video',
-                content: vm[0],
-                videoUrl: vm[0],
+                content: videoUrl,
+                videoUrl: videoUrl,
                 videoSize: sm?.[1],
                 videoSeconds: tm?.[1],
                 status: 'done',

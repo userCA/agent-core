@@ -143,16 +143,19 @@ async def execute_tools(
                         input_schema=exc.input_schema,
                     )
                     values = await future
-                    # Truncate long base64 data to avoid context window overflow
-                    display_values = {}
-                    for k, v in values.items():
-                        if isinstance(v, str) and v.startswith("data:") and len(v) > 500:
-                            mime = v.split(";")[0].split(":")[1] if ";" in v else "unknown"
-                            display_values[k] = f"[binary {mime} data, {len(v)} chars]"
-                        else:
-                            display_values[k] = v
-                    result = ToolResult(content=[TextContent(text=str(display_values))])
-                    is_error = False
+                    if isinstance(tc.arguments, dict):
+                        tc.arguments.update(values)
+                    _, result, is_error = await _run_single_tool(
+                        tc,
+                        registry,
+                        before,
+                        after,
+                        signal,
+                        mutation_queue,
+                        _on_update,
+                        tool_timeout=tool_timeout,
+                        duplicate_guard=duplicate_guard,
+                    )
             yield ToolExecutionEnd(
                 tool_call_id=tc.id,
                 tool_name=tc.name,
