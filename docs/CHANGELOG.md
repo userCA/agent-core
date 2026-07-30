@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-07-30 15:43 — 修复图片上传导致 PROMPT_BUDGET_EXCEEDED 错误
+
+**问题**：用户上传人物锚点图后发送短剧指令，立即报 `PROMPT_BUDGET_EXCEEDED`（used=1,844,060 vs limit=113,408）。
+
+**根因**：`compaction/strategies.py` 的 `estimate_tokens()` 对非文本 content block（如 `ImageContent`）使用 `str(c)` 将整个 base64 数据当文本计算 token，一张 2MB 图片被估算为 ~45 万 token。
+
+**修复**：对 `image`/`audio`/`video` 类型使用固定 token 估算（1500 token），不再展开 base64 数据；对未知 content 类型使用截断 repr（200 字符）而非完整 str。
+
+**影响面**：
+- `agent_core/compaction/strategies.py`：`estimate_tokens()` 函数重构
+
+---
+
 ## 2026-07-29 20:31 — Agnes API 端点恢复
 
 **变更**：Agnes 默认端点恢复为 `https://apihub.agnes-ai.com/v1`，保留 `AGNES_BASE_URL` 环境变量统一配置机制。
