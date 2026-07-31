@@ -23,6 +23,7 @@ from agent_core.tools.media_utils import (
     renders_dir,
     resolve_media_url,
 )
+from agent_core.tools.video_frame import ffprobe_duration_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,7 @@ def concat_video_files(
     *,
     output_path: Path | None = None,
     cwd: str | None = None,
+    mute_output: bool = False,
 ) -> Path:
     if not input_paths:
         raise ValueError("No video clips to concat")
@@ -173,7 +175,98 @@ def concat_video_files(
 
     if not dest.is_file() or dest.stat().st_size == 0:
         raise RuntimeError("ffmpeg produced empty output")
+    if mute_output:
+        return _strip_audio_track(dest)
     return dest
+
+
+def _strip_audio_track(path: Path) -> Path:
+    """Remove audio track while copying video stream."""
+    tmp = path.with_name(f"{path.stem}_muted{path.suffix}")
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(path),
+        "-c:v",
+        "copy",
+        "-an",
+        str(tmp),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False, stdin=subprocess.DEVNULL)
+    if proc.returncode != 0 or not tmp.is_file() or tmp.stat().st_size == 0:
+        raise RuntimeError(proc.stderr[-800:] or "ffmpeg strip audio failed")
+    tmp.replace(path)
+    return path
+
+
+def concat_video_files_crossfade(
+    input_paths: list[Path],
+    *,
+    output_path: Path,
+    crossfade_seconds: float = 0.25,
+    boundary_transitions: list[str] | None = None,
+) -> Path:
+    """Concatenate clips with optional xfade between segments."""
+    if not input_paths:
+        raise ValueError("No video clips to concat")
+    if len(input_paths) == 1:
+        shutil.copy2(input_paths[0], output_path)
+        return output_path
+    if not ffmpeg_available():
+        raise RuntimeError("未找到 ffmpeg，请先安装并加入 PATH")
+
+    transitions = boundary_transitions or ["hard_cut"] * (len(input_paths) - 1)
+    if len(transitions) != len(input_paths) - 1:
+        transitions = ["hard_cut"] * (len(input_paths) - 1)
+
+    durations = [ffprobe_duration_seconds(p) for p in input_paths]
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    inputs: list[str] = []
+    for path in input_paths:
+        inputs.extend(["-i", str(path.resolve())])
+
+    filter_parts: list[str] = []
+    prev_label = "[0:v]"
+    offset = 0.0
+
+    for i in range(1, len(input_paths)):
+        t = transitions[i - 1]
+        fade = crossfade_seconds if t in ("dissolve", "match_cut") else 0.0
+        out_label = f"[v{i}]" if i < len(input_paths) - 1 else "[vout]"
+        if fade > 0:
+            offset += durations[i - 1] - fade
+            filter_parts.append(
+                f"{prev_label}[{i}:v]xfade=transition=fade:duration={fade}:offset={offset:.3f}{out_label}"
+            )
+        else:
+            offset += durations[i - 1]
+            filter_parts.append(
+                f"{prev_label}[{i}:v]xfade=transition=fade:duration=0.01:offset={offset:.3f}{out_label}"
+            )
+        prev_label = out_label
+
+    filter_complex = ";".join(filter_parts)
+    cmd = [
+        "ffmpeg",
+        "-y",
+        *inputs,
+        "-filter_complex",
+        filter_complex,
+        "-map",
+        "[vout]",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        str(output_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False, stdin=subprocess.DEVNULL)
+    if proc.returncode != 0 or not output_path.is_file() or output_path.stat().st_size == 0:
+        raise RuntimeError(proc.stderr[-1000:] or "ffmpeg crossfade concat failed")
+    return output_path
 
 
 async def concat_videos(
@@ -182,6 +275,10 @@ async def concat_videos(
     name: str = "short-drama",
     cwd: str | None = None,
     public_base_url: str | None = None,
+    transition: str = "none",
+    crossfade_seconds: float = 0.25,
+    boundary_transitions: list[str] | None = None,
+    mute_output: bool = False,
 ) -> tuple[Path, str]:
     root = cwd or os.getcwd()
     base = public_base_url or default_public_base_url()
@@ -189,11 +286,25 @@ async def concat_videos(
     tmp_parent = paths[0].parent if paths and str(paths[0]).find("short-drama-clips-") >= 0 else None
     try:
         safe_name = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in name)[:48]
-        out = concat_video_files(
-            paths,
-            output_path=renders_dir(root) / f"{safe_name}_{uuid.uuid4().hex[:8]}.mp4",
-            cwd=root,
+        out_path = renders_dir(root) / f"{safe_name}_{uuid.uuid4().hex[:8]}.mp4"
+        use_crossfade = transition == "crossfade" or (
+            boundary_transitions
+            and any(t in ("dissolve", "match_cut") for t in boundary_transitions)
         )
+        if use_crossfade and len(paths) > 1:
+            out = concat_video_files_crossfade(
+                paths,
+                output_path=out_path,
+                crossfade_seconds=crossfade_seconds,
+                boundary_transitions=boundary_transitions,
+            )
+        else:
+            out = concat_video_files(
+                paths,
+                output_path=out_path,
+                cwd=root,
+                mute_output=mute_output,
+            )
         url = local_path_to_public_url(out, public_base_url=base)
         return out, url
     finally:
@@ -220,6 +331,19 @@ class ConcatVideosTool(Tool):
                         "type": "string",
                         "description": "输出文件名前缀",
                     },
+                    "transition": {
+                        "type": "string",
+                        "enum": ["none", "crossfade"],
+                        "description": "转场方式；crossfade 为短叠化",
+                    },
+                    "crossfade_seconds": {
+                        "type": "number",
+                        "description": "叠化时长（秒），默认 0.25",
+                    },
+                    "mute_output": {
+                        "type": "boolean",
+                        "description": "是否移除音轨，默认 false",
+                    },
                 },
                 "required": ["video_urls"],
             },
@@ -233,6 +357,9 @@ class ConcatVideosTool(Tool):
         del tool_call_id
         urls = params.get("video_urls") or []
         name = str(params.get("name") or "short-drama")
+        transition = str(params.get("transition") or "none")
+        crossfade_seconds = float(params.get("crossfade_seconds") or 0.25)
+        mute_output = bool(params.get("mute_output", False))
         if not isinstance(urls, list) or not urls:
             return ToolResult(content=[TextContent(text="错误：video_urls 不能为空")])
 
@@ -245,6 +372,9 @@ class ConcatVideosTool(Tool):
                 name=name,
                 cwd=cwd,
                 public_base_url=public_base,
+                transition=transition,
+                crossfade_seconds=crossfade_seconds,
+                mute_output=mute_output,
             )
         except Exception as exc:
             logger.warning("concat_videos failed: %s", exc)

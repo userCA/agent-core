@@ -44,6 +44,17 @@ def test_concat_video_files(tmp_path: Path) -> None:
     assert out.stat().st_size > 0
 
 
+@pytest.mark.skipif(not ffmpeg_available(), reason="ffmpeg not installed")
+def test_concat_video_files_mute(tmp_path: Path) -> None:
+    a = tmp_path / "a.mp4"
+    b = tmp_path / "b.mp4"
+    _make_tiny_mp4(a, color="red")
+    _make_tiny_mp4(b, color="blue")
+    out = concat_video_files([a, b], output_path=tmp_path / "out.mp4", cwd=str(tmp_path), mute_output=True)
+    assert out.is_file()
+    assert out.stat().st_size > 0
+
+
 @pytest.mark.asyncio
 async def test_concat_videos_tool_local_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     if not ffmpeg_available():

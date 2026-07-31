@@ -309,3 +309,7 @@ v1 验收标准：用户能看到「当前做到第几镜」「拼接中」「�
 ## 10. 下一步
 
 维护与迭代见 `agent_core/tools/short_drama_pipeline.py` 与关联测试。
+
+**连贯性 / 镜间接力优化**（末帧桥接、分镜契约、叠化拼接等）见独立执行计划：
+
+→ [docs/short-drama-continuity-optimization-plan.md](short-drama-continuity-optimization-plan.md)
