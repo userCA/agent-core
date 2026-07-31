@@ -15,6 +15,7 @@ from agent_core.tools.base import ToolContext, ToolDefinition, ToolResult
 from agent_core.tools.media_utils import (
     default_public_base_url,
     resolve_media_list,
+    to_data_uri,
 )
 from agent_core.tools.video_concat_tool import concat_videos
 
@@ -224,15 +225,18 @@ async def _generate_still_with_retry(
     prompt: str,
     anchors: list[str],
     image_size: str,
+    cwd: str | None = None,
     retries: int = 1,
 ) -> str:
     last_err: Exception | None = None
+    # Convert anchors to data URIs so the external Agnes API can read them.
+    input_imgs = [to_data_uri(a, cwd=cwd) for a in anchors] if anchors else None
     for attempt in range(retries + 1):
         try:
             urls = await agnes_client.generate_image_urls(
                 prompt=prompt,
                 size=image_size,
-                input_images=anchors or None,
+                input_images=input_imgs,
             )
             return urls[0]
         except Exception as exc:
@@ -402,6 +406,7 @@ class ShortDramaPipelineTool:
                         prompt=prompt,
                         anchors=anchors,
                         image_size=preset["image_size"],
+                        cwd=cwd,
                     )
                     await reporter.complete(step_id, detail=url[:120])
                     return idx, url

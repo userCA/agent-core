@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-07-31 11:51 — 修复短剧流水线锚点图 400 错误
+
+**问题**：`create_short_drama` 调用 Agnes API img2img 时返回 400 Bad Request。
+
+**根因**：HITL 上传的锚点图经 `resolve_media_list` 转为 `http://127.0.0.1:8001/uploads/xxx.jpg`，Agnes API 无法访问 localhost URL。
+
+**修复**：
+- `agent_core/tools/media_utils.py`：新增 `to_data_uri()` 将 localhost URL 读回为 base64 data URI
+- `agent_core/tools/short_drama_pipeline.py`：发给 Agnes 前用 `to_data_uri()` 转换锚点图
+
+**影响面**：短剧流水线 img2img 静帧生成
+
 ## 2026-07-30 20:43 — 更新 Agnes API 地址和模型名称
 
 **问题**：Agnes API 旧地址 `apihub.agnes-ai.com` 不可达，新地址为 `api.agnes-ai.cn`。图片模型从 `agnes-image-2.0-flash` 更新为 `agnes-image-2.1-flash`。

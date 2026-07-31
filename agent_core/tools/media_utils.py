@@ -124,3 +124,32 @@ def resolve_media_list(
         else:
             out.append(resolve_media_url(item, cwd=cwd, public_base_url=public_base_url))
     return out
+
+
+def to_data_uri(value: str, *, cwd: str | None = None) -> str:
+    """Convert a media reference to a data URI for external API consumption.
+
+    If *value* is already a data URI it is returned as-is.  Localhost URLs
+    pointing to ``/uploads/`` or ``/renders/`` are read back from disk.
+    """
+    text = str(value).strip()
+    if text.startswith("data:"):
+        return text
+
+    # Resolve localhost /uploads/ or /renders/ URLs back to file on disk.
+    base = default_public_base_url()
+    for prefix in (base, "http://127.0.0.1:8001", "http://localhost:8001"):
+        if text.startswith(prefix):
+            path_part = text[len(prefix):]  # e.g. "/uploads/abc.jpg"
+            if path_part.startswith("/uploads/") or path_part.startswith("/renders/"):
+                bucket = "uploads" if "/uploads/" in path_part else "renders"
+                filename = Path(path_part).name
+                local = uploads_dir(cwd) / filename if bucket == "uploads" else renders_dir(cwd) / filename
+                if local.is_file():
+                    raw = local.read_bytes()
+                    ext = local.suffix.lower()
+                    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(ext.lstrip("."), "image/png")
+                    return f"data:{mime};base64,{base64.b64encode(raw).decode()}"
+            break
+
+    return text
