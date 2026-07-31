@@ -64,6 +64,14 @@ def _truncate_tool_args(args: Any) -> str:
     return text[:_MAX_TOOL_ARGS_CHARS] + f'\n...[truncated, {len(text)} chars total]'
 
 
+def _to_openai_image_url(data: str, mime_type: str) -> str:
+    """Accept http(s) URL, data URI, or raw base64."""
+    text = (data or "").strip()
+    if text.startswith("http://") or text.startswith("https://") or text.startswith("data:"):
+        return text
+    return f"data:{mime_type};base64,{text}"
+
+
 def _user_content_to_openai(content: list[Any]) -> Any:
     parts: list[dict[str, Any]] = []
     only_text = True
@@ -71,7 +79,10 @@ def _user_content_to_openai(content: list[Any]) -> Any:
         if isinstance(c, TextContent):
             parts.append({"type": "text", "text": c.text})
         elif isinstance(c, ImageContent):
-            parts.append({"type": "image_url", "image_url": {"url": f"data:{c.mime_type};base64,{c.data}"}})
+            parts.append({
+                "type": "image_url",
+                "image_url": {"url": _to_openai_image_url(c.data, c.mime_type)},
+            })
             only_text = False
         elif isinstance(c, dict):
             t = c.get("type")
@@ -80,7 +91,10 @@ def _user_content_to_openai(content: list[Any]) -> Any:
             elif t == "image":
                 data = c.get("data", "")
                 mime = c.get("mime_type", "image/png")
-                parts.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}})
+                parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": _to_openai_image_url(data, mime)},
+                })
                 only_text = False
     if only_text:
         return "".join(p["text"] for p in parts)

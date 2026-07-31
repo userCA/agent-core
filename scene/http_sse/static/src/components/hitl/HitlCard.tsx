@@ -1,8 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import type { InputSchema, InputField } from '../../api/types';
 import { useSessionStore } from '../../stores/session-store';
-import { submitHumanInput } from '../../api/client';
-import { fileToBase64 } from '../../utils/file';
+import { submitHumanInput, uploadFile } from '../../api/client';
 import { useBridge } from '../../bridge/BridgeContext';
 import './HitlCard.css';
 
@@ -43,21 +42,34 @@ export default function HitlCard({ toolCallId, prompt, inputSchema, onSubmitted 
     const max = field.max || 5;
     const remaining = max - existing.length;
     const toProcess = Array.from(files).slice(0, remaining);
+    if (toProcess.length === 0) return;
 
-    const dataUris = await Promise.all(toProcess.map(fileToBase64));
-    const all = [...existing, ...dataUris];
-    setImageFiles((p) => ({ ...p, [field.name]: all }));
-    setUploadCounts((p) => ({ ...p, [field.name]: all.length }));
-    setValues((p) => ({ ...p, [field.name]: all }));
+    try {
+      const previews = toProcess.map((f) => URL.createObjectURL(f));
+      const uploaded = await Promise.all(toProcess.map((f) => uploadFile(f)));
+      const urls = uploaded.map((u) => u.url);
+      const allPreviews = [...existing, ...previews];
+      const existingUrls = (values[field.name] as string[] | undefined) || [];
+      const allUrls = [...existingUrls, ...urls];
+      setImageFiles((p) => ({ ...p, [field.name]: allPreviews }));
+      setUploadCounts((p) => ({ ...p, [field.name]: allPreviews.length }));
+      setValues((p) => ({ ...p, [field.name]: allUrls }));
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : '图片上传失败');
+    }
   };
 
   const removeImage = (fieldName: string, idx: number) => {
     setImageFiles((p) => {
       const updated = [...(p[fieldName] || [])];
       updated.splice(idx, 1);
-      setValues((v) => ({ ...v, [fieldName]: updated }));
       setUploadCounts((c) => ({ ...c, [fieldName]: updated.length }));
       return { ...p, [fieldName]: updated };
+    });
+    setValues((v) => {
+      const urls = [...((v[fieldName] as string[] | undefined) || [])];
+      urls.splice(idx, 1);
+      return { ...v, [fieldName]: urls };
     });
   };
 

@@ -220,6 +220,20 @@ def _collect_anchor_urls(
     return list(dict.fromkeys(urls))
 
 
+def _anchors_for_agnes(anchors: list[str], *, cwd: str | None = None) -> list[str] | None:
+    """Prefer public http(s) URLs; fall back to data URI for local-only assets."""
+    if not anchors:
+        return None
+    out: list[str] = []
+    for a in anchors:
+        text = str(a).strip()
+        if text.startswith("http://") or text.startswith("https://"):
+            out.append(text)
+        else:
+            out.append(to_data_uri(text, cwd=cwd))
+    return out
+
+
 async def _generate_still_with_retry(
     *,
     prompt: str,
@@ -229,8 +243,7 @@ async def _generate_still_with_retry(
     retries: int = 1,
 ) -> str:
     last_err: Exception | None = None
-    # Convert anchors to data URIs so the external Agnes API can read them.
-    input_imgs = [to_data_uri(a, cwd=cwd) for a in anchors] if anchors else None
+    input_imgs = _anchors_for_agnes(anchors, cwd=cwd)
     for attempt in range(retries + 1):
         try:
             urls = await agnes_client.generate_image_urls(
@@ -337,9 +350,10 @@ class ShortDramaPipelineTool:
             prompt_guidelines=[
                 "用户要制作短剧、分镜剧情视频、MV 时，必须立即调用 create_short_drama，不要零散多次 generate_video。",
                 "先从自然语言提取 title、characters、shots（≤8 镜），再调用本工具。",
-                "characters 中 anchor_urls 必须留空数组 []；工具会自动通过 HITL 让用户上传锚点图。",
+                "若用户消息已附带人物图片（http/https 图片 URL），将其填入对应 characters[].anchor_urls。",
+                "若没有可用锚点 URL，将 characters[].anchor_urls 设为 []，工具会通过 HITL 让用户上传。",
                 "禁止在无用户锚点的情况下用 generate_image 发明新角色脸。",
-                "禁止向用户索要图片 URL/路径——系统已自动存储用户上传图片，工具可直接引用。",
+                "禁止向用户索要本地路径；只使用公网图片 URL 或 HITL 上传结果。",
                 "禁止先调 manage_plan 或 confirm，必须直接调 create_short_drama。",
                 "HITL 返回锚点图后，系统会自动续跑本工具，无需用户再说「继续」。",
                 "重要：HITL 完成后不要再调用 confirm 工具。",

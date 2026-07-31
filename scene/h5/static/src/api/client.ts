@@ -164,7 +164,17 @@ export interface Capabilities {
   tools: ToolInfo[];
 }
 
-export async function uploadFile(file: File): Promise<{ filename: string; path: string; size: number }> {
+export interface UploadResult {
+  success: boolean;
+  filename: string;
+  path: string;
+  size: number;
+  /** Public remote URL (Migu CDN) — prefer this as image input */
+  url: string;
+  error?: string;
+}
+
+export async function uploadFile(file: File): Promise<UploadResult> {
   const form = new FormData();
   form.append('file', file);
   const response = await withRetry(async () => {
@@ -172,7 +182,11 @@ export async function uploadFile(file: File): Promise<{ filename: string; path: 
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
     return res;
   }, 2, 1500);
-  return response.json() as Promise<{ success: boolean; filename: string; path: string; size: number } & { success: boolean }>;
+  const data = await response.json() as UploadResult;
+  if (!data.success || !data.url) {
+    throw new Error(data.error || 'Upload failed: missing remote url');
+  }
+  return data;
 }
 
 export async function importSkill(name: string, content: string): Promise<boolean> {

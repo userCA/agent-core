@@ -121,7 +121,7 @@ export default function ChatInput({ onSend, compact, inlineToolbar }: Props) {
       } else {
         const { uploadFile } = await import('../../api/client');
         const result = await uploadFile(file);
-        setInputValue(`${prefix}[文件: ${file.name}] ${result.path} (${(result.size / 1024).toFixed(1)}KB)`);
+        setInputValue(`${prefix}[文件: ${file.name}] ${result.url || result.path} (${(result.size / 1024).toFixed(1)}KB)`);
       }
       setShowMore(false);
     } catch { /* ignore */ }
@@ -135,7 +135,7 @@ export default function ChatInput({ onSend, compact, inlineToolbar }: Props) {
       const { uploadFile } = await import('../../api/client');
       const result = await uploadFile(file);
       const prefix = inputValue ? inputValue + '\n\n' : '';
-      setInputValue(`${prefix}[图片: ${file.name}] ${result.path}`);
+      setInputValue(`${prefix}[图片: ${file.name}] ${result.url || result.path}`);
       setShowMore(false);
     } catch { /* ignore */ }
     finally { e.target.value = ''; }

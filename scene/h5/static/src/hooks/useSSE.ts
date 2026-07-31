@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react';
-import { streamChat, abortSession } from '../api/client';
+import { streamChat, abortSession, uploadFile } from '../api/client';
 import { useChatStore, type HitlRequest, type MessageBlock } from '../stores/chat-store';
 import { useSessionStore } from '../stores/session-store';
 import { useUIStore } from '../stores/ui-store';
@@ -12,23 +12,11 @@ import type {
   ActionEvent, CompanionState, CompanionBubble,
 } from '../api/types';
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const commaIdx = result.indexOf(',');
-      resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 async function filesToContentBlocks(files: File[]): Promise<ContentBlockInput[]> {
   const blocks: ContentBlockInput[] = [];
   for (const file of files) {
-    const b64 = await fileToBase64(file);
+    // Upload to remote storage first; use public URL as model/tool input.
+    const uploaded = await uploadFile(file);
     const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
     const typeMap: Record<string, ContentBlockInput['type']> = {
       png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', svg: 'image',
@@ -37,8 +25,14 @@ async function filesToContentBlocks(files: File[]): Promise<ContentBlockInput[]>
     };
     blocks.push({
       type: typeMap[ext] || 'file',
-      content: b64,
-      meta: { format: ext, filename: file.name, size: file.size },
+      content: uploaded.url,
+      meta: {
+        format: ext,
+        filename: file.name,
+        size: file.size,
+        url: uploaded.url,
+        path: uploaded.path,
+      },
     });
   }
   return blocks;

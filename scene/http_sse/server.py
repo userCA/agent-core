@@ -359,34 +359,28 @@ async def import_skill(body: SkillImportRequest) -> dict[str, Any]:
 
 @app.post("/upload")
 async def upload_file(request: Request) -> dict[str, Any]:
-    """Upload a file to .pi/uploads/, return the saved path."""
-    import os as _os
-    import uuid as _uuid
+    """Upload a file: save locally and push to remote Migu storage.
+
+    Returns ``url`` (public remote URL) for use as image input by agents/tools.
+    """
+    from scene.common.upload_handler import save_and_remote_upload
 
     form = await request.form()
     file = form.get("file")
     if file is None:
         return {"success": False, "error": "Missing file"}
 
-    uploads_dir = _os.path.join(manager._cwd, ".pi", "uploads")
-    _os.makedirs(uploads_dir, exist_ok=True)
-
-    ext = ""
-    if file.filename and "." in file.filename:
-        ext = "." + file.filename.rsplit(".", 1)[-1].lower()
-    saved_name = f"{_uuid.uuid4().hex[:12]}{ext}"
-    saved_path = _os.path.join(uploads_dir, saved_name)
-
     raw = await file.read()
-    with open(saved_path, "wb") as f:
-        f.write(raw)
-
-    return {
-        "success": True,
-        "filename": file.filename or saved_name,
-        "path": f".pi/uploads/{saved_name}",
-        "size": len(raw),
-    }
+    content_type = getattr(file, "content_type", None)
+    try:
+        return await save_and_remote_upload(
+            raw=raw,
+            filename=file.filename,
+            cwd=manager._cwd,
+            content_type=content_type,
+        )
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
 
 
 # ---- Knowledge base endpoints ----

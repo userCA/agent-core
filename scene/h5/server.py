@@ -123,7 +123,10 @@ app = FastAPI(title="Agent Core HTTP SSE Chat", lifespan=lifespan)
 
 
 def _content_blocks_to_images(blocks: list[ContentBlockInput] | None) -> list[ImageContent]:
-    """Convert multimodal ContentBlockInput items to ImageContent for the Agent."""
+    """Convert multimodal ContentBlockInput items to ImageContent for the Agent.
+
+    ``block.content`` may be a public http(s) URL (preferred) or raw base64.
+    """
     images: list[ImageContent] = []
     if not blocks:
         return images
@@ -137,7 +140,9 @@ def _content_blocks_to_images(blocks: list[ContentBlockInput] | None) -> list[Im
         if block.type in ("image", "audio", "video"):
             fmt = (block.meta or {}).get("format", "")
             mime = _mime_map.get(fmt, f"image/{fmt}" if fmt else "image/png")
-            images.append(ImageContent(data=block.content, mime_type=mime))
+            # Prefer meta.url when present (remote upload result)
+            payload = (block.meta or {}).get("url") or block.content
+            images.append(ImageContent(data=payload, mime_type=mime))
     return images
 
 
@@ -225,9 +230,25 @@ async def _event_stream(
         # Convert multimodal content blocks to images for the Agent
         images = _content_blocks_to_images(content_blocks)
 
+        # Append public image URLs into text so tools (e.g. create_short_drama)
+        # can reference them as anchor_urls without re-upload.
+        prompt_text = message or ""
+        if content_blocks:
+            url_lines: list[str] = []
+            for block in content_blocks:
+                if block.type != "image":
+                    continue
+                url = (block.meta or {}).get("url") or block.content
+                if isinstance(url, str) and url.startswith(("http://", "https://")):
+                    url_lines.append(url)
+            if url_lines:
+                prompt_text = (
+                    (prompt_text.rstrip() + "\n\n") if prompt_text.strip() else ""
+                ) + "用户上传图片URL:\n" + "\n".join(url_lines)
+
         # Run prompt in background to allow streaming
         run_task = asyncio.create_task(
-            assistant.send_message(message, images=images or None)
+            assistant.send_message(prompt_text, images=images or None)
         )
 
         # Check for immediate synchronous errors before starting
@@ -481,34 +502,28 @@ async def import_skill(body: SkillImportRequest) -> dict[str, Any]:
 
 @app.post("/upload")
 async def upload_file(request: Request) -> dict[str, Any]:
-    """Upload a file to .pi/uploads/, return the saved path."""
-    import os as _os
-    import uuid as _uuid
+    """Upload a file: save locally and push to remote Migu storage.
+
+    Returns ``url`` (public remote URL) for use as image input by agents/tools.
+    """
+    from scene.common.upload_handler import save_and_remote_upload
 
     form = await request.form()
     file = form.get("file")
     if file is None:
         return {"success": False, "error": "Missing file"}
 
-    uploads_dir = _os.path.join(manager._cwd, ".pi", "uploads")
-    _os.makedirs(uploads_dir, exist_ok=True)
-
-    ext = ""
-    if file.filename and "." in file.filename:
-        ext = "." + file.filename.rsplit(".", 1)[-1].lower()
-    saved_name = f"{_uuid.uuid4().hex[:12]}{ext}"
-    saved_path = _os.path.join(uploads_dir, saved_name)
-
     raw = await file.read()
-    with open(saved_path, "wb") as f:
-        f.write(raw)
-
-    return {
-        "success": True,
-        "filename": file.filename or saved_name,
-        "path": f".pi/uploads/{saved_name}",
-        "size": len(raw),
-    }
+    content_type = getattr(file, "content_type", None)
+    try:
+        return await save_and_remote_upload(
+            raw=raw,
+            filename=file.filename,
+            cwd=manager._cwd,
+            content_type=content_type,
+        )
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
 
 
 # ---- Knowledge base endpoints ----

@@ -44,14 +44,23 @@ def _create_anthropic_converter(tool_result_max_chars: int = 4000) -> Any:
                     if isinstance(c, TextContent):
                         blocks.append({"type": "text", "text": c.text})
                     elif isinstance(c, ImageContent):
-                        blocks.append({
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": c.mime_type,
-                                "data": c.data,
-                            },
-                        })
+                        data = (c.data or "").strip()
+                        if data.startswith("http://") or data.startswith("https://"):
+                            blocks.append({
+                                "type": "image",
+                                "source": {"type": "url", "url": data},
+                            })
+                        else:
+                            if data.startswith("data:") and "," in data:
+                                data = data.split(",", 1)[1]
+                            blocks.append({
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": c.mime_type,
+                                    "data": data,
+                                },
+                            })
                 out.append({"role": "user", "content": blocks if blocks else [{"type": "text", "text": ""}]})
             elif isinstance(m, AssistantMessage):
                 blocks: list[dict[str, Any]] = []
