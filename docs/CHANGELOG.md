@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-31 14:36 — 修复视频生成完成但未返回 URL
+
+**问题**：Agnes API 视频任务完成后只返回 `video_id`，不返回 `video_url`，导致 `create_short_drama` 报“视频完成但未返回 URL”。
+
+**根因**：Agnes API v2 需要通过 `GET /agnesapi?video_id=<VIDEO_ID>` 获取实际视频 URL（`metadata.url`），而非直接从 poll 响应中取。
+
+**修复**：
+- `agent_core/tools/agnes_client.py`：poll 完成后调用 `_fetch_video_url()` 通过 `/agnesapi` 端点获取视频 URL，保留旧字段作 fallback
+
+**影响面**：短剧流水线视频生成、所有 Agnes 视频工具
+
 ## 2026-07-31 11:51 — 修复短剧流水线锚点图 400 错误
 
 **问题**：`create_short_drama` 调用 Agnes API img2img 时返回 400 Bad Request。

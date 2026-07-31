@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 _AGNES_BASE_URL = os.environ.get("AGNES_BASE_URL", "https://api.agnes-ai.cn/v1")
 _IMAGE_API = f"{_AGNES_BASE_URL.rstrip('/')}/images/generations"
 _VIDEO_API = f"{_AGNES_BASE_URL.rstrip('/')}/videos"
+_VIDEO_RESULT_API = f"{_AGNES_BASE_URL.rstrip('/')}/agnesapi"
 _API_KEY = os.environ.get("AGNES_API_KEY", "")
 
 IMAGE_TIMEOUT = 120
@@ -140,6 +141,18 @@ async def poll_video_task(
             last_status = status
 
             if status == "completed":
+                # Agnes API v2: use /agnesapi?video_id= to get the video URL.
+                video_id = data.get("video_id", "")
+                if video_id:
+                    video_url = await _fetch_video_url(client, video_id)
+                    if video_url:
+                        return {
+                            "video_url": video_url,
+                            "task_id": task_id,
+                            "size": data.get("size"),
+                            "seconds": data.get("seconds"),
+                        }
+                # Fallback: check legacy fields
                 video_url = data.get("remixed_from_video_id", "") or data.get("video_url", "")
                 if not video_url:
                     raise RuntimeError(
@@ -157,6 +170,22 @@ async def poll_video_task(
                 )
 
             await asyncio.sleep(interval)
+
+
+async def _fetch_video_url(client: httpx.AsyncClient, video_id: str) -> str | None:
+    """Retrieve the actual video URL via GET /agnesapi?video_id=<VIDEO_ID>."""
+    try:
+        resp = await client.get(
+            _VIDEO_RESULT_API,
+            params={"video_id": video_id},
+            headers=_headers(),
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("url") or None
+    except Exception as exc:
+        logger.warning("获取视频 URL 失败 (video_id=%s): %s", video_id[:40], exc)
+        return None
 
 
 async def generate_video_from_image(
