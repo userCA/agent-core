@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-31 14:46 — 修复非视觉模型图片占位提示未传递公网 URL
+
+**问题**：用户上传图片后，HITL 仍要求再次上传锚点图。
+
+**根因**：`_strip_media_convert` 剥离 ImageContent 时只计数不提取 URL，占位提示告诉 LLM“anchor_urls 留空”，导致 pipeline 触发二次 HITL。
+
+**修复**：
+- `agent_core/session/turn_runtime.py`：占位提示包含公网 URL 时引导 LLM 将其填入 `characters[].anchor_urls`，避免重复 HITL
+
+**影响面**：短剧流水线、所有非视觉模型的多模态消息处理
+
 ## 2026-07-31 14:36 — 修复视频生成完成但未返回 URL
 
 **问题**：Agnes API 视频任务完成后只返回 `video_id`，不返回 `video_url`，导致 `create_short_drama` 报“视频完成但未返回 URL”。

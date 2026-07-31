@@ -253,6 +253,8 @@ def build_loop_config(
     # Strip image/media content for models that don't support vision.
     # Replace ImageContent with a text placeholder so the LLM still knows
     # the user uploaded anchor images (needed for short drama pipeline).
+    # If the image has a public URL, include it so the LLM can pass it to
+    # anchor_urls directly, avoiding an unnecessary HITL round-trip.
     raw_convert = convert_to_llm
     if model and not getattr(model, "supports_vision", True):
         async def _strip_media_convert(messages: list[Any]) -> list[dict[str, Any]]:
@@ -264,21 +266,32 @@ def build_loop_config(
                 if isinstance(m, UserMessage):
                     new_content: list[Any] = []
                     img_count = 0
+                    img_urls: list[str] = []
                     for c in m.content:
                         if isinstance(c, ImageContent):
                             img_count += 1
+                            # Collect public URLs for anchor image use.
+                            data = c.data or ""
+                            if data.startswith("http://") or data.startswith("https://"):
+                                img_urls.append(data)
                         else:
                             new_content.append(c)
                     if img_count:
-                        new_content.append(
-                            TextContent(text=(
-                                f"[系统提示：用户已在消息中上传了 {img_count} 张图片。"
-                                "这些图片已存储在系统中，工具可直接引用，无需向用户索要 URL。"
+                        parts = [f"[系统提示：用户已在消息中上传了 {img_count} 张图片。"]
+                        if img_urls:
+                            url_list = ", ".join(img_urls)
+                            parts.append(
+                                f"这些图片的公网 URL：{url_list}。"
+                                "调用 create_short_drama 时，将这些 URL 填入 characters[].anchor_urls。"
+                            )
+                        else:
+                            parts.append(
+                                "这些图片已存储在系统中，工具可直接引用。"
                                 "调用 create_short_drama 等工具时，anchor_urls 留空数组即可，"
                                 "工具会通过内置 HITL 流程自动获取已上传的图片。"
-                                "禁止要求用户提供图片链接或路径。]"
-                            ))
-                        )
+                            )
+                        parts.append("禁止要求用户提供图片链接或路径。]")
+                        new_content.append(TextContent(text="".join(parts)))
                     cleaned.append(UserMessage(content=new_content, timestamp=m.timestamp))
                 else:
                     cleaned.append(m)
