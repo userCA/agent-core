@@ -138,6 +138,7 @@ def concat_video_files(
             capture_output=True,
             text=True,
             check=False,
+            stdin=subprocess.DEVNULL,
         )
         if proc.returncode != 0:
             # Re-encode fallback when stream copy fails
@@ -163,6 +164,7 @@ def concat_video_files(
                 capture_output=True,
                 text=True,
                 check=False,
+                stdin=subprocess.DEVNULL,
             )
             if proc.returncode != 0:
                 raise RuntimeError(proc.stderr[-1000:] or "ffmpeg concat failed")

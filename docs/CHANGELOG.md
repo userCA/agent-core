@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-31 16:32 — 修复 ffmpeg 拼接视频时被终端信号挂起
+
+**问题**：“拼接成片”阶段卡住 20+ 分钟不完成。
+
+**根因**：`subprocess.run` 未设置 `stdin=DEVNULL`，ffmpeg 子进程尝试读取 stdin 时收到 `SIGTTIN` 信号被操作系统挂起（状态 `TN`）。
+
+**修复**：
+- `agent_core/tools/video_concat_tool.py`：两处 `subprocess.run` 添加 `stdin=subprocess.DEVNULL`
+
+**影响面**：短剧流水线视频拼接、`concat_videos` 工具
+
 ## 2026-07-31 14:46 — 修复非视觉模型图片占位提示未传递公网 URL
 
 **问题**：用户上传图片后，HITL 仍要求再次上传锚点图。
