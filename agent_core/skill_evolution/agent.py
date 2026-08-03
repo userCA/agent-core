@@ -573,20 +573,7 @@ class OfflineEvolutionAgent:
                 supporting_evidence=[f"Regression details: {trace.regression_info}"],
             )
 
-        # Pattern 3: Generic failure - suggest reviewing loaded rules
-        if loaded_rules := trace.loaded_rules:
-            return PatchProposal(
-                proposal_id=str(uuid.uuid4()),
-                source_traces=[trace.trace_id],
-                skill_name=trace.skill_name,
-                operation="modify",
-                target_rule_id=loaded_rules[-1],
-                rationale=f"Failure occurred with these rules active: {', '.join(loaded_rules)}",
-                confidence=0.5,
-                supporting_evidence=[f"Error: {error_msg}", f"Query: {trace.user_query[:200]}"],
-            )
-
-        # Pattern 4: Tool step errors (works without LLM / loaded_rules)
+        # Pattern 3: Tool step errors — prefer over generic loaded_rules modify
         error_steps = [s for s in (trace.steps or []) if s.is_error]
         if error_steps:
             step = error_steps[0]
@@ -613,6 +600,19 @@ class OfflineEvolutionAgent:
                     f"Query: {trace.user_query[:200]}",
                     f"Tool error: {step.error_summary or step.tool_name}",
                 ],
+            )
+
+        # Pattern 4: Generic failure - suggest reviewing loaded rules
+        if loaded_rules := trace.loaded_rules:
+            return PatchProposal(
+                proposal_id=str(uuid.uuid4()),
+                source_traces=[trace.trace_id],
+                skill_name=trace.skill_name,
+                operation="modify",
+                target_rule_id=loaded_rules[-1],
+                rationale=f"Failure occurred with these rules active: {', '.join(loaded_rules)}",
+                confidence=0.5,
+                supporting_evidence=[f"Error: {error_msg}", f"Query: {trace.user_query[:200]}"],
             )
 
         return None
