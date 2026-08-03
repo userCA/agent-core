@@ -98,6 +98,8 @@ from .audit import (
     write_audit_entry,
     read_audit_log,
 )
+from .agent_runner import AgentRunResult, ValidationHarnessRunner, score_agent_run, text_overlap
+from .test_suite import build_test_cases_from_trace_ids, build_test_cases_from_traces
 from .reward import HybridReward, heuristic_reward
 from .grouping import build_groups, normalize_task_key
 from .relative_score import assign_advantages, score_group
@@ -136,6 +138,14 @@ __all__ = [
     "SkillValidationGate",
     "create_validation_gate",
     "evaluate_acceptance_gates",
+
+    # Agent runner (validation)
+    "AgentRunResult",
+    "ValidationHarnessRunner",
+    "score_agent_run",
+    "text_overlap",
+    "build_test_cases_from_traces",
+    "build_test_cases_from_trace_ids",
 
     # Audit
     "write_audit_entry",

@@ -83,6 +83,8 @@ class SkillValidationGate:
         require_human_review: bool = True,
         max_step_worsen: float = 0.15,
         critical_drop: float = 0.4,
+        trace_store: Any | None = None,
+        max_validation_cases: int = 5,
     ):
         """Initialize the validation gate.
 
@@ -95,6 +97,8 @@ class SkillValidationGate:
                 are blocked from auto-apply. Set False for fully automated pipelines.
             max_step_worsen: Max allowed relative increase in average steps (default 15%)
             critical_drop: Treat as critical regression when old_score - new_score >= this
+            trace_store: Optional store to load source traces as test cases
+            max_validation_cases: Max trace-derived cases per validation
         """
         self.skill_dir = Path(skill_dir)
         self.test_threshold = test_threshold
@@ -103,6 +107,8 @@ class SkillValidationGate:
         self.require_human_review = require_human_review
         self.max_step_worsen = max_step_worsen
         self.critical_drop = critical_drop
+        self.trace_store = trace_store
+        self.max_validation_cases = max_validation_cases
 
         self._test_cases: dict[str, list[TestCase]] = {}
 
@@ -132,6 +138,20 @@ class SkillValidationGate:
         """
         skill_name = proposal.skill_name
         cases = test_cases or self._test_cases.get(skill_name, [])
+        if not cases and self.trace_store and proposal.source_traces:
+            from .test_suite import build_test_cases_from_trace_ids
+
+            cases = await build_test_cases_from_trace_ids(
+                self.trace_store,
+                proposal.source_traces,
+                skill_name=skill_name,
+                max_cases=self.max_validation_cases,
+            )
+            if cases:
+                _log.info(
+                    "[ValidationGate] Built %d test cases from source traces",
+                    len(cases),
+                )
 
         if not cases:
             _log.warning(f"[ValidationGate] No test cases for {skill_name}, cannot validate")
@@ -385,14 +405,14 @@ class SkillValidationGate:
         """
         # Use real agent execution when available
         if self.agent_runner is not None:
+            from .agent_runner import score_agent_run
+
             try:
-                result = await asyncio.wait_for(
+                raw = await asyncio.wait_for(
                     self.agent_runner(skill_content, test_case.input_query),
                     timeout=self.timeout_per_test,
                 )
-                if isinstance(result, dict) and result.get("success"):
-                    return 1.0
-                return 0.0
+                return score_agent_run(raw, test_case)
             except asyncio.TimeoutError:
                 _log.warning("Agent test %s timed out", test_case.test_id)
                 return 0.0
@@ -556,6 +576,8 @@ def create_validation_gate(
     test_threshold: float = 0.05,
     agent_runner: Callable | None = None,
     require_human_review: bool = True,
+    trace_store: Any | None = None,
+    max_validation_cases: int = 5,
 ) -> SkillValidationGate:
     """Factory function to create a validation gate.
 
@@ -564,11 +586,17 @@ def create_validation_gate(
         test_threshold: Minimum improvement to accept changes
         agent_runner: Optional async callable for real agent execution.
         require_human_review: If True, blocks auto-apply for non-accepted proposals.
+        trace_store: Optional store for trace-derived test cases.
+        max_validation_cases: Cap on auto-built cases from source traces.
 
     Returns:
         Configured SkillValidationGate
     """
     return SkillValidationGate(
-        skill_dir, test_threshold=test_threshold,
-        agent_runner=agent_runner, require_human_review=require_human_review,
+        skill_dir,
+        test_threshold=test_threshold,
+        agent_runner=agent_runner,
+        require_human_review=require_human_review,
+        trace_store=trace_store,
+        max_validation_cases=max_validation_cases,
     )

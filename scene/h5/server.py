@@ -969,12 +969,9 @@ async def accept_evolution_proposal(
     body: EvolutionProposalAction,
 ) -> dict[str, Any]:
     """Validate and apply an accepted proposal, writing audit log."""
-    from agent_core.skill_evolution import (
-        PatchProposal,
-        create_validation_gate,
-        write_audit_entry,
-    )
+    from agent_core.skill_evolution import PatchProposal, write_audit_entry
     from scene.http_sse.evolution_service import get_cached_proposals, remove_cached_proposal
+    from scene.http_sse.evolution_validation import build_evolution_validation_gate
 
     proposals = get_cached_proposals(body.skill_name)
     p_dict = next((p for p in proposals if p.get("proposal_id") == proposal_id), None)
@@ -992,7 +989,7 @@ async def accept_evolution_proposal(
         confidence=p_dict.get("confidence", 0.5),
     )
 
-    gate = create_validation_gate(skill_dir=_get_skill_dir(), require_human_review=True)
+    gate = build_evolution_validation_gate(_get_skill_dir(), body.skill_name)
     result = await gate.validate(proposal)
     applied = False
     if result.passed or result.recommendation == "accept":

@@ -431,6 +431,10 @@ Scene 环境变量：
 | `EVOLUTION_SCHEDULER_MAX_SKILLS_PER_RUN` | 3 | 每轮最多 analyze 几个 skill |
 | `EVOLUTION_SCHEDULER_FAILURE_PRIORITY` | on | 优先 failure 多的 skill |
 | `EVOLUTION_PROVIDER` | 同 DEFAULT_PROVIDER | 离线 analyze 用的 LLM |
+| `ENABLE_EVOLUTION_AGENT_VALIDATION` | **on** | accept 时用真实 agent 跑 before/after 验证 |
+| `EVOLUTION_VALIDATION_MAX_TURNS` | 3 | 每条 validation case 最大 turn 数 |
+| `EVOLUTION_VALIDATION_TIMEOUT_SEC` | 60 | 单条 case 超时（秒） |
+| `EVOLUTION_VALIDATION_MAX_CASES` | 5 | 从 source traces 构建的最大 case 数 |
 
 ## 参考资料
 
