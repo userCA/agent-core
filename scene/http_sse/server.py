@@ -64,6 +64,16 @@ async def lifespan(app: FastAPI):
 
     await manager.start()
 
+    evolution_scheduler = None
+    if os.environ.get("ENABLE_SKILL_EVOLUTION", "1").strip().lower() not in ("0", "false", "no", "off"):
+        from scene.http_sse.evolution_scheduler import create_evolution_scheduler
+        evolution_scheduler = create_evolution_scheduler(
+            os.path.join(manager._cwd, ".pi", "skills"),
+        )
+        if evolution_scheduler is not None:
+            evolution_scheduler.start()
+            app.state.evolution_scheduler = evolution_scheduler
+
     # Configure companion naming provider (reuses same auth as chat)
     try:
         from agent_core.companion.naming import configure_naming
@@ -92,6 +102,9 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
     yield
+    sched = getattr(app.state, "evolution_scheduler", None)
+    if sched is not None:
+        await sched.stop()
     await manager.dispose_all()
 
 
@@ -717,7 +730,7 @@ class EvolutionProposalAction(BaseModel):
     force: bool = Field(default=False, description="Bypass validation gate (use with care)")
 
 
-_evolution_cache: dict[str, list[dict[str, Any]]] = {}
+_evolution_cache: dict[str, list[dict[str, Any]]] = {}  # legacy alias; use evolution_service
 
 
 def _get_skill_dir() -> str:
@@ -766,76 +779,41 @@ async def record_evolution_feedback(body: EvolutionFeedbackRequest) -> dict[str,
 @app.post("/skills/evolution/analyze")
 async def analyze_skill_evolution(body: EvolutionAnalyzeRequest) -> dict[str, Any]:
     """Run an evolution cycle and return proposals with diffs."""
-    from agent_core.skill_evolution import create_validation_gate
-    from scene.http_sse.evolution_config import build_offline_evolution_agent
+    from scene.http_sse.evolution_service import run_skill_evolution_analyze
 
-    agent, analyzer = build_offline_evolution_agent()
-    result = await agent.run_evolution_cycle(
+    return await run_skill_evolution_analyze(
+        skill_dir=_get_skill_dir(),
         skill_name=body.skill_name,
         min_traces=body.min_traces,
     )
 
-    base_response = {
-        "analyzer": analyzer,
-        "llm_enabled": analyzer == "llm",
-    }
 
-    if result.get("status") != "completed" or not result.get("final_proposals"):
-        return {
-            **base_response,
-            "status": result.get("status", "error"),
-            "reason": result.get("reason", result.get("message", "")),
-            "trace_count": result.get("trace_count", result.get("traces_analyzed", 0)),
-            "proposals": [],
-            "diagnostics": {
-                "analyzer": analyzer,
-                "hint": (
-                    "Connect LLM via EVOLUTION_PROVIDER / API keys for deeper analysis"
-                    if analyzer == "heuristic"
-                    else None
-                ),
-            },
-        }
+@app.get("/skills/evolution/scheduler/status")
+async def get_evolution_scheduler_status() -> dict[str, Any]:
+    """Return background scheduler state when ENABLE_EVOLUTION_SCHEDULER=1."""
+    from scene.http_sse.evolution_scheduler import (
+        evolution_scheduler_enabled,
+        scheduler_interval_sec,
+        scheduler_min_traces,
+    )
 
-    gate = create_validation_gate(skill_dir=_get_skill_dir())
-    proposals_out: list[dict[str, Any]] = []
-
-    for p_dict in result["final_proposals"]:
-        from agent_core.skill_evolution import PatchProposal
-        proposal = PatchProposal(
-            proposal_id=p_dict["proposal_id"],
-            source_traces=p_dict.get("source_traces", []),
-            skill_name=p_dict["skill_name"],
-            operation=p_dict.get("operation", "add"),
-            target_rule_id=p_dict.get("target_rule_id"),
-            new_content=p_dict.get("new_content"),
-            rationale=p_dict.get("rationale", ""),
-            confidence=p_dict.get("confidence", 0.5),
-        )
-        diff = gate.diff_proposal(proposal)
-        proposals_out.append({
-            **p_dict,
-            "diff": diff,
-        })
-
-    _evolution_cache[body.skill_name] = proposals_out
-
+    sched = getattr(app.state, "evolution_scheduler", None)
     return {
-        **base_response,
-        "status": "completed",
-        "cycle_id": result.get("cycle_id", ""),
-        "traces_analyzed": result.get("traces_analyzed", 0),
-        "proposals_generated": result.get("proposals_generated", 0),
-        "conflicts": result.get("conflicts", 0),
-        "discarded": result.get("discarded", 0),
-        "proposals": proposals_out,
+        "enabled": evolution_scheduler_enabled(),
+        "running": sched is not None and sched.running,
+        "interval_sec": scheduler_interval_sec(),
+        "min_traces": scheduler_min_traces(),
+        "last_run_at": getattr(sched, "last_run_at", None) if sched else None,
+        "last_run_summary": getattr(sched, "last_run_summary", None) if sched else None,
     }
 
 
 @app.get("/skills/evolution/proposals/{skill_name}")
 async def get_evolution_proposals(skill_name: str) -> dict[str, Any]:
     """Get cached proposals for a skill from the last analyze call."""
-    proposals = _evolution_cache.get(skill_name, [])
+    from scene.http_sse.evolution_service import get_cached_proposals
+
+    proposals = get_cached_proposals(skill_name)
     return {"skill_name": skill_name, "proposals": proposals}
 
 
@@ -850,8 +828,9 @@ async def accept_evolution_proposal(
         create_validation_gate,
         write_audit_entry,
     )
+    from scene.http_sse.evolution_service import get_cached_proposals, remove_cached_proposal
 
-    proposals = _evolution_cache.get(body.skill_name, [])
+    proposals = get_cached_proposals(body.skill_name)
     p_dict = next((p for p in proposals if p.get("proposal_id") == proposal_id), None)
     if p_dict is None:
         return {"success": False, "error": "Proposal not found"}
@@ -888,9 +867,7 @@ async def accept_evolution_proposal(
 
     # Remove from cache on success
     if applied:
-        _evolution_cache[body.skill_name] = [
-            p for p in proposals if p.get("proposal_id") != proposal_id
-        ]
+        remove_cached_proposal(body.skill_name, proposal_id)
 
     return {
         "success": applied,
@@ -908,8 +885,9 @@ async def reject_evolution_proposal(
 ) -> dict[str, Any]:
     """Reject a proposal and write audit log (no skill file modification)."""
     from agent_core.skill_evolution import write_audit_entry
+    from scene.http_sse.evolution_service import get_cached_proposals, remove_cached_proposal
 
-    proposals = _evolution_cache.get(body.skill_name, [])
+    proposals = get_cached_proposals(body.skill_name)
     p_dict = next((p for p in proposals if p.get("proposal_id") == proposal_id), None)
     if p_dict is None:
         return {"success": False, "error": "Proposal not found"}
@@ -925,9 +903,7 @@ async def reject_evolution_proposal(
         reject_reason=body.reason,
     )
 
-    _evolution_cache[body.skill_name] = [
-        p for p in proposals if p.get("proposal_id") != proposal_id
-    ]
+    remove_cached_proposal(body.skill_name, proposal_id)
 
     return {"success": True, "audit_id": audit_id}
 

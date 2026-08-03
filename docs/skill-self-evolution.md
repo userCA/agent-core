@@ -425,6 +425,12 @@ Scene 环境变量：
 | `ENABLE_GROUP_ROLLOUT` | **off** | 主动 G 采样 |
 | `GROUP_ROLLOUT_G` | 3 | 采样条数 |
 | `ENABLE_SKILL_CASE_RECALL` | **off** | 注入 top-k 路径案例 |
+| `ENABLE_EVOLUTION_SCHEDULER` | **off** | 后台周期 analyze（仅提案，不 auto-apply） |
+| `EVOLUTION_SCHEDULER_INTERVAL_SEC` | 3600 | 调度间隔（秒，最小 60） |
+| `EVOLUTION_SCHEDULER_MIN_TRACES` | 20 | 触发 analyze 的最小 trace 数 |
+| `EVOLUTION_SCHEDULER_MAX_SKILLS_PER_RUN` | 3 | 每轮最多 analyze 几个 skill |
+| `EVOLUTION_SCHEDULER_FAILURE_PRIORITY` | on | 优先 failure 多的 skill |
+| `EVOLUTION_PROVIDER` | 同 DEFAULT_PROVIDER | 离线 analyze 用的 LLM |
 
 ## 参考资料
 

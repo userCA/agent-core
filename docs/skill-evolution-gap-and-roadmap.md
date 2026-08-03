@@ -262,3 +262,4 @@ Week D+（P3/P4）
 |------|------|
 | 2026-08-03 | 初版：核对库/Scene/440 条本地 trace，确认仅采集半通；给出 P0–P4 路线图 |
 | 2026-08-03 | **P0–P2 首波落地**：collector 归因/query/outcome 修复；Scene 注册 skill→tool；analyze 接 provider；analyzed cursor 持久化；steps 失败 heuristic；accept 默认过验证门（`force` 可选） |
+| 2026-08-03 | **P3 scheduler**：`evolution_scheduler.py` + `evolution_service.py`；`ENABLE_EVOLUTION_SCHEDULER`；`/skills/evolution/scheduler/status` |
