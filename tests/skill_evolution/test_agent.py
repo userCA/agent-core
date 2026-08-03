@@ -191,8 +191,33 @@ class TestProposalAnalysis:
         assert proposal.operation == "modify"
         assert proposal.target_rule_id == "rule_14"
 
+    async def test_failure_trace_with_tool_step_error(self, agent):
+        """Test heuristic proposal from tool step errors without loaded_rules."""
+        from agent_core.skill_evolution.types import PathStep
 
-class TestConflictResolution:
+        trace = SkillEvolutionTrace(
+            trace_id="fail-tool-1",
+            skill_name="test-skill",
+            user_query="Query tool params",
+            loaded_rules=[],
+            execution_outcome=ExecutionOutcome.FAILURE,
+            execution_details={"error": "tool execution error"},
+            steps=[
+                PathStep(
+                    tool_name="tool_detail",
+                    args_summary="tool_names=['tavily_search']",
+                    is_error=True,
+                    error_summary="Tool 'tool_detail' not found.",
+                ),
+            ],
+        )
+
+        proposal = await agent._analyze_failure_trace(trace)
+
+        assert proposal is not None
+        assert proposal.operation == "add"
+        assert "tool_detail" in proposal.rationale
+        assert proposal.new_content is not None
     """Test conflict resolution in proposal merging."""
 
     @pytest.fixture

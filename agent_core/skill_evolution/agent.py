@@ -144,6 +144,11 @@ class OfflineEvolutionAgent:
         """
         _log.info(f"[EvolutionAgent] Starting cycle for skill: {skill_name}")
 
+        # Restore persisted analyzed markers (survives process restart)
+        stored_analyzed = await self.store.get_analyzed_trace_ids(skill_name)
+        if stored_analyzed:
+            self._analyzed_trace_ids.update(stored_analyzed)
+
         # Step 1: Fetch traces
         trace_count = await self.store.get_trace_count(skill_name=skill_name)
         if trace_count < min_traces:
@@ -173,8 +178,10 @@ class OfflineEvolutionAgent:
         _log.info(f"[EvolutionAgent] Analyzing {len(new_traces)} new traces for {skill_name}")
 
         # Mark as analyzed
-        for t in new_traces:
-            self._analyzed_trace_ids.add(t.trace_id)
+        new_trace_ids = [t.trace_id for t in new_traces]
+        for tid in new_trace_ids:
+            self._analyzed_trace_ids.add(tid)
+        await self.store.mark_traces_analyzed(skill_name, new_trace_ids)
         self._llm_call_count = 0
 
         # Step 2: Separate success/failure traces
@@ -276,14 +283,15 @@ class OfflineEvolutionAgent:
 
         # Batch analysis: group similar failures for cross-trace pattern detection
         batch_size = 5
-        remaining = self.max_llm_calls - len(tasks)
-        for i in range(0, min(len(failure_traces), remaining * batch_size), batch_size):
-            batch = failure_traces[i:i + batch_size]
+        remaining_batches = max(0, self.max_llm_calls - len(tasks))
+        for bi in range(remaining_batches):
+            start = bi * batch_size
+            if start >= len(failure_traces):
+                break
+            batch = failure_traces[start : start + batch_size]
             if len(batch) >= 2 and self._llm_call_count < self.max_llm_calls:
                 self._llm_call_count += 1
                 tasks.append(self._analyze_failure_batch(batch))
-            else:
-                break
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -572,10 +580,39 @@ class OfflineEvolutionAgent:
                 source_traces=[trace.trace_id],
                 skill_name=trace.skill_name,
                 operation="modify",
-                target_rule_id=loaded_rules[-1],  # Last loaded rule is often the culprit
+                target_rule_id=loaded_rules[-1],
                 rationale=f"Failure occurred with these rules active: {', '.join(loaded_rules)}",
                 confidence=0.5,
                 supporting_evidence=[f"Error: {error_msg}", f"Query: {trace.user_query[:200]}"],
+            )
+
+        # Pattern 4: Tool step errors (works without LLM / loaded_rules)
+        error_steps = [s for s in (trace.steps or []) if s.is_error]
+        if error_steps:
+            step = error_steps[0]
+            err = (step.error_summary or error_msg or "").lower()
+            new_content = None
+            rationale = f"Tool '{step.tool_name}' failed during execution"
+            if "not found" in err:
+                rationale = (
+                    f"Tool '{step.tool_name}' was unavailable — add a pre-check or fallback rule"
+                )
+                new_content = (
+                    f"Before calling `{step.tool_name}`, verify it exists in the active tool set; "
+                    f"if missing, use an alternative tool or ask the user."
+                )
+            return PatchProposal(
+                proposal_id=str(uuid.uuid4()),
+                source_traces=[trace.trace_id],
+                skill_name=trace.skill_name,
+                operation="add",
+                new_content=new_content,
+                rationale=rationale,
+                confidence=0.65,
+                supporting_evidence=[
+                    f"Query: {trace.user_query[:200]}",
+                    f"Tool error: {step.error_summary or step.tool_name}",
+                ],
             )
 
         return None
@@ -685,6 +722,7 @@ def create_offline_evolution_agent(
     store_type: str = "jsonl",
     storage_path: str | None = None,
     batch_size: int = 100,
+    model_provider: Any | None = None,
 ) -> OfflineEvolutionAgent:
     """Factory function to create an evolution agent.
 
@@ -692,6 +730,7 @@ def create_offline_evolution_agent(
         store_type: "memory" for testing, "jsonl" for production
         storage_path: Custom path for jsonl store
         batch_size: Traces per analysis cycle
+        model_provider: Optional LLM provider for intelligent analysis
 
     Returns:
         Configured OfflineEvolutionAgent
@@ -699,4 +738,4 @@ def create_offline_evolution_agent(
     from .store import create_skill_evolution_store
 
     store = create_skill_evolution_store(store_type, storage_path)
-    return OfflineEvolutionAgent(store, batch_size=batch_size)
+    return OfflineEvolutionAgent(store, model_provider=model_provider, batch_size=batch_size)

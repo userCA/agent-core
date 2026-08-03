@@ -136,15 +136,31 @@ class SkillEvolutionStore(ABC):
         """
         pass
 
+    async def get_analyzed_trace_ids(self, skill_name: str) -> set[str]:
+        """Return trace IDs already processed by offline analysis for a skill."""
+        return set()
+
+    async def mark_traces_analyzed(self, skill_name: str, trace_ids: list[str]) -> None:
+        """Persist trace IDs as analyzed for a skill."""
+        return None
+
 
 class InMemorySkillEvolutionStore(SkillEvolutionStore):
     """In-memory implementation for testing."""
 
     def __init__(self):
         self._traces: list[SkillEvolutionTrace] = []
+        self._analyzed: dict[str, set[str]] = {}
 
     async def save_trace(self, trace: SkillEvolutionTrace) -> None:
         self._traces.append(trace)
+
+    async def get_analyzed_trace_ids(self, skill_name: str) -> set[str]:
+        return set(self._analyzed.get(skill_name, set()))
+
+    async def mark_traces_analyzed(self, skill_name: str, trace_ids: list[str]) -> None:
+        bucket = self._analyzed.setdefault(skill_name, set())
+        bucket.update(trace_ids)
 
     async def get_traces(
         self,
@@ -196,9 +212,47 @@ class JsonlSkillEvolutionStore(SkillEvolutionStore):
     - Easy to process with standard tools (jq, awk, etc.)
     """
 
-    def __init__(self, storage_path: str | Path = "~/.agent-core/skill-evolution-traces.jsonl"):
+    def __init__(
+        self,
+        storage_path: str | Path = "~/.agent-core/skill-evolution-traces.jsonl",
+        analyzed_path: str | Path | None = None,
+    ):
         self.storage_path = Path(storage_path).expanduser()
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        if analyzed_path is None:
+            analyzed_path = self.storage_path.with_name("skill-evolution-analyzed.json")
+        self.analyzed_path = Path(analyzed_path).expanduser()
+        self._analyzed_cache: dict[str, set[str]] | None = None
+
+    def _load_analyzed(self) -> dict[str, set[str]]:
+        if self._analyzed_cache is not None:
+            return self._analyzed_cache
+        if not self.analyzed_path.exists():
+            self._analyzed_cache = {}
+            return self._analyzed_cache
+        with open(self.analyzed_path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        self._analyzed_cache = {
+            skill: set(ids) for skill, ids in raw.items() if isinstance(ids, list)
+        }
+        return self._analyzed_cache
+
+    def _save_analyzed(self) -> None:
+        if self._analyzed_cache is None:
+            return
+        self.analyzed_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {skill: sorted(ids) for skill, ids in self._analyzed_cache.items()}
+        with open(self.analyzed_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    async def get_analyzed_trace_ids(self, skill_name: str) -> set[str]:
+        return set(self._load_analyzed().get(skill_name, set()))
+
+    async def mark_traces_analyzed(self, skill_name: str, trace_ids: list[str]) -> None:
+        analyzed = self._load_analyzed()
+        bucket = analyzed.setdefault(skill_name, set())
+        bucket.update(trace_ids)
+        self._save_analyzed()
 
     async def save_trace(self, trace: SkillEvolutionTrace) -> None:
         """Append trace as a single JSON line."""

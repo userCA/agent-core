@@ -201,6 +201,14 @@ class TestJsonlSkillEvolutionStore:
         skill_b_count = await store.get_trace_count(skill_name="skill-b")
         assert skill_b_count == 1
 
+    async def test_analyzed_trace_cursor(self, store):
+        await store.mark_traces_analyzed("skill-a", ["t1", "t2"])
+        ids = await store.get_analyzed_trace_ids("skill-a")
+        assert ids == {"t1", "t2"}
+        await store.mark_traces_analyzed("skill-a", ["t3"])
+        ids = await store.get_analyzed_trace_ids("skill-a")
+        assert ids == {"t1", "t2", "t3"}
+
 
 class TestCreateSkillEvolutionStore:
     """Test factory function."""

@@ -7,7 +7,11 @@ from agent_core.skill_evolution.store import InMemorySkillEvolutionStore
 
 
 class _FakeState:
-    system_prompt = '<skill name="demo">desc</skill>'
+    system_prompt = (
+        "<available_skills>\n"
+        '  <skill name="demo">desc</skill>\n'
+        "</available_skills>"
+    )
     messages = [type("U", (), {"role": "user", "content": "  Fix The Bug  "})()]
 
 

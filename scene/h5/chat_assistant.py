@@ -365,7 +365,7 @@ class ChatAssistant:
             memory_config or {},
             resolved_session_id,
         )
-        skill_trace_collector = build_skill_trace_collector()
+        skill_trace_collector = build_skill_trace_collector(skills=skills)
         if skill_trace_collector is not None:
             extensions.append(skill_trace_collector)
         case_recall = build_skill_case_recall_extension(

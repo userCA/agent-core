@@ -2,6 +2,8 @@
 
 本文档描述 agent-core 中的 **Skill 自进化系统**，该系统基于 Trace2Skill 和 EvoSkill 研究论文实现，能够自动从执行轨迹中学习并优化 skill 规则。
 
+> **落地状态与后续开发**：库能力已齐，但 Scene 闭环未通（Trace 有脏数据、analyze 未接 LLM、验证可被 force 绕过、无自动触发）。详见 [`skill-evolution-gap-and-roadmap.md`](./skill-evolution-gap-and-roadmap.md)。
+
 ## 核心原理
 
 ### 问题背景

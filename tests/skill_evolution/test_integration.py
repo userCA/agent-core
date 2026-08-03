@@ -292,12 +292,17 @@ class TestCollectorIntegration:
         assert len(traces) == 0
 
     async def test_on_event_extracts_skill_from_system_prompt(self):
-        """Test that on_event extracts skill names from <skill> tags."""
+        """Multiple available skills without activation should not fan out traces."""
         store = InMemorySkillEvolutionStore()
         collector = SkillTraceCollector(store)
 
         class FakeState:
-            system_prompt = '<skill name="skill-a">desc</skill>\n<skill name="skill-b">desc</skill>'
+            system_prompt = (
+                "<available_skills>\n"
+                '  <skill name="skill-a">desc</skill>\n'
+                '  <skill name="skill-b">desc</skill>\n'
+                "</available_skills>"
+            )
             messages = []
 
         class FakeAgent:
@@ -316,8 +321,38 @@ class TestCollectorIntegration:
         await collector.on_event(ctx, evt)
 
         traces = await store.get_traces()
-        skill_names = {t.skill_name for t in traces}
-        assert skill_names == {"skill-a", "skill-b"}
+        assert len(traces) == 0
+
+    async def test_on_event_single_available_skill_traces(self):
+        """A single routed available skill may be traced without tool activation."""
+        store = InMemorySkillEvolutionStore()
+        collector = SkillTraceCollector(store)
+
+        class FakeState:
+            system_prompt = (
+                "<available_skills>\n"
+                '  <skill name="skill-a">desc</skill>\n'
+                "</available_skills>"
+            )
+            messages = []
+
+        class FakeAgent:
+            state = FakeState()
+
+        class FakeMessage:
+            error_message = None
+            stop_reason = "stop"
+
+        from agent_core.extensions.base import ExtensionContext
+        from agent_core.core.events import AgentStart, TurnEnd
+
+        ctx = ExtensionContext(session_id="s1", harness=FakeAgent(), store=store)
+        await collector.on_event(ctx, AgentStart())
+        await collector.on_event(ctx, TurnEnd(message=FakeMessage(), tool_results=[]))
+
+        traces = await store.get_traces()
+        assert len(traces) == 1
+        assert traces[0].skill_name == "skill-a"
 
     async def test_on_event_no_skills_skips_trace(self):
         """Test that no trace is saved when system_prompt has no skills."""

@@ -25,7 +25,11 @@ async def test_group_rollout_tags_collector_and_clears():
     collector = SkillTraceCollector(store)
 
     class FakeState:
-        system_prompt = '<skill name="demo">d</skill>'
+        system_prompt = (
+            "<available_skills>\n"
+            '  <skill name="demo">d</skill>\n'
+            "</available_skills>"
+        )
         messages = [type("U", (), {"role": "user", "content": "Fix Bug"})()]
 
     class FakeAgent:

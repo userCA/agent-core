@@ -860,6 +860,7 @@ class EvolutionFeedbackRequest(BaseModel):
 class EvolutionProposalAction(BaseModel):
     skill_name: str = Field(..., min_length=1, max_length=100)
     reason: str | None = Field(default=None, max_length=500)
+    force: bool = Field(default=False, description="Bypass validation gate (use with care)")
 
 
 _evolution_cache: dict[str, list[dict[str, Any]]] = {}
@@ -911,23 +912,35 @@ async def record_evolution_feedback(body: EvolutionFeedbackRequest) -> dict[str,
 @app.post("/skills/evolution/analyze")
 async def analyze_skill_evolution(body: EvolutionAnalyzeRequest) -> dict[str, Any]:
     """Run an evolution cycle and return proposals with diffs."""
-    from agent_core.skill_evolution import (
-        create_offline_evolution_agent,
-        create_validation_gate,
-    )
+    from agent_core.skill_evolution import create_validation_gate
+    from scene.h5.evolution_config import build_offline_evolution_agent
 
-    agent = create_offline_evolution_agent("jsonl")
+    agent, analyzer = build_offline_evolution_agent()
     result = await agent.run_evolution_cycle(
         skill_name=body.skill_name,
         min_traces=body.min_traces,
     )
 
+    base_response = {
+        "analyzer": analyzer,
+        "llm_enabled": analyzer == "llm",
+    }
+
     if result.get("status") != "completed" or not result.get("final_proposals"):
         return {
+            **base_response,
             "status": result.get("status", "error"),
             "reason": result.get("reason", result.get("message", "")),
             "trace_count": result.get("trace_count", result.get("traces_analyzed", 0)),
             "proposals": [],
+            "diagnostics": {
+                "analyzer": analyzer,
+                "hint": (
+                    "Connect LLM via EVOLUTION_PROVIDER / API keys for deeper analysis"
+                    if analyzer == "heuristic"
+                    else None
+                ),
+            },
         }
 
     gate = create_validation_gate(skill_dir=_get_skill_dir())
@@ -954,6 +967,7 @@ async def analyze_skill_evolution(body: EvolutionAnalyzeRequest) -> dict[str, An
     _evolution_cache[body.skill_name] = proposals_out
 
     return {
+        **base_response,
         "status": "completed",
         "cycle_id": result.get("cycle_id", ""),
         "traces_analyzed": result.get("traces_analyzed", 0),
@@ -999,9 +1013,13 @@ async def accept_evolution_proposal(
         confidence=p_dict.get("confidence", 0.5),
     )
 
-    gate = create_validation_gate(skill_dir=_get_skill_dir(), require_human_review=False)
+    gate = create_validation_gate(skill_dir=_get_skill_dir(), require_human_review=True)
     result = await gate.validate(proposal)
-    applied = await gate.apply_proposal(proposal, backup=True, force=True)
+    applied = False
+    if result.passed or result.recommendation == "accept":
+        applied = await gate.apply_proposal(proposal, backup=True, force=False)
+    elif body.force:
+        applied = await gate.apply_proposal(proposal, backup=True, force=True)
 
     audit_id = write_audit_entry(
         proposal_id=proposal_id,
@@ -1020,7 +1038,13 @@ async def accept_evolution_proposal(
             p for p in proposals if p.get("proposal_id") != proposal_id
         ]
 
-    return {"success": applied, "audit_id": audit_id, "validation_score": result.score_delta}
+    return {
+        "success": applied,
+        "audit_id": audit_id,
+        "validation_score": result.score_delta,
+        "validation_passed": result.passed,
+        "validation_recommendation": result.recommendation,
+    }
 
 
 @app.post("/skills/evolution/proposals/{proposal_id}/reject")
