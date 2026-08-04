@@ -399,6 +399,7 @@ export interface EvolutionAnalyzeResult {
   reason?: string;
   traces_analyzed?: number;
   proposals_generated?: number;
+  pending_count?: number;
   proposals: EvolutionProposal[];
 }
 

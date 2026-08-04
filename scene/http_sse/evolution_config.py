@@ -88,6 +88,21 @@ def resolve_evolution_provider() -> tuple[Any | None, str]:
 
         if provider_name == "anthropic":
             return AnthropicProvider(), "llm"
+        if provider_name == "deepseek":
+            provider = OpenAIProvider(
+                base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+                provider_name="deepseek",
+                models=[
+                    Model(
+                        provider="deepseek",
+                        id="deepseek-chat",
+                        context_window=64_000,
+                        max_output_tokens=8192,
+                        supports_vision=False,
+                    ),
+                ],
+            )
+            return provider, "llm"
         if provider_name == "minimax":
             provider = OpenAIProvider(
                 base_url=os.environ.get("MINIMAX_BASE_URL", "https://api.minimax.chat/v1"),

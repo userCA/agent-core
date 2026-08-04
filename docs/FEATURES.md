@@ -97,6 +97,8 @@
 | run_id 生成 | ✅ 完成 | `AgentStart` 事件携带 `run_id`，可跨日志/事件流/replay 文件关联 |
 | 调试回放 | ✅ 完成 | `RunReplayRecorder`（`ENABLE_RUN_REPLAY=1`）将 run 事件摘要落本地 JSON，http_sse + H5 场景均已接入 |
 | OTEL Exporter | ✅ 完成 | `configure_otel_exporter()` 支持 console/otlp，http_sse + H5 场景 lifespan 均已配置 |
+| Skill Evolution Pending Store | ✅ 完成 | JSONL 持久化存储待审批提案，有 pending 时阻塞新进化周期，支持 force 绕过 |
+| Skill Evolution 前端阻塞提示 | ✅ 完成 | EvolutionPanel 检测 blocked 状态并弹出 toast 提示用户先处理现有提案 |
 | Session tree / leaf | ❌ 不做 | 与 TS navigateTree 不对齐；文档非目标 |
 | SkillStart/SkillEnd emit | ⏳ planned | 待 `skill()` 公开 API |
 | HarnessSession facade | ⏳ planned | 扩展侧 pending-write 门面（TS 亦未完成） |

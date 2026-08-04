@@ -716,6 +716,7 @@ def _reload_channels(channels: list[dict[str, Any]]) -> None:
 class EvolutionAnalyzeRequest(BaseModel):
     skill_name: str = Field(..., min_length=1, max_length=100)
     min_traces: int = Field(default=10, ge=1, le=10000)
+    force: bool = Field(default=False, description="Force evolution even if pending proposals exist")
 
 
 class EvolutionFeedbackRequest(BaseModel):
@@ -728,9 +729,6 @@ class EvolutionProposalAction(BaseModel):
     skill_name: str = Field(..., min_length=1, max_length=100)
     reason: str | None = Field(default=None, max_length=500)
     force: bool = Field(default=False, description="Bypass validation gate (use with care)")
-
-
-_evolution_cache: dict[str, list[dict[str, Any]]] = {}  # legacy alias; use evolution_service
 
 
 def _get_skill_dir() -> str:
@@ -778,13 +776,17 @@ async def record_evolution_feedback(body: EvolutionFeedbackRequest) -> dict[str,
 
 @app.post("/skills/evolution/analyze")
 async def analyze_skill_evolution(body: EvolutionAnalyzeRequest) -> dict[str, Any]:
-    """Run an evolution cycle and return proposals with diffs."""
+    """Run an evolution cycle and return proposals with diffs.
+
+    Blocks if there are pending proposals for this skill (unless force=True).
+    """
     from scene.http_sse.evolution_service import run_skill_evolution_analyze
 
     return await run_skill_evolution_analyze(
         skill_dir=_get_skill_dir(),
         skill_name=body.skill_name,
         min_traces=body.min_traces,
+        force=body.force,
     )
 
 
@@ -810,10 +812,10 @@ async def get_evolution_scheduler_status() -> dict[str, Any]:
 
 @app.get("/skills/evolution/proposals/{skill_name}")
 async def get_evolution_proposals(skill_name: str) -> dict[str, Any]:
-    """Get cached proposals for a skill from the last analyze call."""
-    from scene.http_sse.evolution_service import get_cached_proposals
+    """Get pending proposals for a skill awaiting review."""
+    from scene.http_sse.evolution_pending import get_pending_proposals
 
-    proposals = get_cached_proposals(skill_name)
+    proposals = get_pending_proposals(skill_name)
     return {"skill_name": skill_name, "proposals": proposals}
 
 
@@ -824,11 +826,13 @@ async def accept_evolution_proposal(
 ) -> dict[str, Any]:
     """Validate and apply an accepted proposal, writing audit log."""
     from agent_core.skill_evolution import PatchProposal, write_audit_entry
-    from scene.http_sse.evolution_service import get_cached_proposals, remove_cached_proposal
+    from scene.http_sse.evolution_pending import get_pending_proposals, remove_pending_proposal
     from scene.http_sse.evolution_validation import build_evolution_validation_gate
 
-    proposals = get_cached_proposals(body.skill_name)
-    p_dict = next((p for p in proposals if p.get("proposal_id") == proposal_id), None)
+    p_dict = next(
+        (p for p in get_pending_proposals(body.skill_name) if p.get("proposal_id") == proposal_id),
+        None,
+    )
     if p_dict is None:
         return {"success": False, "error": "Proposal not found"}
 
@@ -862,9 +866,9 @@ async def accept_evolution_proposal(
         validation_score=result.score_delta,
     )
 
-    # Remove from cache on success
+    # Remove from pending store on success
     if applied:
-        remove_cached_proposal(body.skill_name, proposal_id)
+        remove_pending_proposal(proposal_id)
 
     return {
         "success": applied,
@@ -882,10 +886,12 @@ async def reject_evolution_proposal(
 ) -> dict[str, Any]:
     """Reject a proposal and write audit log (no skill file modification)."""
     from agent_core.skill_evolution import write_audit_entry
-    from scene.http_sse.evolution_service import get_cached_proposals, remove_cached_proposal
+    from scene.http_sse.evolution_pending import get_pending_proposals, remove_pending_proposal
 
-    proposals = get_cached_proposals(body.skill_name)
-    p_dict = next((p for p in proposals if p.get("proposal_id") == proposal_id), None)
+    p_dict = next(
+        (p for p in get_pending_proposals(body.skill_name) if p.get("proposal_id") == proposal_id),
+        None,
+    )
     if p_dict is None:
         return {"success": False, "error": "Proposal not found"}
 
@@ -900,9 +906,29 @@ async def reject_evolution_proposal(
         reject_reason=body.reason,
     )
 
-    remove_cached_proposal(body.skill_name, proposal_id)
+    remove_pending_proposal(proposal_id)
 
     return {"success": True, "audit_id": audit_id}
+
+
+@app.get("/skills/evolution/pending")
+async def get_evolution_pending() -> dict[str, Any]:
+    """Get summary of all pending proposals awaiting review."""
+    from scene.http_sse.evolution_pending import get_pending_proposals, get_pending_summary
+
+    return {
+        "summary": get_pending_summary(),
+        "proposals": get_pending_proposals(),
+    }
+
+
+@app.delete("/skills/evolution/pending")
+async def clear_evolution_pending(skill_name: str | None = None) -> dict[str, Any]:
+    """Clear all pending proposals, or only for a specific skill."""
+    from scene.http_sse.evolution_pending import clear_pending_proposals
+
+    count = clear_pending_proposals(skill_name)
+    return {"cleared": count, "skill_name": skill_name}
 
 
 @app.get("/skills/evolution/audit")

@@ -2,28 +2,33 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-_evolution_cache: dict[str, list[dict[str, Any]]] = {}
+from scene.http_sse.evolution_pending import (
+    add_pending_proposals,
+    get_pending_proposals,
+    get_pending_summary,
+    has_pending_proposals,
+    remove_pending_proposal,
+)
 
-
-def get_evolution_cache() -> dict[str, list[dict[str, Any]]]:
-    return _evolution_cache
+_log = logging.getLogger(__name__)
 
 
 def get_cached_proposals(skill_name: str) -> list[dict[str, Any]]:
-    return _evolution_cache.get(skill_name, [])
+    """Get pending proposals for a skill (alias for compatibility)."""
+    return get_pending_proposals(skill_name)
 
 
-def set_cached_proposals(skill_name: str, proposals: list[dict[str, Any]]) -> None:
-    _evolution_cache[skill_name] = proposals
+def remove_cached_proposal(skill_name: str, proposal_id: str) -> dict[str, Any] | None:
+    """Remove a pending proposal by ID (alias for compatibility)."""
+    return remove_pending_proposal(proposal_id)
 
 
-def remove_cached_proposal(skill_name: str, proposal_id: str) -> None:
-    proposals = _evolution_cache.get(skill_name, [])
-    _evolution_cache[skill_name] = [
-        p for p in proposals if p.get("proposal_id") != proposal_id
-    ]
+def get_pending_evolution_summary() -> dict[str, Any]:
+    """Get summary of all pending proposals."""
+    return get_pending_summary()
 
 
 async def run_skill_evolution_analyze(
@@ -31,10 +36,35 @@ async def run_skill_evolution_analyze(
     skill_dir: str,
     skill_name: str,
     min_traces: int = 10,
+    force: bool = False,
 ) -> dict[str, Any]:
-    """Run offline evolution cycle and attach diffs; cache proposals on success."""
+    """Run offline evolution cycle and attach diffs; store proposals in pending store.
+
+    Blocks if there are pending proposals for this skill (unless force=True).
+    """
     from agent_core.skill_evolution import PatchProposal, create_validation_gate
     from scene.http_sse.evolution_config import build_offline_evolution_agent
+
+    # Block if there are pending proposals for this skill
+    if not force and has_pending_proposals(skill_name):
+        pending = get_pending_proposals(skill_name)
+        return {
+            "skill_name": skill_name,
+            "status": "blocked",
+            "reason": f"There are {len(pending)} pending proposals for '{skill_name}' that must be approved or rejected before starting a new evolution cycle.",
+            "pending_count": len(pending),
+            "pending_proposals": [
+                {
+                    "proposal_id": p.get("proposal_id"),
+                    "operation": p.get("operation"),
+                    "target_rule_id": p.get("target_rule_id"),
+                    "confidence": p.get("confidence"),
+                    "pending_since": p.get("pending_since"),
+                }
+                for p in pending
+            ],
+            "hint": "Use /skills/evolution/proposals/{proposal_id}/accept or /reject to process pending proposals, or pass force=True to override.",
+        }
 
     agent, analyzer = build_offline_evolution_agent()
     result = await agent.run_evolution_cycle(
@@ -82,7 +112,13 @@ async def run_skill_evolution_analyze(
         diff = gate.diff_proposal(proposal)
         proposals_out.append({**p_dict, "diff": diff})
 
-    set_cached_proposals(skill_name, proposals_out)
+    # Store proposals in persistent pending store
+    add_pending_proposals(proposals_out)
+    _log.info(
+        "Evolution cycle completed for skill=%s: %d proposals pending review",
+        skill_name,
+        len(proposals_out),
+    )
 
     return {
         **base_response,
@@ -93,4 +129,5 @@ async def run_skill_evolution_analyze(
         "conflicts": result.get("conflicts", 0),
         "discarded": result.get("discarded", 0),
         "proposals": proposals_out,
+        "pending_summary": get_pending_summary(),
     }

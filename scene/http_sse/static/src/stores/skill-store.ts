@@ -106,6 +106,13 @@ export const useSkillStore = create<SkillState>((set, get) => ({
     set({ evolutionLoading: true });
     try {
       const result = await analyzeSkillEvolution(skillName);
+      if (result.status === 'blocked') {
+        useToastStore.getState().addToast(
+          `有 ${result.pending_count} 条待审批的改进提议，请先处理后再执行新的分析`,
+          'info',
+        );
+        return [];
+      }
       if (result.status === 'skipped') {
         useToastStore.getState().addToast(
           result.reason === 'insufficient_traces'

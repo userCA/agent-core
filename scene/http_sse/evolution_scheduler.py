@@ -90,6 +90,7 @@ class EvolutionScheduler:
 
     async def discover_candidates(self) -> list[tuple[str, dict[str, int]]]:
         from agent_core.skill_evolution.store import JsonlSkillEvolutionStore
+        from scene.http_sse.evolution_pending import has_pending_proposals
 
         store = JsonlSkillEvolutionStore()
         skill_dir = Path(self._config.skill_dir)
@@ -100,6 +101,10 @@ class EvolutionScheduler:
         for name in sorted(os.listdir(skill_dir)):
             path = skill_dir / name
             if not path.is_dir():
+                continue
+            # Skip skills with pending proposals
+            if has_pending_proposals(name):
+                _log.info("Skipping skill=%s: has pending proposals", name)
                 continue
             total = await store.get_trace_count(skill_name=name)
             if total < self._config.min_traces:

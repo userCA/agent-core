@@ -60,6 +60,8 @@ def create_validation_agent_runner(skill_name: str) -> Any | None:
 
     if provider_name == "anthropic":
         auth = AuthSource.env("ANTHROPIC_API_KEY")
+    elif provider_name == "deepseek":
+        auth = AuthSource.env("DEEPSEEK_API_KEY")
     elif provider_name == "minimax":
         auth = AuthSource.env("MINIMAX_API_KEY")
     else:
@@ -84,7 +86,8 @@ def build_evolution_validation_gate(skill_dir: str, skill_name: str) -> Any:
     return create_validation_gate(
         skill_dir=skill_dir,
         agent_runner=agent_runner,
-        require_human_review=True,
+        # HTTP accept/reject is already human review; do not block apply here.
+        require_human_review=False,
         trace_store=JsonlSkillEvolutionStore(),
         max_validation_cases=validation_max_cases(),
     )

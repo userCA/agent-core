@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-04 09:47 — Skill Evolution 提案审批阻塞机制
+
+**需求**：技能进化生成的改进提案需要先临时存档，等审批后才应用，且存在未审批内容时不执行下次进化。
+
+**方案**：
+- 新增 `evolution_pending.py` 模块，使用 JSONL 文件（`~/.agent-core/skill-evolution-pending.jsonl`）持久化存储待审批提案
+- `run_skill_evolution_analyze()` 开始时检查是否有 pending proposals，有则返回 `status: blocked`
+- Scheduler 层面 `discover_candidates()` 跳过有 pending proposals 的 skill
+- 前端 `skill-store.ts` 检测 blocked 状态并弹出 toast 提示用户
+- 新增 API 端点：`GET /skills/evolution/pending`、`DELETE /skills/evolution/pending`
+- 支持 `force=true` 参数绕过阻塞
+
+**改动范围**：
+- `scene/http_sse/evolution_pending.py`（新增）
+- `scene/http_sse/evolution_service.py`
+- `scene/http_sse/evolution_scheduler.py`
+- `scene/http_sse/server.py`
+- `scene/http_sse/static/src/stores/skill-store.ts`
+- `scene/http_sse/static/src/api/client.ts`
+
+**影响面**：Skill Evolution 模块、http_sse 场景、桌面端/H5 前端
+
 ## 2026-07-31 16:32 — 修复 ffmpeg 拼接视频时被终端信号挂起
 
 **问题**：“拼接成片”阶段卡住 20+ 分钟不完成。
