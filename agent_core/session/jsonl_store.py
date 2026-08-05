@@ -62,7 +62,9 @@ class JsonlStore:
 
         return SessionSnapshot(header=header, entries=entries)
 
-    async def list_sessions(self, *, owner: str | None = None, limit: int = 50) -> list[SessionMeta]:
+    async def list_sessions(
+        self, *, owner: str | None = None, agent_id: str | None = None, limit: int = 50
+    ) -> list[SessionMeta]:
         result: list[SessionMeta] = []
         for file_path in sorted(self._dir.glob("*.jsonl"), reverse=True):
             sid = file_path.stem
@@ -72,6 +74,8 @@ class JsonlStore:
                     continue
                 header = SessionHeader.model_validate(json.loads(first))
                 if owner is not None and header.owner != owner:
+                    continue
+                if agent_id is not None and header.agent_id != agent_id:
                     continue
                 lines = f.readlines()
                 entry_count = len(lines)
@@ -109,6 +113,7 @@ class JsonlStore:
                     created_at=header.timestamp,
                     entry_count=entry_count,
                     title=title,
+                    agent_id=header.agent_id,
                 )
             )
             if len(result) >= limit:

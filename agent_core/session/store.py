@@ -14,6 +14,7 @@ class SessionHeader(BaseModel):
     timestamp: str
     cwd: str = ""
     owner: str = ""
+    agent_id: str = ""
 
 
 class MessageEntry(BaseModel):
@@ -78,6 +79,7 @@ class SessionMeta(BaseModel):
     created_at: str
     entry_count: int
     title: str = ""
+    agent_id: str = ""
 
 
 class SessionStore(Protocol):
@@ -87,7 +89,9 @@ class SessionStore(Protocol):
 
     async def load_session(self, session_id: str) -> SessionSnapshot: ...
 
-    async def list_sessions(self, *, owner: str | None = None, limit: int = 50) -> list[SessionMeta]: ...
+    async def list_sessions(
+        self, *, owner: str | None = None, agent_id: str | None = None, limit: int = 50
+    ) -> list[SessionMeta]: ...
 
     async def delete_session(self, session_id: str) -> bool: ...
 

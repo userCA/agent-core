@@ -126,13 +126,15 @@ class SqliteStore:
         ]
         return SessionSnapshot(header=header, entries=entries)
 
-    async def list_sessions(self, *, owner: str | None = None, limit: int = 50) -> list[SessionMeta]:
+    async def list_sessions(
+        self, *, owner: str | None = None, agent_id: str | None = None, limit: int = 50
+    ) -> list[SessionMeta]:
         async with self._lock:
-            return await asyncio.to_thread(self._list_sessions_sync, owner, limit)
+            return await asyncio.to_thread(self._list_sessions_sync, owner, agent_id, limit)
 
-    def _list_sessions_sync(self, owner: str | None, limit: int) -> list[SessionMeta]:
-        # Fetch more rows when filtering by owner so LIMIT applies after filter.
-        fetch_limit = limit if owner is None else max(limit * 10, 100)
+    def _list_sessions_sync(self, owner: str | None, agent_id: str | None, limit: int) -> list[SessionMeta]:
+        # Fetch more rows when filtering by owner/agent_id so LIMIT applies after filter.
+        fetch_limit = limit if (owner is None and agent_id is None) else max(limit * 10, 100)
         rows = self._conn.execute(
             "SELECT session_id, header_json, created_at FROM sessions "
             "ORDER BY created_at DESC LIMIT ?",
@@ -143,6 +145,8 @@ class SqliteStore:
             sid = row["session_id"]
             header = SessionHeader.model_validate(json.loads(row["header_json"]))
             if owner is not None and header.owner != owner:
+                continue
+            if agent_id is not None and header.agent_id != agent_id:
                 continue
             count_row = self._conn.execute(
                 "SELECT COUNT(*) AS c FROM entries WHERE session_id = ?", (sid,)
@@ -166,6 +170,7 @@ class SqliteStore:
                     created_at=header.timestamp,
                     entry_count=entry_count,
                     title=title,
+                    agent_id=header.agent_id,
                 )
             )
             if len(result) >= limit:

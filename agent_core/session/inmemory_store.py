@@ -24,16 +24,21 @@ class InMemoryStore:
             raise KeyError(f"Session {session_id} not found")
         return SessionSnapshot(header=snap.header, entries=list(snap.entries))
 
-    async def list_sessions(self, *, owner: str | None = None, limit: int = 50) -> list[SessionMeta]:
+    async def list_sessions(
+        self, *, owner: str | None = None, agent_id: str | None = None, limit: int = 50
+    ) -> list[SessionMeta]:
         result: list[SessionMeta] = []
         for sid, snap in self._sessions.items():
             if owner is not None and snap.header.owner != owner:
+                continue
+            if agent_id is not None and snap.header.agent_id != agent_id:
                 continue
             result.append(
                 SessionMeta(
                     session_id=sid,
                     created_at=snap.header.timestamp,
                     entry_count=len(snap.entries),
+                    agent_id=snap.header.agent_id,
                 )
             )
         return result[:limit]
