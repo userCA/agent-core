@@ -24,6 +24,7 @@ from agent_core.session.store import SessionStore
 from agent_core.prompts.builder import SystemPromptBuilder
 from agent_core.resources.agents import AgentDefinition
 from agent_core.resources.loader import ResourceLoader
+from agent_core.retrieval.base import Retriever
 from agent_core.resources.personas import Persona
 from agent_core.resources.types import Skill
 from agent_core.tools.base import Tool, ToolRegistry
@@ -68,6 +69,57 @@ async def _auth_before_tool_call(info: dict[str, Any]) -> dict[str, Any] | None:
     return {"inject_metadata": inject}
 
 EventHandler = Callable[[AgentEvent], Awaitable[None] | None]
+
+
+def build_agent_knowledge_base(agent: AgentDefinition, cwd: str) -> Retriever | None:
+    """Assemble an agent's composite KB (shared + private local roots).
+
+    - knowledge is None (block absent) → shared root with ALL docs allowed,
+      no private root (compat default).
+    - knowledge present → shared docs = knowledge.shared names; private docs =
+      knowledge.private names (both may be empty → no corresponding component).
+    - Each LocalKB is wrapped in ScopedKnowledgeBase with scope "shared" /
+      "agents/<agent_id>" and the allowed doc names, then combined in a
+      CompositeKnowledgeBase. Returns None when there is nothing to retrieve.
+    """
+    from agent_core.knowledge.composite import CompositeKnowledgeBase
+    from agent_core.knowledge.local_kb import (
+        LocalKnowledgeBase,
+        ScopedKnowledgeBase,
+        knowledge_agent_dir,
+        knowledge_shared_dir,
+    )
+
+    if agent.knowledge is None:
+        # compat: knowledge block absent → all shared docs allowed
+        return CompositeKnowledgeBase([
+            ScopedKnowledgeBase(
+                LocalKnowledgeBase(knowledge_shared_dir(cwd)),
+                scope="shared",
+                doc_names=None,
+            )
+        ])
+
+    components: list[Retriever] = []
+    if agent.knowledge.shared:
+        components.append(
+            ScopedKnowledgeBase(
+                LocalKnowledgeBase(knowledge_shared_dir(cwd)),
+                scope="shared",
+                doc_names=set(agent.knowledge.shared),
+            )
+        )
+    if agent.knowledge.private:
+        components.append(
+            ScopedKnowledgeBase(
+                LocalKnowledgeBase(knowledge_agent_dir(agent.id, cwd)),
+                scope=f"agents/{agent.id}",
+                doc_names=set(agent.knowledge.private),
+            )
+        )
+    if not components:
+        return None
+    return CompositeKnowledgeBase(components)
 
 
 class ChatAssistant:
@@ -142,6 +194,12 @@ class ChatAssistant:
             tool_registry.register(tool)
         tool_registry.register(create_text_to_music_tool())
         tool_registry.register(create_nolo_video_tool())
+        # Agent definitions opt into KB docs via AgentKnowledge — assemble a
+        # single scoped composite retriever (shared + private local roots).
+        kb_retriever = None
+        if agent is not None:
+            kb_retriever = build_agent_knowledge_base(agent, cwd)
+
         # Register local knowledge base via existing RetrieverTool
         # Only if no persona filtering, or persona explicitly enables "local" knowledge base
         _kb_allowed = True
@@ -150,13 +208,19 @@ class ChatAssistant:
         elif persona is not None and persona.enabled_tools is not None:
             _kb_allowed = False  # persona has tool filtering but didn't opt into local KB
 
-        if _kb_allowed:
-            from agent_core.knowledge.local_kb import LocalKnowledgeBase
+        # Agent path uses the scoped composite retriever directly (registered
+        # only when it has components); persona/default paths keep the legacy
+        # flat LocalKnowledgeBase gate.
+        _kb_enabled = kb_retriever is not None if agent is not None else _kb_allowed
+        if _kb_enabled:
             from agent_core.retrieval.tool import RetrieverTool
             from agent_core.tools.base import ToolContext, ToolResult
 
-            kb_dir = os.path.join(cwd, ".pi", "knowledge")
-            kb_retriever = LocalKnowledgeBase(kb_dir)
+            if kb_retriever is None:
+                from agent_core.knowledge.local_kb import LocalKnowledgeBase
+
+                kb_dir = os.path.join(cwd, ".pi", "knowledge")
+                kb_retriever = LocalKnowledgeBase(kb_dir)
             _kb_rt = RetrieverTool(
                 retriever=kb_retriever,
                 name="search_knowledge",
@@ -313,14 +377,24 @@ class ChatAssistant:
         )
 
         # Auto-retrieval: inject knowledge base context before each LLM call
-        from agent_core.knowledge.local_kb import LocalKnowledgeBase
         from agent_core.retrieval.extension import AutoRetrievalExtension
 
-        kb_dir = os.path.join(cwd, ".pi", "knowledge")
-        _kb_retriever = LocalKnowledgeBase(kb_dir)
-        _auto_retrieval = AutoRetrievalExtension(retriever=_kb_retriever, top_k=3)
+        if agent is not None:
+            _auto_retrieval = (
+                AutoRetrievalExtension(retriever=kb_retriever, top_k=3)
+                if kb_retriever is not None
+                else None
+            )
+        else:
+            from agent_core.knowledge.local_kb import LocalKnowledgeBase
+
+            kb_dir = os.path.join(cwd, ".pi", "knowledge")
+            _kb_retriever = LocalKnowledgeBase(kb_dir)
+            _auto_retrieval = AutoRetrievalExtension(retriever=_kb_retriever, top_k=3)
 
         async def _transform_context(llm_messages, signal=None):
+            if _auto_retrieval is None:
+                return llm_messages
             return await _auto_retrieval.transform_context(llm_messages, signal)
 
         resolved_session_id = session_id or _generate_session_id()

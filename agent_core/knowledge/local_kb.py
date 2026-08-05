@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from agent_core.retrieval.base import Query, RetrievedChunk
+from agent_core.retrieval.base import Query, RetrievedChunk, Retriever
 
 # ---- chunking ----
 
@@ -299,3 +299,71 @@ class LocalKnowledgeBase:
             )
             for score, source, chunk_id, text in results[:query.top_k]
         ]
+
+
+# ---- scoped access & root resolution ----
+
+class ScopedKnowledgeBase:
+    """Restrict a retriever to allowed doc names and tag chunk sources with a scope.
+
+    LocalKnowledgeBase sources are ``{doc_name}/{chunk_id}``. This wrapper:
+    - drops chunks whose doc_name is not in ``doc_names`` (None = allow all)
+    - prefixes surviving sources with ``{scope}/{doc_name}/{chunk_id}`` so
+      shared and private roots sharing a doc name do not collide in a
+      CompositeKnowledgeBase (sources stay unique across scopes).
+    """
+
+    def __init__(self, retriever: Retriever, *, scope: str, doc_names: set[str] | None = None) -> None:
+        self._retriever = retriever
+        self._scope = scope
+        self._doc_names = doc_names
+
+    async def retrieve(self, query: Query) -> list[RetrievedChunk]:
+        chunks = await self._retriever.retrieve(query)
+        out: list[RetrievedChunk] = []
+        for c in chunks:
+            doc = c.source.split("/", 1)[0] if c.source else None
+            if self._doc_names is not None and (doc is None or doc not in self._doc_names):
+                continue
+            src = f"{self._scope}/{c.source}" if c.source else c.source
+            out.append(c.model_copy(update={"source": src}))
+        return out
+
+
+def _has_flat_docs(base: str) -> bool:
+    """True if any doc subdir of base (excluding shared/agents) holds KB files."""
+    try:
+        entries = list(os.scandir(base))
+    except OSError:
+        return False
+    for entry in entries:
+        if not entry.is_dir() or entry.name in ("shared", "agents"):
+            continue
+        dirpath = os.path.join(base, entry.name)
+        if os.path.exists(os.path.join(dirpath, "meta.json")):
+            return True
+        try:
+            names = os.listdir(dirpath)
+        except OSError:
+            continue
+        if any(n.startswith("chunk_") and n.endswith(".txt") for n in names):
+            return True
+    return False
+
+
+def knowledge_shared_dir(cwd: str = "") -> str:
+    """Shared KB root; falls back to the old flat .pi/knowledge layout."""
+    base = os.path.join(cwd or os.getcwd(), ".pi", "knowledge")
+    shared = os.path.join(base, "shared")
+    # Prefer shared/ subdir. Fall back to base when it has flat doc dirs and
+    # no shared/ subdir yet (old layout), so existing docs stay reachable.
+    if os.path.isdir(shared):
+        return shared
+    if _has_flat_docs(base):
+        return base
+    return shared
+
+
+def knowledge_agent_dir(agent_id: str, cwd: str = "") -> str:
+    """Per-agent private KB root: ``.pi/knowledge/agents/<agent_id>/``."""
+    return os.path.join(cwd or os.getcwd(), ".pi", "knowledge", "agents", agent_id)

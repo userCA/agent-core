@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
@@ -21,6 +22,7 @@ from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
 from agent_core.resources.personas import load_personas
 
 from agent_core.extensions.companion import companion_event_to_sse
+from agent_core.knowledge.local_kb import knowledge_agent_dir, knowledge_shared_dir
 from scene.http_sse.events import agent_event_to_sse_frames
 from agent_core.tools.mcp_tool import add_mcp_server_to_json, remove_mcp_server_from_json
 from scene.http_sse.manager import SessionManager
@@ -398,22 +400,42 @@ async def upload_file(request: Request) -> dict[str, Any]:
 
 # ---- Knowledge base endpoints ----
 
+_SAFE_AGENT_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+def _knowledge_dir(scope: str, agent_id: str) -> str:
+    """Resolve a KB root for a scope (shared | agent)."""
+    if scope == "agent":
+        if not agent_id or not _SAFE_AGENT_ID_RE.match(agent_id):
+            raise ValueError("agent scope requires a valid agent_id")
+        return knowledge_agent_dir(agent_id, manager._cwd)
+    return knowledge_shared_dir(manager._cwd)
+
+
 @app.get("/knowledge")
-async def list_knowledge_docs() -> dict[str, Any]:
+async def list_knowledge_docs(request: Request) -> dict[str, Any]:
     """List all documents in the local knowledge base."""
+    scope = request.query_params.get("scope", "shared")
+    agent_id = request.query_params.get("agent_id", "")
+    try:
+        kb_dir = _knowledge_dir(scope, agent_id)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
     from agent_core.knowledge.local_kb import LocalKnowledgeBase
-    import os as _os
-    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
     kb = LocalKnowledgeBase(kb_dir)
     return {"docs": kb.list_docs()}
 
 
 @app.post("/knowledge")
-async def add_knowledge_doc(body: KnowledgeDocRequest) -> dict[str, Any]:
+async def add_knowledge_doc(body: KnowledgeDocRequest, request: Request) -> dict[str, Any]:
     """Add or update a document in the local knowledge base."""
+    scope = request.query_params.get("scope", "shared")
+    agent_id = request.query_params.get("agent_id", "")
+    try:
+        kb_dir = _knowledge_dir(scope, agent_id)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
     from agent_core.knowledge.local_kb import LocalKnowledgeBase
-    import os as _os
-    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
     kb = LocalKnowledgeBase(kb_dir)
     _, chunk_count = await kb.add_async(body.name, body.content)
     return {"success": True, "chunks": chunk_count}
@@ -423,7 +445,13 @@ async def add_knowledge_doc(body: KnowledgeDocRequest) -> dict[str, Any]:
 async def upload_knowledge_file(request: Request) -> dict[str, Any]:
     """Upload a file (txt, md, pdf) to the knowledge base."""
     from agent_core.knowledge.local_kb import LocalKnowledgeBase
-    import os as _os
+
+    scope = request.query_params.get("scope", "shared")
+    agent_id = request.query_params.get("agent_id", "")
+    try:
+        kb_dir = _knowledge_dir(scope, agent_id)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
 
     form = await request.form()
     file = form.get("file")
@@ -455,7 +483,6 @@ async def upload_knowledge_file(request: Request) -> dict[str, Any]:
     if not content.strip():
         return {"success": False, "error": "Empty file or could not extract text"}
 
-    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
     kb = LocalKnowledgeBase(kb_dir)
     name = filename.rsplit(".", 1)[0] if "." in filename else filename
     _, chunk_count = await kb.add_async(name, content)
@@ -466,21 +493,31 @@ async def upload_knowledge_file(request: Request) -> dict[str, Any]:
 async def set_knowledge_tags(name: str, request: Request) -> dict[str, Any]:
     """Set tags for a knowledge document."""
     from agent_core.knowledge.local_kb import LocalKnowledgeBase
-    import os as _os
+
+    scope = request.query_params.get("scope", "shared")
+    agent_id = request.query_params.get("agent_id", "")
+    try:
+        kb_dir = _knowledge_dir(scope, agent_id)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
     body = await request.json()
     tags = body.get("tags", [])
-    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
     kb = LocalKnowledgeBase(kb_dir)
     ok = kb.set_tags(name, tags)
     return {"success": ok}
 
 
 @app.get("/knowledge/{name}")
-async def get_knowledge_doc(name: str) -> dict[str, Any]:
+async def get_knowledge_doc(name: str, request: Request) -> dict[str, Any]:
     """Get a single knowledge document with chunk previews."""
     from agent_core.knowledge.local_kb import LocalKnowledgeBase
-    import os as _os
-    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
+
+    scope = request.query_params.get("scope", "shared")
+    agent_id = request.query_params.get("agent_id", "")
+    try:
+        kb_dir = _knowledge_dir(scope, agent_id)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
     kb = LocalKnowledgeBase(kb_dir)
     doc = kb.get_doc(name)
     if doc is None:
@@ -494,9 +531,13 @@ async def delete_knowledge_doc(request: Request) -> dict[str, Any]:
     name = request.query_params.get("name")
     if not name:
         return {"success": False, "error": "Missing name"}
+    scope = request.query_params.get("scope", "shared")
+    agent_id = request.query_params.get("agent_id", "")
+    try:
+        kb_dir = _knowledge_dir(scope, agent_id)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
     from agent_core.knowledge.local_kb import LocalKnowledgeBase
-    import os as _os
-    kb_dir = _os.path.join(manager._cwd, ".pi", "knowledge")
     kb = LocalKnowledgeBase(kb_dir)
     found = kb.delete(name)
     return {"success": found}
