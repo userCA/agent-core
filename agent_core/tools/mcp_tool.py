@@ -128,16 +128,37 @@ def parse_mcp_json(path: str) -> list[MCPServerConfig]:
     return servers
 
 
-def load_mcp_server_configs(cwd: str = "") -> list[MCPServerConfig]:
-    """Load MCP server configs from .mcp.json (cwd), then fall back to MCP_SERVERS env var."""
+def load_mcp_server_configs(
+    cwd: str = "", *, path: str | None = None
+) -> list[MCPServerConfig]:
+    """Load MCP server configs from config files, then fall back to MCP_SERVERS env var.
+
+    When ``path`` is given explicitly, only that file is read before falling
+    back to ``MCP_SERVERS``.
+
+    When ``path`` is None (default), the resolution chain is:
+        1. ``<cwd>/.pi/mcp/shared.mcp.json``
+        2. ``<cwd>/.mcp.json``
+        3. ``MCP_SERVERS`` env var
+    """
     import os as _os
 
     search_dir = cwd or _os.getcwd()
-    json_path = _os.path.join(search_dir, ".mcp.json")
 
-    configs = parse_mcp_json(json_path)
-    if configs:
-        return configs
+    if path is not None:
+        configs = parse_mcp_json(path)
+        if configs:
+            return configs
+    else:
+        shared_path = _os.path.join(search_dir, ".pi", "mcp", "shared.mcp.json")
+        configs = parse_mcp_json(shared_path)
+        if configs:
+            return configs
+
+        json_path = _os.path.join(search_dir, ".mcp.json")
+        configs = parse_mcp_json(json_path)
+        if configs:
+            return configs
 
     # Fall back to env var for backward compatibility
     return parse_mcp_servers(_os.environ.get("MCP_SERVERS", ""))
