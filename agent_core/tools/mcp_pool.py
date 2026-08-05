@@ -1,0 +1,156 @@
+"""MCPPool — shared + per-agent private MCP manager pool.
+
+One shared :class:`MCPManager` holds servers available to every agent.
+Per-agent private managers are created lazily from
+``<cwd>/.pi/mcp/agents/<agent_id>.mcp.json`` and cached so repeated lookups
+don't re-read the file.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from typing import Callable
+
+from agent_core.resources.agents import AgentDefinition
+from agent_core.tools.base import ToolRegistry
+from agent_core.tools.mcp_tool import (
+    MCPManager,
+    MCPServerConfig,
+    MCPToolAdapter,
+    load_mcp_server_configs,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class MCPPool:
+    """Pool of shared + private MCP managers, filtered per agent.
+
+    Selection semantics (see plan §1.1 / §1.4):
+
+    - ``agent.tools is None`` — unrestricted: include **all** shared
+      adapters. Private adapters are never included.
+    - ``agent.tools.shared_mcp`` — include only shared adapters whose
+      ``.server_name`` is listed.
+    - ``agent.tools.private_mcp`` — include only the agent's private
+      adapters whose ``.server_name`` is listed.
+    - Knowledge servers — shared adapters in
+      ``knowledge.shared_mcp_knowledge`` and private adapters in
+      ``knowledge.private_mcp_knowledge`` are also included.
+
+    Private adapters are registered after shared ones, so on tool-name
+    conflict the private adapter wins (a warning is logged).
+    """
+
+    def __init__(
+        self,
+        *,
+        shared: MCPManager,
+        cwd: str = "",
+        manager_factory: Callable[[list[MCPServerConfig]], MCPManager] = MCPManager,
+    ) -> None:
+        self._shared = shared
+        self._cwd = cwd
+        self._manager_factory = manager_factory
+        self._private: dict[str, MCPManager] = {}
+
+    async def start_shared(self) -> None:
+        """Start the shared MCP manager."""
+        await self._shared.start()
+
+    async def ensure_private(self, agent_id: str) -> MCPManager:
+        """Load ``.pi/mcp/agents/<agent_id>.mcp.json`` if needed.
+
+        Returns the cached manager for ``agent_id`` if already loaded;
+        otherwise loads configs from disk, starts the manager, and caches
+        it. Empty results are cached too, so repeated calls don't re-read
+        the file.
+        """
+        existing = self._private.get(agent_id)
+        if existing is not None:
+            return existing
+
+        path = os.path.join(self._cwd, ".pi", "mcp", "agents", f"{agent_id}.mcp.json")
+        configs = load_mcp_server_configs(cwd=self._cwd, path=path)
+        manager = self._manager_factory(configs)
+        if configs:
+            await manager.start()
+        self._private[agent_id] = manager
+        return manager
+
+    def adapters_for_agent(self, agent: AgentDefinition) -> list[MCPToolAdapter]:
+        """Union of shared∩shared_mcp and private∩private_mcp (+ knowledge servers).
+
+        Shared adapters come first, then private ones, so registering in
+        this order lets private adapters overwrite shared adapters by name.
+        """
+        adapters: list[MCPToolAdapter] = []
+        seen: set[int] = set()
+        shared_adapters = self._shared.adapters
+
+        def _append(adapter: MCPToolAdapter) -> None:
+            if id(adapter) in seen:
+                return
+            seen.add(id(adapter))
+            adapters.append(adapter)
+
+        # Shared — tools-based selection.
+        if agent.tools is None:
+            for adapter in shared_adapters:
+                _append(adapter)
+        else:
+            names = set(agent.tools.shared_mcp)
+            for adapter in shared_adapters:
+                if adapter.server_name in names:
+                    _append(adapter)
+
+        # Shared — knowledge servers.
+        if agent.knowledge is not None:
+            names = set(agent.knowledge.shared_mcp_knowledge)
+            for adapter in shared_adapters:
+                if adapter.server_name in names:
+                    _append(adapter)
+
+        # Private adapters.
+        private = self._private.get(agent.id)
+        if private is not None:
+            private_adapters = private.adapters
+            if agent.tools is not None:
+                names = set(agent.tools.private_mcp)
+                for adapter in private_adapters:
+                    if adapter.server_name in names:
+                        _append(adapter)
+            if agent.knowledge is not None:
+                names = set(agent.knowledge.private_mcp_knowledge)
+                for adapter in private_adapters:
+                    if adapter.server_name in names:
+                        _append(adapter)
+
+        return adapters
+
+    def register_tools(self, registry: ToolRegistry, agent: AgentDefinition) -> int:
+        """Register the agent's MCP tools into ``registry``.
+
+        Shared adapters are registered first, then private ones. When a
+        name is already present the previous tool is overwritten and a
+        warning is logged. Returns the number of tools registered.
+        """
+        count = 0
+        for adapter in self.adapters_for_agent(agent):
+            name = adapter.definition.name
+            if name in registry:
+                logger.warning(
+                    "Overwriting existing tool '%s' with MCP tool from server '%s'",
+                    name,
+                    adapter.server_name,
+                )
+            registry.register(adapter)
+            count += 1
+        return count
+
+    async def stop(self) -> None:
+        """Stop the shared manager and all private managers."""
+        await self._shared.stop()
+        for manager in self._private.values():
+            await manager.stop()
