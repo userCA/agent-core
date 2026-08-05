@@ -22,6 +22,7 @@ from agent_core.session.harness import AgentHarness
 from agent_core.session.inmemory_store import InMemoryStore
 from agent_core.session.store import SessionStore
 from agent_core.prompts.builder import SystemPromptBuilder
+from agent_core.resources.agents import AgentDefinition
 from agent_core.resources.loader import ResourceLoader
 from agent_core.resources.personas import Persona
 from agent_core.resources.types import Skill
@@ -110,6 +111,8 @@ class ChatAssistant:
         system_prompt: str | None = None,
         persona: Persona | None = None,
         mcp_manager: Any | None = None,
+        mcp_pool: Any | None = None,
+        agent: AgentDefinition | None = None,
         cwd: str = "",
         memory_backend: str = "",
         memory_config: dict[str, Any] | None = None,
@@ -194,8 +197,20 @@ class ChatAssistant:
             for tool in tools:
                 tool_registry.register(tool)
 
-        # Register MCP tools (pre-loaded at server startup by manager)
-        if mcp_manager is not None:
+        # Register MCP tools — per-agent when an AgentDefinition is present,
+        # otherwise all shared adapters (conflict-renaming compat path).
+        if mcp_pool is not None:
+            if agent is not None:
+                needs_private = (
+                    (agent.tools is not None and agent.tools.private_mcp)
+                    or (agent.knowledge is not None and agent.knowledge.private_mcp_knowledge)
+                )
+                if needs_private:
+                    await mcp_pool.ensure_private(agent.id)
+                mcp_pool.register_tools(tool_registry, agent)
+            else:
+                mcp_pool.shared.register_tools(tool_registry)
+        elif mcp_manager is not None:
             mcp_manager.register_tools(tool_registry)
 
         # Apply persona tool filtering
@@ -211,9 +226,14 @@ class ChatAssistant:
                     allowed.add("search_knowledge")
                 # MCP KB connectors
                 if mcp_manager is not None:
-                    for adapter in mcp_manager.adapters:
-                        if adapter.server_name in kb_names and allowed is not None:
-                            allowed.add(adapter.definition.name)
+                    _adapters = mcp_manager.adapters
+                elif mcp_pool is not None:
+                    _adapters = mcp_pool.shared.adapters
+                else:
+                    _adapters = []
+                for adapter in _adapters:
+                    if adapter.server_name in kb_names and allowed is not None:
+                        allowed.add(adapter.definition.name)
             if allowed is not None:
                 filtered = ToolRegistry()
                 for name, tool in tool_registry._tools.items():
@@ -278,8 +298,13 @@ class ChatAssistant:
         if model is None:
             model = provider.list_models()[0]
 
-        # Build system prompt — persona overrides base_prompt
-        effective_prompt = persona.system_prompt if persona is not None else system_prompt
+        # Build system prompt — persona overrides base_prompt, agent overrides system_prompt
+        if persona is not None:
+            effective_prompt = persona.system_prompt
+        elif agent is not None:
+            effective_prompt = agent.system_prompt
+        else:
+            effective_prompt = system_prompt
         prompt = SystemPromptBuilder(base_prompt=effective_prompt).build(
             cwd=cwd,
             active_tools=tool_registry.to_definitions(),

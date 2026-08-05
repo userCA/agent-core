@@ -60,6 +60,11 @@ class MCPPool:
         # agent_id only build + start one manager.
         self._locks: dict[str, asyncio.Lock] = {}
 
+    @property
+    def shared(self) -> MCPManager:
+        """The shared MCP manager holding servers available to every agent."""
+        return self._shared
+
     async def start_shared(self) -> None:
         """Start the shared MCP manager."""
         await self._shared.start()

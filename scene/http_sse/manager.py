@@ -14,6 +14,7 @@ import time
 from typing import Any
 
 from agent_core.resources.personas import get_persona
+from agent_core.tools.mcp_pool import MCPPool
 from agent_core.tools.mcp_tool import MCPManager
 from agent_core.session.factory import create_session_store
 from agent_core.session.store import SessionMeta, SessionStore
@@ -50,13 +51,15 @@ class SessionManager:
         self._lock = asyncio.Lock()
         self._create_locks: dict[str, asyncio.Lock] = {}
         self._mcp_manager: MCPManager | None = None
+        self._mcp_pool: MCPPool | None = None
 
     async def start(self) -> None:
         """Pre-load MCP tools and warm up embedding model at startup."""
         import logging
         _log = logging.getLogger(__name__)
         self._mcp_manager = MCPManager.from_env()
-        await self._mcp_manager.start()
+        self._mcp_pool = MCPPool(shared=self._mcp_manager, cwd=self._cwd)
+        await self._mcp_pool.start_shared()
         if len(self._mcp_manager.adapters) > 0:
             _log.info("MCP tools pre-loaded: %d tools", len(self._mcp_manager.adapters))
         # Pre-download/warm embedding model in background (avoids first-request lag)
@@ -147,7 +150,7 @@ class SessionManager:
                 model_id=model_id,
                 api_key_env=api_key_env,
                 persona=persona,
-                mcp_manager=self._mcp_manager,
+                mcp_pool=self._mcp_pool,
                 companion_queue=companion_queue,
                 companion_uid=companion_uid,
                 owner=owner,
@@ -210,5 +213,7 @@ class SessionManager:
             self._create_locks.clear()
         for _, assistant in items:
             await assistant.dispose()
-        if self._mcp_manager is not None:
+        if self._mcp_pool is not None:
+            await self._mcp_pool.stop()
+        elif self._mcp_manager is not None:
             await self._mcp_manager.stop()
