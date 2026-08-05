@@ -213,8 +213,8 @@ class ChatAssistant:
         elif mcp_manager is not None:
             mcp_manager.register_tools(tool_registry)
 
-        # Apply persona tool filtering
-        if persona is not None:
+        # Apply persona tool filtering — agent definition wins over persona
+        if persona is not None and agent is None:
             allowed: set[str] | None = None
             if persona.enabled_tools is not None:
                 allowed = set(persona.enabled_tools)
@@ -298,11 +298,11 @@ class ChatAssistant:
         if model is None:
             model = provider.list_models()[0]
 
-        # Build system prompt — persona overrides base_prompt, agent overrides system_prompt
-        if persona is not None:
-            effective_prompt = persona.system_prompt
-        elif agent is not None:
+        # Build system prompt — agent wins over persona, which wins over base system_prompt
+        if agent is not None:
             effective_prompt = agent.system_prompt
+        elif persona is not None:
+            effective_prompt = persona.system_prompt
         else:
             effective_prompt = system_prompt
         prompt = SystemPromptBuilder(base_prompt=effective_prompt).build(

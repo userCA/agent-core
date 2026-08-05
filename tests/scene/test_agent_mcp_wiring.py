@@ -13,6 +13,7 @@ import os
 import pytest
 
 from agent_core.resources.agents import AgentDefinition, AgentTools
+from agent_core.resources.personas import Persona
 from agent_core.session.inmemory_store import InMemoryStore
 from agent_core.tools.base import ToolDefinition
 from agent_core.tools.mcp_pool import MCPPool
@@ -130,6 +131,46 @@ async def test_private_mcp_tools_are_mutually_invisible(tmp_path):
     finally:
         await assistant_a.dispose()
         await assistant_b.dispose()
+
+
+@pytest.mark.asyncio
+async def test_agent_wins_over_persona_when_both_present(tmp_path):
+    """Agent + persona co-occurrence: the agent wins over persona filtering."""
+    cwd = str(tmp_path)
+    _write_agent_mcp(cwd, "a", "a-server")
+    pool = _stub_pool(cwd)
+    agent_a = _agent("a", "a-server")
+
+    # persona.enabled_tools deliberately excludes the MCP tools; if persona
+    # filtering ran it would strip tool_a-server from the registry.
+    persona = Persona(
+        id="p1",
+        name="persona",
+        description="",
+        system_prompt="PERSONA_UNIQUE_SYSTEM_PROMPT",
+        enabled_tools=["ls"],
+    )
+
+    assistant = await ChatAssistant.create(
+        session_store=InMemoryStore(),
+        session_id="sa",
+        cwd=cwd,
+        mcp_pool=pool,
+        agent=agent_a,
+        persona=persona,
+        owner="u1",
+        enable_multi_agent=False,
+    )
+    try:
+        # Agent's MCP tools are not stripped by the persona's enabled_tools.
+        assert "tool_a-server" in assistant.tool_names
+
+        # Effective prompt is the agent's, not the persona's.
+        prompt = assistant.harness.state.system_prompt
+        assert agent_a.system_prompt in prompt
+        assert persona.system_prompt not in prompt
+    finally:
+        await assistant.dispose()
 
 
 @pytest.mark.asyncio
