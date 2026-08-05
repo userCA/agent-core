@@ -3,6 +3,7 @@
 Uses stub adapters and stub managers; no real MCP connections are made.
 """
 
+import asyncio
 import json
 import logging
 
@@ -213,7 +214,11 @@ async def test_ensure_private_caches(tmp_path):
     assert m1.start_calls == 1
 
 
-async def test_ensure_private_no_config_file(tmp_path):
+async def test_ensure_private_no_config_file_ignores_env(tmp_path, monkeypatch):
+    # Private loading is strict: even with MCP_SERVERS set, a missing private
+    # config file must NOT inherit global env servers.
+    monkeypatch.setenv("MCP_SERVERS", "stdio:env_srv:echo:hi")
+
     received = []
 
     def factory(configs):
@@ -226,10 +231,36 @@ async def test_ensure_private_no_config_file(tmp_path):
     manager = await pool.ensure_private(agent.id)
 
     assert manager.adapters == []
-    assert received == [[]]  # empty configs, cached so no re-read
+    assert received == [[]]  # no env fallback
     assert await pool.ensure_private(agent.id) is manager
-    assert len(received) == 1
+    assert len(received) == 1  # cached, so no re-read
     assert pool.adapters_for_agent(agent) == []
+
+
+async def test_ensure_private_concurrent_single_flight(tmp_path):
+    cfg_file = tmp_path / ".pi" / "mcp" / "agents" / "x.mcp.json"
+    cfg_file.parent.mkdir(parents=True, exist_ok=True)
+    cfg_file.write_text(
+        json.dumps({"mcpServers": {"priv": {"command": "echo", "args": []}}}),
+        encoding="utf-8",
+    )
+
+    received = []
+
+    def factory(configs):
+        received.append(list(configs))
+        return StubManager()
+
+    pool = MCPPool(shared=_shared(), cwd=str(tmp_path), manager_factory=factory)
+
+    m1, m2 = await asyncio.gather(
+        pool.ensure_private("x"),
+        pool.ensure_private("x"),
+    )
+
+    assert m1 is m2
+    assert len(received) == 1  # factory called exactly once under concurrency
+    assert m1.start_calls == 1
 
 
 # ---------------------------------------------------------------------------

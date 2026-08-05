@@ -8,6 +8,7 @@ don't re-read the file.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Callable
@@ -18,7 +19,7 @@ from agent_core.tools.mcp_tool import (
     MCPManager,
     MCPServerConfig,
     MCPToolAdapter,
-    load_mcp_server_configs,
+    parse_mcp_json,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,8 @@ class MCPPool:
     Selection semantics (see plan §1.1 / §1.4):
 
     - ``agent.tools is None`` — unrestricted: include **all** shared
-      adapters. Private adapters are never included.
+      adapters. Private adapters from ``tools.private_mcp`` are never
+      included (knowledge-private servers still apply).
     - ``agent.tools.shared_mcp`` — include only shared adapters whose
       ``.server_name`` is listed.
     - ``agent.tools.private_mcp`` — include only the agent's private
@@ -54,6 +56,9 @@ class MCPPool:
         self._cwd = cwd
         self._manager_factory = manager_factory
         self._private: dict[str, MCPManager] = {}
+        # Single-flight locks so concurrent ensure_private calls for the same
+        # agent_id only build + start one manager.
+        self._locks: dict[str, asyncio.Lock] = {}
 
     async def start_shared(self) -> None:
         """Start the shared MCP manager."""
@@ -66,21 +71,41 @@ class MCPPool:
         otherwise loads configs from disk, starts the manager, and caches
         it. Empty results are cached too, so repeated calls don't re-read
         the file.
+
+        Concurrent calls for the same ``agent_id`` are serialized so only
+        one manager is created and started.
         """
         existing = self._private.get(agent_id)
         if existing is not None:
             return existing
 
-        path = os.path.join(self._cwd, ".pi", "mcp", "agents", f"{agent_id}.mcp.json")
-        configs = load_mcp_server_configs(cwd=self._cwd, path=path)
-        manager = self._manager_factory(configs)
-        if configs:
-            await manager.start()
-        self._private[agent_id] = manager
-        return manager
+        lock = self._locks.setdefault(agent_id, asyncio.Lock())
+        async with lock:
+            # Another coroutine may have created it while we waited on the lock.
+            existing = self._private.get(agent_id)
+            if existing is not None:
+                return existing
+
+            # Strict private loading: read only the agent's own config file.
+            # No MCP_SERVERS env fallback — a private agent without a config
+            # file must not inherit global env servers.
+            path = os.path.join(
+                self._cwd, ".pi", "mcp", "agents", f"{agent_id}.mcp.json"
+            )
+            configs = parse_mcp_json(path)
+            manager = self._manager_factory(configs)
+            if configs:
+                await manager.start()
+            self._private[agent_id] = manager
+            return manager
 
     def adapters_for_agent(self, agent: AgentDefinition) -> list[MCPToolAdapter]:
         """Union of shared∩shared_mcp and private∩private_mcp (+ knowledge servers).
+
+        Precondition: ``ensure_private(agent.id)`` must be called first so
+        the agent's private manager exists. This method is synchronous and
+        does NOT lazily load private configs; if the private manager is
+        absent it is silently skipped.
 
         Shared adapters come first, then private ones, so registering in
         this order lets private adapters overwrite shared adapters by name.
@@ -131,6 +156,10 @@ class MCPPool:
 
     def register_tools(self, registry: ToolRegistry, agent: AgentDefinition) -> int:
         """Register the agent's MCP tools into ``registry``.
+
+        Precondition: ``ensure_private(agent.id)`` must be called first
+        (see :meth:`adapters_for_agent`); private configs are not lazily
+        loaded here.
 
         Shared adapters are registered first, then private ones. When a
         name is already present the previous tool is overwritten and a
