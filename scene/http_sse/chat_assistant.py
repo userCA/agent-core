@@ -81,6 +81,10 @@ def build_agent_knowledge_base(agent: AgentDefinition, cwd: str) -> Retriever | 
     - Each LocalKB is wrapped in ScopedKnowledgeBase with scope "shared" /
       "agents/<agent_id>" and the allowed doc names, then combined in a
       CompositeKnowledgeBase. Returns None when there is nothing to retrieve.
+
+    Declared doc names must match the sanitized on-disk names
+    (LocalKnowledgeBase sanitizes names like ``product/faq`` → ``product_faq``);
+    the plan's ``["*"]`` convenience syntax is not supported.
     """
     from agent_core.knowledge.composite import CompositeKnowledgeBase
     from agent_core.knowledge.local_kb import (

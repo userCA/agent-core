@@ -311,6 +311,10 @@ class ScopedKnowledgeBase:
     - prefixes surviving sources with ``{scope}/{doc_name}/{chunk_id}`` so
       shared and private roots sharing a doc name do not collide in a
       CompositeKnowledgeBase (sources stay unique across scopes).
+
+    Declared doc names must match the sanitized on-disk names
+    (LocalKnowledgeBase sanitizes names like ``product/faq`` → ``product_faq``);
+    the plan's ``["*"]`` convenience syntax is not supported.
     """
 
     def __init__(self, retriever: Retriever, *, scope: str, doc_names: set[str] | None = None) -> None:

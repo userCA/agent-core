@@ -78,6 +78,27 @@ async def test_composite_with_scoped_retrievers_only_returns_declared_chunks():
     assert "shared/beta/0" not in sources
 
 
+async def test_composite_keeps_same_doc_name_across_shared_and_private():
+    # Same doc name in both scopes: the scope prefix must keep the sources
+    # distinct so the composite dedupe does not collapse them (Task 3.1
+    # carry-over bug regression).
+    shared = InMemoryRetriever()
+    shared.add("faq answer", source="faq/0")
+    private_a = InMemoryRetriever()
+    private_a.add("faq answer private", source="faq/0")
+
+    kb = CompositeKnowledgeBase([
+        ScopedKnowledgeBase(shared, scope="shared", doc_names={"faq"}),
+        ScopedKnowledgeBase(private_a, scope="agents/a", doc_names={"faq"}),
+    ])
+
+    chunks = await kb.retrieve(Query(text="faq answer private", top_k=10))
+
+    sources = {c.source for c in chunks}
+    assert "shared/faq/0" in sources
+    assert "agents/a/faq/0" in sources
+
+
 def test_knowledge_shared_dir_prefers_shared_subdir(tmp_path):
     base = os.path.join(str(tmp_path), ".pi", "knowledge")
     os.makedirs(os.path.join(base, "shared"), exist_ok=True)

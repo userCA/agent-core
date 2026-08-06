@@ -11,9 +11,44 @@ from __future__ import annotations
 import pytest
 
 from agent_core.knowledge.composite import CompositeKnowledgeBase
+from agent_core.knowledge.local_kb import ScopedKnowledgeBase
 from agent_core.resources.agents import AgentDefinition, AgentKnowledge
+from agent_core.retrieval.adapters.inmemory import InMemoryRetriever
+from agent_core.retrieval.base import Query
 from agent_core.session.inmemory_store import InMemoryStore
 from scene.http_sse.chat_assistant import ChatAssistant, build_agent_knowledge_base
+
+
+async def test_agent_composites_do_not_leak_private_docs():
+    # Plan acceptance V5: Agent A's composite (shared-all + private "agents/a")
+    # must never surface Agent B's private docs, and vice versa.
+    shared = InMemoryRetriever()
+    shared.add("alpha shared", source="alpha/0")
+    private_a = InMemoryRetriever()
+    private_a.add("secret_a", source="secret_a/0")
+    private_b = InMemoryRetriever()
+    private_b.add("secret_b", source="secret_b/0")
+
+    agent_a = CompositeKnowledgeBase([
+        ScopedKnowledgeBase(shared, scope="shared", doc_names=None),
+        ScopedKnowledgeBase(private_a, scope="agents/a", doc_names={"secret_a"}),
+    ])
+    agent_b = CompositeKnowledgeBase([
+        ScopedKnowledgeBase(shared, scope="shared", doc_names=None),
+        ScopedKnowledgeBase(private_b, scope="agents/b", doc_names={"secret_b"}),
+    ])
+
+    chunks_a = await agent_a.retrieve(Query(text="alpha secret_a secret_b", top_k=10))
+    sources_a = {c.source for c in chunks_a}
+    assert "shared/alpha/0" in sources_a
+    assert "agents/a/secret_a/0" in sources_a
+    assert "agents/b/secret_b/0" not in sources_a
+
+    chunks_b = await agent_b.retrieve(Query(text="alpha secret_a secret_b", top_k=10))
+    sources_b = {c.source for c in chunks_b}
+    assert "shared/alpha/0" in sources_b
+    assert "agents/b/secret_b/0" in sources_b
+    assert "agents/a/secret_a/0" not in sources_b
 
 
 def _agent(aid: str, knowledge: AgentKnowledge | None) -> AgentDefinition:

@@ -405,6 +405,8 @@ _SAFE_AGENT_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 def _knowledge_dir(scope: str, agent_id: str) -> str:
     """Resolve a KB root for a scope (shared | agent)."""
+    if scope not in ("shared", "agent"):
+        raise ValueError(f"Invalid scope: {scope!r}")
     if scope == "agent":
         if not agent_id or not _SAFE_AGENT_ID_RE.match(agent_id):
             raise ValueError("agent scope requires a valid agent_id")
