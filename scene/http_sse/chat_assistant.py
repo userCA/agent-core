@@ -373,6 +373,7 @@ class ChatAssistant:
             provider = OpenAIProvider(
                 base_url=os.environ.get("AGNES_BASE_URL", "https://api.agnes-ai.cn/v1"),
                 provider_name="agnes",
+                timeout=300.0,  # agnes-2.0-flash is a reasoning model — first token can take >60s
                 models=[
                     Model(
                         provider="agnes",

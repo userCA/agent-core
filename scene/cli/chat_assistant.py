@@ -103,6 +103,8 @@ class ChatAssistant:
                 auth_source = AuthSource.env("ANTHROPIC_API_KEY")
             elif provider_name == "minimax":
                 auth_source = AuthSource.env("MINIMAX_API_KEY")
+            elif provider_name == "agnes":
+                auth_source = AuthSource.env("AGNES_API_KEY")
             else:
                 auth_source = AuthSource.env("OPENAI_API_KEY")
 
@@ -122,6 +124,22 @@ class ChatAssistant:
                         id="minimax-m2.7",
                         context_window=256_000,
                         max_output_tokens=4096,
+                    ),
+                ],
+            )
+        elif provider_name == "agnes":
+            from agent_core.providers.types import Model
+
+            provider = OpenAIProvider(
+                base_url=os.environ.get("AGNES_BASE_URL", "https://api.agnes-ai.cn/v1"),
+                provider_name="agnes",
+                timeout=300.0,  # agnes-2.0-flash is a reasoning model — first token can take >60s
+                models=[
+                    Model(
+                        provider="agnes",
+                        id="agnes-2.0-flash",
+                        context_window=256_000,
+                        max_output_tokens=65536,
                     ),
                 ],
             )
