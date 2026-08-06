@@ -140,6 +140,7 @@ class ChatAssistant:
         skill_trace_collector: Any | None = None,
         artifact_store: Any | None = None,
         state_store: Any | None = None,
+        agent: AgentDefinition | None = None,
     ) -> None:
         self._harness = harness
         self._tool_registry = tool_registry or ToolRegistry()
@@ -151,6 +152,7 @@ class ChatAssistant:
         self._skill_trace_collector = skill_trace_collector
         self._artifact_store = artifact_store
         self._state_store = state_store
+        self._agent = agent
 
     @classmethod
     async def create(
@@ -468,6 +470,7 @@ class ChatAssistant:
                         timestamp=datetime.now(tz=timezone.utc).isoformat(),
                         cwd=cwd,
                         owner=owner,
+                        agent_id=agent.id if agent is not None else "",
                     ),
                 )
 
@@ -576,6 +579,7 @@ class ChatAssistant:
             skill_trace_collector=skill_trace_collector,
             artifact_store=artifact_store,
             state_store=state_store,
+            agent=agent,
         )
         await assistant.start()
 

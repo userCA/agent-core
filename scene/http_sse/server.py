@@ -19,6 +19,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from agent_core.core.events import AgentEnd, AgentEvent, MessageEnd
+from agent_core.resources.agents import (
+    AgentDefinition,
+    AgentKnowledge,
+    AgentTools,
+    delete_agent,
+    get_agent,
+    load_agents,
+    save_agent,
+)
 from agent_core.resources.personas import load_personas
 
 from agent_core.extensions.companion import companion_event_to_sse
@@ -129,10 +138,40 @@ def _resolve_owner(request: Request) -> str:
     return "anonymous"
 
 
+def resolve_agent_request(
+    agent_id: str | None, persona_id: str | None, cwd: str
+) -> tuple[AgentDefinition | None, str | None]:
+    """Resolve a chat request's agent binding.
+
+    Returns ``(agent, effective_agent_id)``. ``effective_agent_id`` is the id
+    to record when an AgentDefinition is in effect — including when a
+    ``persona_id`` aliases an existing agent (agent preference). When no agent
+    is resolved it is ``None`` and ``persona_id`` is left to the manager's
+    legacy persona path.
+
+    Deliberately does NOT synthesize an AgentDefinition from a Persona:
+    Persona.enabled_tools is a flat whitelist of tool NAMES (incl. MCP tool
+    names) while AgentDefinition.tools selects MCP SERVERs, so a synthesis
+    would silently drop MCP tools. The persona fallback keeps V6 persona-only
+    clients working. When ``agent_id`` names an unknown agent, ``agent`` is
+    ``None`` but ``effective_agent_id`` is still the requested id so callers
+    can surface a not-found error.
+    """
+    if agent_id:
+        return get_agent(agent_id, cwd=cwd), agent_id
+    if persona_id:
+        agent = get_agent(persona_id, cwd=cwd)
+        if agent is not None:
+            return agent, persona_id
+        return None, None
+    return None, None
+
+
 async def _event_stream(
     session_id: str | None,
     message: str,
     persona_id: str | None = None,
+    agent_id: str | None = None,
     provider_name: str | None = None,
     model_id: str | None = None,
     companion_uid: str = "",
@@ -142,9 +181,17 @@ async def _event_stream(
     if not owner:
         yield _format_sse({"event": "error", "message": "Missing owner (uid or user_id)"})
         return
+    agent, effective_agent_id = resolve_agent_request(agent_id, persona_id, manager._cwd)
+    if agent_id and agent is None:
+        yield _format_sse({"event": "error", "message": f"Agent {agent_id} not found"})
+        return
+    # An explicit agent takes priority over a persona; the persona is only used
+    # as a fallback when no AgentDefinition was resolved (V6 compat).
+    effective_persona_id = persona_id if agent is None else None
     companion_queue: asyncio.Queue[Any] = asyncio.Queue() if companion_uid else None  # type: ignore[assignment]
     sid, assistant = await manager.get_or_create(
-        session_id, persona_id=persona_id,
+        session_id, persona_id=effective_persona_id,
+        agent_id=effective_agent_id,
         provider_name=provider_name, model_id=model_id,
         companion_queue=companion_queue,
         companion_uid=companion_uid,
@@ -202,12 +249,14 @@ async def _event_stream(
 async def chat_stream(request: Request, chat_request: ChatRequest) -> StreamingResponse:
     session_id = request.query_params.get("session_id")
     persona_id = request.query_params.get("persona_id")
+    agent_id = request.query_params.get("agent_id")
     current_request_headers.set(dict(request.headers))
     headers: dict[str, str] = dict(request.headers)
     companion_uid = headers.get("uid", "")
     owner = _resolve_owner(request)
     return StreamingResponse(
         _event_stream(session_id, chat_request.message, persona_id=persona_id,
+                      agent_id=agent_id,
                       provider_name=chat_request.provider, model_id=chat_request.model,
                       companion_uid=companion_uid, owner=owner),
         media_type="text/event-stream",
@@ -236,7 +285,8 @@ async def list_sessions(request: Request) -> dict[str, Any]:
     limit = min(int(request.query_params.get("limit", "50")), 100)
     offset = int(request.query_params.get("offset", "0"))
     owner = _resolve_owner(request) or "anonymous"
-    all_sessions = await manager.list_sessions(limit=200, owner=owner)
+    agent_id = request.query_params.get("agent_id")
+    all_sessions = await manager.list_sessions(limit=200, owner=owner, agent_id=agent_id)
     # Hide sub-agent audit sessions from the main list.
     all_sessions = [s for s in all_sessions if "__sub__" not in s.session_id]
     sessions = all_sessions[offset:offset + limit]
@@ -256,6 +306,20 @@ async def list_sessions(request: Request) -> dict[str, Any]:
     }
 
 
+def _resolve_access_agent(request: Request) -> str | None:
+    """Resolve the agent_id query param for session access routes.
+
+    Returns the effective agent id when the named agent exists (so the binding
+    check applies), else ``None`` (legacy/unknown agents are not enforced on
+    read/delete routes).
+    """
+    agent_id = request.query_params.get("agent_id")
+    if not agent_id:
+        return None
+    _, effective = resolve_agent_request(agent_id, None, manager._cwd)
+    return effective
+
+
 @app.get("/session")
 async def get_session(request: Request) -> dict[str, Any]:
     """Get session history messages."""
@@ -265,7 +329,9 @@ async def get_session(request: Request) -> dict[str, Any]:
 
     try:
         _, assistant = await manager.get_or_create(
-            session_id, owner=_resolve_owner(request) or "anonymous"
+            session_id,
+            owner=_resolve_owner(request) or "anonymous",
+            agent_id=_resolve_access_agent(request),
         )
     except PermissionError as exc:
         return {"success": False, "error": str(exc)}
@@ -285,9 +351,14 @@ async def export_session(request: Request):
     if not session_id:
         return {"success": False, "error": "Missing session_id"}
 
-    _, assistant = await manager.get_or_create(
-        session_id, owner=_resolve_owner(request) or "anonymous"
-    )
+    try:
+        _, assistant = await manager.get_or_create(
+            session_id,
+            owner=_resolve_owner(request) or "anonymous",
+            agent_id=_resolve_access_agent(request),
+        )
+    except PermissionError as exc:
+        return {"success": False, "error": str(exc)}
     lines = []
     for msg in assistant.messages:
         role = getattr(msg, 'role', 'unknown')
@@ -311,7 +382,9 @@ async def delete_session(request: Request) -> dict[str, Any]:
         return {"success": False, "error": "Missing session_id"}
     try:
         deleted = await manager.delete_session(
-            session_id, owner=_resolve_owner(request) or "anonymous"
+            session_id,
+            owner=_resolve_owner(request) or "anonymous",
+            agent_id=_resolve_access_agent(request),
         )
     except PermissionError as exc:
         return {"success": False, "error": str(exc)}
@@ -327,7 +400,9 @@ async def abort_session(request: Request) -> dict[str, Any]:
 
     try:
         _, assistant = await manager.get_or_create(
-            session_id, owner=_resolve_owner(request) or "anonymous"
+            session_id,
+            owner=_resolve_owner(request) or "anonymous",
+            agent_id=_resolve_access_agent(request),
         )
     except PermissionError as exc:
         return {"success": False, "error": str(exc)}
@@ -342,6 +417,20 @@ class PersonaRequest(BaseModel):
     system_prompt: str = Field(default="", max_length=5000)
     enabled_tools: list[str] | None = None
     knowledge_bases: list[str] | None = None
+
+
+class AgentRequest(BaseModel):
+    """Agent definition payload mirroring the .pi/agents/*.json schema.
+
+    ``tools`` / ``knowledge`` are kept loose dicts so they round-trip through
+    ``save_agent`` / ``load_agents`` untouched (same shape as the loader).
+    """
+    id: str = Field(..., min_length=1, max_length=50)
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str = Field(default="", max_length=1000)
+    system_prompt: str = Field(default="", max_length=100_000)
+    tools: dict[str, Any] | None = None
+    knowledge: dict[str, Any] | None = None
 
 
 class ConnectorRequest(BaseModel):
@@ -638,6 +727,71 @@ async def remove_persona(request: Request) -> dict[str, Any]:
         return {"success": False, "error": "Missing id"}
     from agent_core.resources.personas import delete_persona
     found = delete_persona(pid, cwd=manager._cwd)
+    return {"success": found}
+
+
+# ---- Agent definitions ----
+
+def _agent_to_dict(a: AgentDefinition) -> dict[str, Any]:
+    """Serialize an AgentDefinition for the API (tools/knowledge round-trip)."""
+    from dataclasses import asdict
+    return {
+        "id": a.id,
+        "name": a.name,
+        "description": a.description,
+        "system_prompt": a.system_prompt,
+        "tools": asdict(a.tools) if a.tools is not None else None,
+        "knowledge": asdict(a.knowledge) if a.knowledge is not None else None,
+    }
+
+
+def _parse_agent_request(body: AgentRequest) -> AgentDefinition:
+    """Build an AgentDefinition from a request, reusing the loader's schema."""
+    tools = None
+    if body.tools is not None:
+        tools = AgentTools(
+            builtin=body.tools.get("builtin"),
+            shared_mcp=body.tools.get("shared_mcp") or [],
+            private_mcp=body.tools.get("private_mcp") or [],
+        )
+    knowledge = None
+    if body.knowledge is not None:
+        knowledge = AgentKnowledge(
+            shared=body.knowledge.get("shared") or [],
+            private=body.knowledge.get("private") or [],
+            shared_mcp_knowledge=body.knowledge.get("shared_mcp_knowledge") or [],
+            private_mcp_knowledge=body.knowledge.get("private_mcp_knowledge") or [],
+        )
+    return AgentDefinition(
+        id=body.id,
+        name=body.name,
+        description=body.description,
+        system_prompt=body.system_prompt,
+        tools=tools,
+        knowledge=knowledge,
+    )
+
+
+@app.get("/agents")
+async def list_agents() -> dict[str, Any]:
+    """List available agent definitions."""
+    return {"agents": [_agent_to_dict(a) for a in load_agents(cwd=manager._cwd)]}
+
+
+@app.post("/agents")
+async def save_agent_route(body: AgentRequest) -> dict[str, Any]:
+    """Create or update an agent definition."""
+    save_agent(_parse_agent_request(body), cwd=manager._cwd)
+    return {"success": True}
+
+
+@app.delete("/agents")
+async def remove_agent(request: Request) -> dict[str, Any]:
+    """Delete an agent definition by id."""
+    aid = request.query_params.get("id")
+    if not aid:
+        return {"success": False, "error": "Missing id"}
+    found = delete_agent(aid, cwd=manager._cwd)
     return {"success": found}
 
 
