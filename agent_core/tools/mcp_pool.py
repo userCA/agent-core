@@ -113,7 +113,12 @@ class MCPPool:
         """
         manager = self._private.pop(agent_id, None)
         if manager is not None:
-            await manager.stop()
+            try:
+                await manager.stop()
+            except Exception:
+                logger.exception(
+                    "Error stopping private MCP manager for agent %s", agent_id
+                )
         return await self.ensure_private(agent_id)
 
     def adapters_for_agent(self, agent: AgentDefinition) -> list[MCPToolAdapter]:

@@ -166,10 +166,15 @@ def load_mcp_server_configs(
 
 def _resolve_mcp_file(cwd: str = "") -> str:
     """Connector file the loader will actually read: .pi/mcp/shared.mcp.json if
-    it exists, else the legacy root .mcp.json."""
+    it exists and parses to non-empty configs, else the legacy root .mcp.json.
+
+    Mirrors ``load_mcp_server_configs``: a shared file that parses to zero
+    configs (empty/malformed) must NOT capture writes, or the loader would
+    fall through to root and the edit would be silently ignored.
+    """
     base = cwd or os.getcwd()
     shared = os.path.join(base, ".pi", "mcp", "shared.mcp.json")
-    if os.path.exists(shared):
+    if parse_mcp_json(shared):
         return shared
     return os.path.join(base, ".mcp.json")
 

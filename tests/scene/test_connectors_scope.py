@@ -80,6 +80,41 @@ def test_add_prefers_shared_over_root(tmp_path):
     assert data["mcpServers"]["existing"]["command"] == "echo"  # preserved
 
 
+def test_add_prefers_root_when_shared_empty(tmp_path):
+    # An empty shared file must NOT capture writes: the loader parses it to
+    # zero configs and falls through to root, so the writers must too, or the
+    # added connector would be silently ignored on reload.
+    shared = tmp_path / ".pi" / "mcp" / "shared.mcp.json"
+    _write(shared, {})  # {"mcpServers": {}} — parses to zero configs
+    root = tmp_path / ".mcp.json"
+    _write(root, {"root_srv": {"command": "echo", "args": ["hi"]}})
+
+    add_mcp_server_to_json(
+        "new-srv", "stdio", command="python", args=["-m", "demo"], cwd=str(tmp_path),
+    )
+
+    assert "new-srv" not in _read(shared)["mcpServers"]  # empty shared untouched
+    data = _read(root)
+    assert "new-srv" in data["mcpServers"]
+    assert data["mcpServers"]["root_srv"]["command"] == "echo"  # preserved
+
+
+def test_add_prefers_root_when_shared_malformed(tmp_path):
+    shared = tmp_path / ".pi" / "mcp" / "shared.mcp.json"
+    shared.parent.mkdir(parents=True, exist_ok=True)
+    shared.write_text("{not valid json", encoding="utf-8")
+    root = tmp_path / ".mcp.json"
+    _write(root, {"root_srv": {"command": "echo", "args": []}})
+
+    add_mcp_server_to_json(
+        "new-srv", "stdio", command="python", args=["-m", "demo"], cwd=str(tmp_path),
+    )
+
+    data = _read(root)
+    assert "new-srv" in data["mcpServers"]
+    assert "root_srv" in data["mcpServers"]
+
+
 def test_add_falls_back_to_root_when_no_shared(tmp_path):
     add_mcp_server_to_json(
         "srv", "sse", url="http://localhost:8080/sse", cwd=str(tmp_path),
