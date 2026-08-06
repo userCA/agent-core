@@ -1,0 +1,30 @@
+{
+  "id": "support",
+  "name": "客服助手",
+  "description": "面向用户的客服助手，负责解答产品咨询、处理售后问题、查询订单与物流信息",
+  "system_prompt": "你是专业、耐心的客服助手。请使用中文回答，语气友好礼貌。解答问题时先确认用户意图；无法确定的信息不要编造，明确告知用户并引导转人工。",
+  "tools": {
+    "builtin": [
+      "read",
+      "write",
+      "edit",
+      "bash",
+      "ls",
+      "find",
+      "grep",
+      "confirm",
+      "show_widget"
+    ],
+    "shared_mcp": [
+      "tavily",
+      "amap"
+    ],
+    "private_mcp": []
+  },
+  "knowledge": {
+    "shared": [],
+    "private": [],
+    "shared_mcp_knowledge": [],
+    "private_mcp_knowledge": []
+  }
+}

@@ -20,4 +20,5 @@ demo/
 node_modules/
 quicksort.py
 .mcp.json
-.pi/
+.pi/*
+!.pi/agents/
