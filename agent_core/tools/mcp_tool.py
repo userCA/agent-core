@@ -164,13 +164,25 @@ def load_mcp_server_configs(
     return parse_mcp_servers(_os.environ.get("MCP_SERVERS", ""))
 
 
-def read_mcp_json_raw(cwd: str = "") -> dict[str, Any]:
-    """Read raw .mcp.json content for editing via API."""
-    import json as _json
-    import os as _os
+def _resolve_mcp_file(cwd: str = "") -> str:
+    """Connector file the loader will actually read: .pi/mcp/shared.mcp.json if
+    it exists, else the legacy root .mcp.json."""
+    base = cwd or os.getcwd()
+    shared = os.path.join(base, ".pi", "mcp", "shared.mcp.json")
+    if os.path.exists(shared):
+        return shared
+    return os.path.join(base, ".mcp.json")
 
-    search_dir = cwd or _os.getcwd()
-    json_path = _os.path.join(search_dir, ".mcp.json")
+
+def read_mcp_json_raw(cwd: str = "", *, path: str | None = None) -> dict[str, Any]:
+    """Read raw MCP config content for editing via API.
+
+    Uses ``path`` when given; otherwise resolves to the same file the loader
+    reads (``.pi/mcp/shared.mcp.json`` if present, else root ``.mcp.json``).
+    """
+    import json as _json
+
+    json_path = path or _resolve_mcp_file(cwd)
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             return _json.load(f)
@@ -178,13 +190,12 @@ def read_mcp_json_raw(cwd: str = "") -> dict[str, Any]:
         return {"mcpServers": {}}
 
 
-def write_mcp_json_raw(data: dict[str, Any], cwd: str = "") -> None:
-    """Write .mcp.json file with the given data."""
+def write_mcp_json_raw(data: dict[str, Any], cwd: str = "", *, path: str | None = None) -> None:
+    """Write MCP config file (path-aware) with the given data."""
     import json as _json
-    import os as _os
 
-    search_dir = cwd or _os.getcwd()
-    json_path = _os.path.join(search_dir, ".mcp.json")
+    json_path = path or _resolve_mcp_file(cwd)
+    os.makedirs(os.path.dirname(json_path) or ".", exist_ok=True)
     with open(json_path, "w", encoding="utf-8") as f:
         _json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
@@ -200,9 +211,10 @@ def add_mcp_server_to_json(
     env: dict[str, str] | None = None,
     server_type: str = "tool",
     cwd: str = "",
+    path: str | None = None,
 ) -> None:
-    """Add or update an MCP server entry in .mcp.json."""
-    data = read_mcp_json_raw(cwd)
+    """Add or update an MCP server entry in the resolved MCP config file."""
+    data = read_mcp_json_raw(cwd, path=path)
     data.setdefault("mcpServers", {})
 
     cfg: dict[str, Any] = {}
@@ -218,17 +230,20 @@ def add_mcp_server_to_json(
         cfg["type"] = server_type
 
     data["mcpServers"][name] = cfg
-    write_mcp_json_raw(data, cwd)
+    write_mcp_json_raw(data, cwd, path=path)
 
 
-def remove_mcp_server_from_json(name: str, cwd: str = "") -> bool:
-    """Remove an MCP server entry from .mcp.json. Returns True if found."""
-    data = read_mcp_json_raw(cwd)
+def remove_mcp_server_from_json(name: str, cwd: str = "", *, path: str | None = None) -> bool:
+    """Remove an MCP server entry from the resolved MCP config file.
+
+    Returns True if found and removed.
+    """
+    data = read_mcp_json_raw(cwd, path=path)
     servers = data.get("mcpServers", {})
     if name not in servers:
         return False
     del servers[name]
-    write_mcp_json_raw(data, cwd)
+    write_mcp_json_raw(data, cwd, path=path)
     return True
 
 

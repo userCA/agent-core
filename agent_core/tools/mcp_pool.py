@@ -104,6 +104,18 @@ class MCPPool:
             self._private[agent_id] = manager
             return manager
 
+    async def reload_private(self, agent_id: str) -> MCPManager:
+        """Drop and reload an agent's private MCP manager from disk.
+
+        Stops and removes any cached manager for ``agent_id``, then reloads via
+        ``ensure_private`` so connector edits on ``.pi/mcp/agents/<id>.mcp.json``
+        take effect.
+        """
+        manager = self._private.pop(agent_id, None)
+        if manager is not None:
+            await manager.stop()
+        return await self.ensure_private(agent_id)
+
     def adapters_for_agent(self, agent: AgentDefinition) -> list[MCPToolAdapter]:
         """Union of shared∩shared_mcp and private∩private_mcp (+ knowledge servers).
 

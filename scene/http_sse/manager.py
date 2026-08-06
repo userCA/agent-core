@@ -278,6 +278,11 @@ class SessionManager:
         if self._mcp_manager is not None:
             await self._mcp_manager.reload(cwd=self._cwd)
 
+    async def reload_private(self, agent_id: str) -> None:
+        """Reload an agent's private MCP manager after its config file changed."""
+        if self._mcp_pool is not None:
+            await self._mcp_pool.reload_private(agent_id)
+
     async def delete_session(
         self, session_id: str, *, owner: str | None = None, agent_id: str | None = None
     ) -> bool:

@@ -639,49 +639,107 @@ async def delete_knowledge_doc(request: Request) -> dict[str, Any]:
 _capabilities_cache: dict[str, Any] | None = None
 
 
+def _agent_mcp_path(agent_id: str) -> str:
+    """Agent-scoped connector file: .pi/mcp/agents/<agent_id>.mcp.json."""
+    return os.path.join(manager._cwd, ".pi", "mcp", "agents", f"{agent_id}.mcp.json")
+
+
+def _connector_scope_error(scope: str, agent_id: str) -> str | None:
+    """Validate connector scope/agent_id; return an error message or None."""
+    if scope not in ("shared", "agent"):
+        return f"Invalid scope: {scope!r}"
+    if scope == "agent" and (not agent_id or not _SAFE_AGENT_ID_RE.match(agent_id)):
+        return "agent scope requires a valid agent_id"
+    return None
+
+
 @app.post("/connectors")
-async def add_connector(body: ConnectorRequest) -> dict[str, Any]:
-    """Add or update an MCP server in .mcp.json and reload."""
-    add_mcp_server_to_json(
-        name=body.name,
-        transport=body.transport,
-        command=body.command,
-        args=body.args,
-        url=body.url,
-        env=body.env,
-        cwd=manager._cwd,
-    )
-    await manager.reload_mcp()
+async def add_connector(request: Request, body: ConnectorRequest) -> dict[str, Any]:
+    """Add or update an MCP server (shared or per-agent) and reload."""
+    scope = request.query_params.get("scope", "shared")
+    agent_id = request.query_params.get("agent_id", "")
+    err = _connector_scope_error(scope, agent_id)
+    if err:
+        return {"success": False, "error": err}
+    if scope == "agent":
+        add_mcp_server_to_json(
+            name=body.name, transport=body.transport,
+            command=body.command, args=body.args,
+            url=body.url, env=body.env,
+            path=_agent_mcp_path(agent_id),
+        )
+        await manager.reload_private(agent_id)
+    else:
+        add_mcp_server_to_json(
+            name=body.name, transport=body.transport,
+            command=body.command, args=body.args,
+            url=body.url, env=body.env,
+            cwd=manager._cwd,
+        )
+        await manager.reload_mcp()
+    global _capabilities_cache
+    _capabilities_cache = None
     return {"success": True}
 
 
 @app.post("/connectors/health")
-async def check_connectors_health() -> dict[str, Any]:
-    """Check health of all MCP connections."""
-    if manager._mcp_manager is None:
-        return {"results": []}
-    results = await manager._mcp_manager.check_health()
+async def check_connectors_health(request: Request) -> dict[str, Any]:
+    """Check health of MCP connections (shared or per-agent)."""
+    scope = request.query_params.get("scope", "shared")
+    agent_id = request.query_params.get("agent_id", "")
+    err = _connector_scope_error(scope, agent_id)
+    if err:
+        return {"success": False, "error": err}
+    results = []
+    if scope == "agent":
+        if manager._mcp_pool is not None:
+            private = await manager._mcp_pool.ensure_private(agent_id)
+            results = await private.check_health()
+    elif manager._mcp_manager is not None:
+        results = await manager._mcp_manager.check_health()
     return {"results": results}
 
 
 @app.delete("/connectors")
 async def remove_connector(request: Request) -> dict[str, Any]:
-    """Remove an MCP server from .mcp.json and reload."""
+    """Remove an MCP server (shared or per-agent) and reload."""
     name = request.query_params.get("name")
     if not name:
         return {"success": False, "error": "Missing name"}
-    found = remove_mcp_server_from_json(name, cwd=manager._cwd)
+    scope = request.query_params.get("scope", "shared")
+    agent_id = request.query_params.get("agent_id", "")
+    err = _connector_scope_error(scope, agent_id)
+    if err:
+        return {"success": False, "error": err}
+    if scope == "agent":
+        found = remove_mcp_server_from_json(name, path=_agent_mcp_path(agent_id))
+    else:
+        found = remove_mcp_server_from_json(name, cwd=manager._cwd)
     if not found:
         return {"success": False, "error": "Connector not found"}
-    await manager.reload_mcp()
+    if scope == "agent":
+        await manager.reload_private(agent_id)
+    else:
+        await manager.reload_mcp()
+    global _capabilities_cache
+    _capabilities_cache = None
     return {"success": True}
 
 
 @app.get("/connectors")
-async def list_connectors() -> dict[str, Any]:
-    """List all connected MCP servers and their tools."""
+async def list_connectors(request: Request) -> dict[str, Any]:
+    """List connected MCP servers and their tools (shared or per-agent)."""
+    scope = request.query_params.get("scope", "shared")
+    agent_id = request.query_params.get("agent_id", "")
+    err = _connector_scope_error(scope, agent_id)
+    if err:
+        return {"success": False, "error": err}
     connectors = []
-    if manager._mcp_manager is not None:
+    if scope == "agent":
+        if manager._mcp_pool is not None:
+            private = await manager._mcp_pool.ensure_private(agent_id)
+            connectors = private.get_connector_info()
+    elif manager._mcp_manager is not None:
         connectors = manager._mcp_manager.get_connector_info()
     return {"connectors": connectors}
 
