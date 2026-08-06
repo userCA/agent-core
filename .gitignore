@@ -18,6 +18,7 @@ debug_runs/
 demo/
 .worktrees/
 node_modules/
+.vite/
 quicksort.py
 .mcp.json
 .pi/*
