@@ -80,20 +80,42 @@ class SessionManager:
         provider_name: str | None,
         model_id: str | None,
     ) -> bool:
-        """Return True only when the caller explicitly requests a different config."""
+        """Return True only when the caller explicitly requests a different config.
+
+        ``persona_id`` / ``agent_id`` are the EFFECTIVE values (agent wins over
+        persona). A ``None`` value means "no change requested" for that
+        dimension, so an agent-bound session is not spuriously rebuilt by a
+        plain access that omits both.
+        """
         current_pid = getattr(existing, '_persona_id', None)
         current_agent_id = getattr(existing, '_agent_id', None)
         current_provider = getattr(existing, '_provider_name', None)
         current_model = getattr(existing, '_model_id', None)
-        if current_pid != persona_id:
+        if persona_id is not None and current_pid != persona_id:
             return True
-        if current_agent_id != agent_id:
+        if agent_id is not None and current_agent_id != agent_id:
             return True
         if provider_name is not None and current_provider != provider_name:
             return True
         if model_id is not None and current_model != model_id:
             return True
         return False
+
+    @staticmethod
+    def _assert_rebind_allowed(
+        existing: ChatAssistant, session_id: str, requested_agent_id: str | None
+    ) -> None:
+        """Guard against rebuilding an agent-bound session into a different agent.
+
+        An existing session bound to an agent may only be rebuilt when the SAME
+        agent is requested (e.g. a provider/model change). A request whose
+        effective agent differs — including a persona-only request where no
+        agent is resolved — must fail closed rather than silently rebind the
+        session. Rebinding to another agent requires a new session.
+        """
+        bound_agent = getattr(existing, '_agent_id', None)
+        if bound_agent and bound_agent != requested_agent_id:
+            raise PermissionError(f"Session {session_id} bound to agent {bound_agent}")
 
     async def _assert_owner(
         self, session_id: str, owner: str, agent_id: str | None = None
@@ -155,27 +177,33 @@ class SessionManager:
         Persona.enabled_tools is a flat whitelist of tool NAMES (incl. MCP tool
         names) while AgentDefinition.tools selects MCP SERVERs, so a synthesis
         would silently drop MCP tools. The persona fallback preserves V6.
+
+        An unknown ``agent_id`` is NOT an error up front: for an existing
+        session it flows through the raw-string binding check in ``_assert_owner``
+        (fails closed), and only raises ``ValueError`` when we actually have to
+        build a new assistant (chat path).
         """
-        # Resolve agent/persona once, before any ownership/rebuild checks.
+        # Resolve agent/persona once. agent_id wins; a persona_id that aliases
+        # an existing agent is treated as that agent.
         agent = None
         persona = None
         if agent_id:
             agent = get_agent(agent_id, cwd=self._cwd)
-            if agent is None:
-                raise ValueError(f"Agent {agent_id} not found")
         elif persona_id:
             agent = get_agent(persona_id, cwd=self._cwd)
             if agent is None:
                 persona = get_persona(persona_id, cwd=self._cwd)
         effective_agent_id = agent_id or (persona_id if agent is not None else None)
+        effective_persona_id = persona_id if agent is None else None
 
         if session_id:
             _validate_session_id(session_id)
             await self._assert_owner(session_id, owner, agent_id=effective_agent_id)
             existing = self._sessions.get(session_id)
             if existing is not None:
-                if not self._should_rebuild(existing, persona_id, effective_agent_id, provider_name, model_id):
+                if not self._should_rebuild(existing, effective_persona_id, effective_agent_id, provider_name, model_id):
                     return session_id, existing
+                self._assert_rebind_allowed(existing, session_id, effective_agent_id)
                 await self.dispose(session_id)
 
         sid = session_id or _generate_session_id()
@@ -186,9 +214,15 @@ class SessionManager:
             # Re-check inside lock
             existing = self._sessions.get(sid)
             if existing is not None:
-                if not self._should_rebuild(existing, persona_id, effective_agent_id, provider_name, model_id):
+                if not self._should_rebuild(existing, effective_persona_id, effective_agent_id, provider_name, model_id):
                     return sid, existing
+                self._assert_rebind_allowed(existing, sid, effective_agent_id)
                 await self.dispose(sid)
+
+            # Building (or rebuilding) a new assistant is the only place an
+            # unknown agent_id is an error.
+            if agent_id and agent is None:
+                raise ValueError(f"Agent {agent_id} not found")
 
             store = self._store
 
@@ -214,7 +248,7 @@ class SessionManager:
             # persona + model used to create this assistant, so _should_rebuild
             # stays stable across identical requests.
             assistant._agent_id = effective_agent_id
-            assistant._persona_id = persona_id
+            assistant._persona_id = effective_persona_id
             assistant._provider_name = provider_name
             assistant._model_id = model_id
             async with self._lock:

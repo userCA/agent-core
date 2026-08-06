@@ -165,8 +165,115 @@ async def test_get_or_create_unknown_agent_raises(tmp_path):
     cwd = str(tmp_path)
     mgr = _manager(cwd)
     try:
+        # Building a NEW assistant with an unknown agent_id is a ValueError.
         with pytest.raises(ValueError):
             await mgr.get_or_create(None, agent_id="nope", owner="u1")
+    finally:
+        await mgr.dispose_all()
+
+
+@pytest.mark.asyncio
+async def test_existing_session_unknown_agent_fails_closed(tmp_path):
+    """Issue 1: reading an existing agent-bound session with an unknown
+    agent_id fails closed with PermissionError, never ValueError/500."""
+    cwd = str(tmp_path)
+    save_agent(_agent("support"), cwd=cwd)
+    mgr = _manager(cwd)
+    try:
+        sid, _ = await _create_agent_session(mgr, "support")
+        with pytest.raises(PermissionError):
+            await mgr.get_or_create(
+                sid, agent_id="nope", owner="u1",
+                provider_name="openai", model_id="gpt-4o",
+            )
+    finally:
+        await mgr.dispose_all()
+
+
+@pytest.mark.asyncio
+async def test_existing_legacy_session_unknown_agent_fails_closed(tmp_path):
+    """Issue 1: an unknown agent_id on a legacy (unbound) session also fails
+    closed (PermissionError), never ValueError/500."""
+    cwd = str(tmp_path)
+    _write_persona(cwd, "coder")
+    mgr = _manager(cwd)
+    try:
+        sid, _ = await mgr.get_or_create(
+            None, persona_id="coder", owner="u1",
+            provider_name="openai", model_id="gpt-4o",
+        )
+        with pytest.raises(PermissionError):
+            await mgr.get_or_create(
+                sid, agent_id="nope", owner="u1",
+                provider_name="openai", model_id="gpt-4o",
+            )
+    finally:
+        await mgr.dispose_all()
+
+
+@pytest.mark.asyncio
+async def test_agent_bound_session_reused_on_plain_access(tmp_path):
+    """A plain get_or_create(sid) (no agent/persona) must REUSE an agent-bound
+    session instead of rebuilding it as a no-agent session."""
+    cwd = str(tmp_path)
+    save_agent(_agent("support"), cwd=cwd)
+    mgr = _manager(cwd)
+    try:
+        sid, assistant = await _create_agent_session(mgr, "support")
+        sid2, assistant2 = await mgr.get_or_create(
+            sid, owner="u1", provider_name="openai", model_id="gpt-4o",
+        )
+        assert sid2 == sid
+        assert assistant2 is assistant
+        assert assistant._agent_id == "support"
+    finally:
+        await mgr.dispose_all()
+
+
+@pytest.mark.asyncio
+async def test_persona_request_cannot_rebind_agent_session(tmp_path):
+    """Issue 2: a persona-only request on an agent-bound session raises
+    PermissionError and does NOT dispose/rebind the session."""
+    cwd = str(tmp_path)
+    save_agent(_agent("support"), cwd=cwd)
+    _write_persona(cwd, "coder")
+    mgr = _manager(cwd)
+    try:
+        sid, assistant = await mgr.get_or_create(
+            None, agent_id="support", owner="u1",
+            provider_name="openai", model_id="gpt-4o",
+        )
+        with pytest.raises(PermissionError):
+            await mgr.get_or_create(
+                sid, persona_id="coder", owner="u1",
+                provider_name="openai", model_id="gpt-4o",
+            )
+        # Session was NOT disposed/rebound; still the same assistant.
+        assert mgr._sessions.get(sid) is assistant
+        # Store binding unchanged.
+        snap = await mgr._store.load_session(sid)
+        assert snap.header.agent_id == "support"
+    finally:
+        await mgr.dispose_all()
+
+
+@pytest.mark.asyncio
+async def test_delete_respects_agent_binding(tmp_path):
+    """Issue 1: deleting an agent-bound session with a wrong/unknown agent_id
+    is blocked (PermissionError, no ValueError/500); the matching agent works."""
+    cwd = str(tmp_path)
+    save_agent(_agent("support"), cwd=cwd)
+    mgr = _manager(cwd)
+    try:
+        sid, _ = await mgr.get_or_create(
+            "sess-s", agent_id="support", owner="u1",
+            provider_name="openai", model_id="gpt-4o",
+        )
+        with pytest.raises(PermissionError):
+            await mgr.delete_session(sid, owner="u1", agent_id="nope")
+        # Session survives the blocked delete.
+        assert (await mgr._store.load_session(sid)).header.agent_id == "support"
+        assert await mgr.delete_session(sid, owner="u1", agent_id="support") is True
     finally:
         await mgr.dispose_all()
 

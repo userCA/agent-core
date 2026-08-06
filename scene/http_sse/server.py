@@ -189,14 +189,18 @@ async def _event_stream(
     # as a fallback when no AgentDefinition was resolved (V6 compat).
     effective_persona_id = persona_id if agent is None else None
     companion_queue: asyncio.Queue[Any] = asyncio.Queue() if companion_uid else None  # type: ignore[assignment]
-    sid, assistant = await manager.get_or_create(
-        session_id, persona_id=effective_persona_id,
-        agent_id=effective_agent_id,
-        provider_name=provider_name, model_id=model_id,
-        companion_queue=companion_queue,
-        companion_uid=companion_uid,
-        owner=owner,
-    )
+    try:
+        sid, assistant = await manager.get_or_create(
+            session_id, persona_id=effective_persona_id,
+            agent_id=effective_agent_id,
+            provider_name=provider_name, model_id=model_id,
+            companion_queue=companion_queue,
+            companion_uid=companion_uid,
+            owner=owner,
+        )
+    except PermissionError as exc:
+        yield _format_sse({"event": "error", "message": str(exc)})
+        return
 
     # Send session_id first
     yield _format_sse({"event": "session_id", "session_id": sid})
@@ -307,17 +311,15 @@ async def list_sessions(request: Request) -> dict[str, Any]:
 
 
 def _resolve_access_agent(request: Request) -> str | None:
-    """Resolve the agent_id query param for session access routes.
+    """Return the raw agent_id query param for session access routes.
 
-    Returns the effective agent id when the named agent exists (so the binding
-    check applies), else ``None`` (legacy/unknown agents are not enforced on
-    read/delete routes).
+    The manager applies the binding check against this raw id (fails closed: a
+    session bound to an agent may only be read/deleted with that same
+    ``agent_id``, even when the named agent no longer exists). With no
+    ``agent_id`` there is no agent binding check, so legacy/persona sessions
+    stay readable.
     """
-    agent_id = request.query_params.get("agent_id")
-    if not agent_id:
-        return None
-    _, effective = resolve_agent_request(agent_id, None, manager._cwd)
-    return effective
+    return request.query_params.get("agent_id") or None
 
 
 @app.get("/session")
@@ -333,7 +335,7 @@ async def get_session(request: Request) -> dict[str, Any]:
             owner=_resolve_owner(request) or "anonymous",
             agent_id=_resolve_access_agent(request),
         )
-    except PermissionError as exc:
+    except (PermissionError, ValueError) as exc:
         return {"success": False, "error": str(exc)}
     messages = []
     for msg in assistant.messages:
@@ -357,7 +359,7 @@ async def export_session(request: Request):
             owner=_resolve_owner(request) or "anonymous",
             agent_id=_resolve_access_agent(request),
         )
-    except PermissionError as exc:
+    except (PermissionError, ValueError) as exc:
         return {"success": False, "error": str(exc)}
     lines = []
     for msg in assistant.messages:
@@ -386,7 +388,7 @@ async def delete_session(request: Request) -> dict[str, Any]:
             owner=_resolve_owner(request) or "anonymous",
             agent_id=_resolve_access_agent(request),
         )
-    except PermissionError as exc:
+    except (PermissionError, ValueError) as exc:
         return {"success": False, "error": str(exc)}
     return {"success": deleted}
 
@@ -404,7 +406,7 @@ async def abort_session(request: Request) -> dict[str, Any]:
             owner=_resolve_owner(request) or "anonymous",
             agent_id=_resolve_access_agent(request),
         )
-    except PermissionError as exc:
+    except (PermissionError, ValueError) as exc:
         return {"success": False, "error": str(exc)}
     assistant.abort()
     return {"success": True}
