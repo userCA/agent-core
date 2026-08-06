@@ -23,6 +23,7 @@ from agent_core.session.inmemory_store import InMemoryStore
 from agent_core.session.jsonl_store import JsonlStore
 from agent_core.session.store import SessionStore
 from agent_core.prompts.builder import SystemPromptBuilder
+from agent_core.resources.agents import AgentDefinition
 from agent_core.resources.loader import ResourceLoader
 from agent_core.resources.types import Skill
 from agent_core.tools.base import Tool, ToolRegistry
@@ -43,12 +44,14 @@ class ChatAssistant:
     def __init__(
         self,
         *,
-        harness: AgentHarness,
+        harness: AgentHarness | None = None,
         skills: list[Skill] | None = None,
         tool_registry: ToolRegistry | None = None,
         cwd: str = "",
+        agent: AgentDefinition | None = None,
     ) -> None:
         self._harness = harness
+        self._agent = agent
         self._tool_registry = tool_registry or ToolRegistry()
         self._skills = skills or []
         self._cwd = cwd or os.getcwd()
@@ -159,7 +162,7 @@ class ChatAssistant:
         return assistant
 
     @property
-    def harness(self) -> AgentHarness:
+    def harness(self) -> AgentHarness | None:
         return self._harness
 
     async def start(self) -> None:
