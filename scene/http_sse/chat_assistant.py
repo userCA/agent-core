@@ -310,6 +310,27 @@ class ChatAssistant:
                     if name in allowed:
                         filtered.register(tool)
                 tool_registry = filtered
+        # Agent builtin whitelist (R4: builtin ∩ whitelist) — keep only the
+        # builtin tool names listed in agent.tools.builtin, PLUS the MCP tools
+        # selected for this agent and search_knowledge when a KB was assembled.
+        # `builtin is None` (or a tools block without builtin) means
+        # unrestricted — no filtering.
+        elif (
+            agent is not None
+            and agent.tools is not None
+            and agent.tools.builtin is not None
+        ):
+            allowed = set(agent.tools.builtin)
+            if mcp_pool is not None:
+                for adapter in mcp_pool.adapters_for_agent(agent):
+                    allowed.add(adapter.definition.name)
+            if kb_retriever is not None:
+                allowed.add("search_knowledge")
+            filtered = ToolRegistry()
+            for name, tool in tool_registry._tools.items():
+                if name in allowed:
+                    filtered.register(tool)
+            tool_registry = filtered
 
         # Resolve auth
         if api_key:

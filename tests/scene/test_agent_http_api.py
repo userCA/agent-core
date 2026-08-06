@@ -356,3 +356,66 @@ async def test_chat_assistant_create_records_agent_id_header(tmp_path):
         assert snap.header.agent_id == "support"
     finally:
         await assistant.dispose()
+
+
+# ---------------------------------------------------------------------------
+# Agent id path-traversal hardening (Issue 2)
+# ---------------------------------------------------------------------------
+
+async def test_post_agents_rejects_path_traversal_id(tmp_path, monkeypatch):
+    """POST /agents with an id that escapes .pi/agents/ is rejected (422) and
+    nothing is written to disk."""
+    from httpx import ASGITransport, AsyncClient
+
+    from scene.http_sse import server as server_mod
+
+    monkeypatch.setattr(server_mod.manager, "_cwd", str(tmp_path))
+    transport = ASGITransport(app=server_mod.app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/agents", json={
+            "id": "../x",
+            "name": "X",
+            "description": "",
+            "system_prompt": "",
+        })
+    assert resp.status_code == 422
+    agents_dir = tmp_path / ".pi" / "agents"
+    assert not agents_dir.exists() or not list(agents_dir.glob("*.json"))
+
+
+async def test_delete_agents_rejects_path_traversal_id(tmp_path, monkeypatch):
+    """DELETE /agents with a traversal id is refused and unlinks nothing."""
+    from httpx import ASGITransport, AsyncClient
+
+    from scene.http_sse import server as server_mod
+
+    monkeypatch.setattr(server_mod.manager, "_cwd", str(tmp_path))
+    # A decoy file OUTSIDE .pi/agents/ that a traversal would unlink.
+    decoy = tmp_path / "pwned.json"
+    decoy.write_text("{}")
+    transport = ASGITransport(app=server_mod.app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.delete("/agents", params={"id": "../../pwned"})
+    assert resp.status_code == 200
+    assert resp.json() == {"success": False, "error": "Invalid agent id"}
+    assert decoy.exists()
+
+
+async def test_post_agents_accepts_safe_id(tmp_path, monkeypatch):
+    """A well-formed id still round-trips through POST /agents."""
+    from httpx import ASGITransport, AsyncClient
+
+    from scene.http_sse import server as server_mod
+
+    monkeypatch.setattr(server_mod.manager, "_cwd", str(tmp_path))
+    transport = ASGITransport(app=server_mod.app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/agents", json={
+            "id": "good_agent-1",
+            "name": "Good",
+            "description": "",
+            "system_prompt": "",
+        })
+    assert resp.status_code == 200
+    assert resp.json() == {"success": True}
+    assert (tmp_path / ".pi" / "agents" / "good_agent-1.json").exists()

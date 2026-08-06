@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from copy import copy as _copy
 from dataclasses import dataclass
 from typing import Any
 
@@ -511,19 +512,27 @@ class MCPManager:
 
         If a tool name conflicts with an existing tool, prefix with server_name
         to avoid overwriting. Otherwise keep the original name.
+
+        On rename, a COPY of the adapter is registered so the shared manager's
+        adapter (and its ``definition.name``) stays pristine — later agent
+        sessions that read ``definition.name`` via the pool see the original.
         """
         count = 0
         for adapter in self._adapters:
             name = adapter.definition.name
             if adapter.server_name and (name in registry):
-                # Rename on conflict only
+                # Rename on conflict only — register a copy sharing the
+                # connection, so the shared adapter is never mutated.
                 new_name = f"{adapter.server_name}_{name}"
-                adapter.definition = ToolDefinition(
+                renamed = _copy(adapter)
+                renamed.definition = ToolDefinition(
                     name=new_name,
                     description=adapter.definition.description,
                     parameters=adapter.definition.parameters,
                 )
-            registry.register(adapter)
+                registry.register(renamed)
+            else:
+                registry.register(adapter)
             count += 1
         return count
 

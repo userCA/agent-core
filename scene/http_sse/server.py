@@ -427,7 +427,7 @@ class AgentRequest(BaseModel):
     ``tools`` / ``knowledge`` are kept loose dicts so they round-trip through
     ``save_agent`` / ``load_agents`` untouched (same shape as the loader).
     """
-    id: str = Field(..., min_length=1, max_length=50)
+    id: str = Field(..., min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
     name: str = Field(..., min_length=1, max_length=100)
     description: str = Field(default="", max_length=1000)
     system_prompt: str = Field(default="", max_length=100_000)
@@ -851,6 +851,8 @@ async def remove_agent(request: Request) -> dict[str, Any]:
     aid = request.query_params.get("id")
     if not aid:
         return {"success": False, "error": "Missing id"}
+    if not _SAFE_AGENT_ID_RE.match(aid):
+        return {"success": False, "error": "Invalid agent id"}
     found = delete_agent(aid, cwd=manager._cwd)
     return {"success": found}
 

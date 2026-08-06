@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from agent_core.tools.base import ToolRegistry
+from agent_core.tools.base import ToolDefinition, ToolRegistry
 from agent_core.tools.mcp_tool import (
     MCPServerConfig,
     MCPManager,
@@ -75,6 +75,41 @@ class TestMCPManager:
         count = manager.register_tools(registry)
         assert count == 1
         assert "fake_echo" in registry
+
+    @pytest.mark.asyncio
+    async def test_register_tools_conflict_rename_does_not_mutate_shared_adapter(self):
+        """Rename-on-conflict registers a COPY; the shared adapter's
+        definition.name stays pristine so later agent sessions see the
+        original name."""
+        from agent_core.tools.mcp_tool import MCPToolAdapter, MCPConnection
+
+        conn = _FakeConnection()
+        adapter = MCPToolAdapter(conn, {
+            "name": "echo",
+            "description": "Echo tool",
+            "inputSchema": {"type": "object", "properties": {}},
+        }, server_name="srv")
+        manager = MCPManager(configs=[])
+        manager._adapters.append(adapter)
+
+        registry = ToolRegistry()
+
+        class _Other:
+            definition = ToolDefinition(name="echo", description="other", parameters={})
+
+        registry.register(_Other())  # pre-existing conflict by name
+
+        manager.register_tools(registry)
+        assert "echo" in registry
+        assert "srv_echo" in registry
+        # Shared adapter is never mutated.
+        assert adapter.definition.name == "echo"
+
+        # A subsequent call re-renames correctly (still a conflict).
+        manager.register_tools(registry)
+        assert "srv_echo" in registry
+        assert registry.get("srv_echo") is not adapter
+        assert adapter.definition.name == "echo"
 
 
 class _FakeConnection:
