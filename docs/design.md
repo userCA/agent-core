@@ -3,7 +3,7 @@
 > 通用 Python Agent 框架(库级别)。参考 `demo/` 中 pi-mono(`pi-agent-core` + `AgentSession`)的架构，以 Python 重新实现并适应云端部署。
 > 框架只交付库与抽象，具体的服务运行时(API server、Worker、部署拓扑)由消费者按场景实现；`scene/` 目录提供示例宿主(CLI、HTTP SSE、Voice WS)。
 
-> **本文档反映 2026-05-18 仓库现状**。已实现的模块按当前代码描述；未实现的 v1 计划项在 §8 显式列出。
+> **本文档以 2026-05-18 仓库状态为基线**，随代码演进增量更新（MCP 与 AgentDefinition 见 §3.8 / §6.4）。未实现的 v1 计划项在 §8 显式列出。
 
 ---
 
@@ -31,7 +31,6 @@
 
 **v1 暂未实现 / 留作扩展**
 
-- MCP(Model Context Protocol)工具适配 —— 设计文档预留，但未落地代码
 - 进程内 / 子进程隔离的用户工具插件加载(entry points / 目录扫描)
 - MongoDB / Redis 等 `SessionStore` 适配器(`motor` 在 extras 中列出，但实现未提供)
 - 会话分支与树导航(`navigate_tree`、fork)
@@ -152,7 +151,7 @@ tests/                            # 镜像源代码结构 + tests/scene + tests/
 ```toml
 [project.optional-dependencies]
 mongo     = ["motor>=3.4"]            # 预留:Mongo store 适配器尚未实现
-mcp       = ["mcp>=1.0"]              # 预留:MCP 适配器尚未实现
+mcp       = ["mcp>=1.0"]              # 已实现:tools/mcp_tool.py + tools/mcp_pool.py
 openai    = ["openai>=1.40"]          # 可选:当前 OpenAIProvider 用 httpx 直连
 anthropic = ["anthropic>=0.34"]       # 可选:当前 AnthropicProvider 用 httpx 直连
 test      = ["pytest>=8", "pytest-asyncio>=0.23", "respx>=0.20"]
@@ -486,9 +485,24 @@ async def after_tool_call(ctx: AfterToolCallContext) -> dict | None:
 
 挂在 `Agent` 构造参数,loop 在工具边界调用。
 
-### 3.8 MCP / 用户插件(未实现)
+### 3.8 MCP 工具适配(已实现)
 
-`mcp` 与 `plugin loader` 在 v1 留作扩展点 —— extras 中 `mcp>=1.0` 已预留依赖位,但 `tools/mcp_tool.py` 与 `plugin_tool.py` 尚未提交。计划中通过 `agent_core.tools` entry point 与 `MCPClient` 接入,使用方式参考 §3.4 / §3.5 草案(已删除以避免误导,后续在 v2 草案中重写)。
+`tools/mcp_tool.py` 提供 MCP(Model Context Protocol)适配:
+
+- `parse_mcp_json` / `parse_mcp_servers` —— 解析 Claude Desktop 风格 `.mcp.json` 或 `MCP_SERVERS` 环境变量。
+- `load_mcp_server_configs(cwd, *, path)` —— 默认解析链:`.pi/mcp/shared.mcp.json` → 根 `.mcp.json` → `MCP_SERVERS`;显式 `path` 仅读指定文件(私有池使用)。
+- `MCPConnection` / `MCPToolAdapter` —— 单 server 连接(stdin stdio / SSE / streamable HTTP)与工具适配。
+- `MCPManager` —— 多 server 生命周期(start/stop/reload/health),按 server 名聚合工具。
+
+`tools/mcp_pool.py` 提供 Agent 级隔离:
+
+- `MCPPool(shared=MCPManager, cwd=...)` —— 一个公用 `shared` 池 + 按 `agent_id` 懒加载的私有池(`.pi/mcp/agents/<id>.mcp.json`,严格读该文件、不回退环境变量;单飞锁保证并发安全)。
+- `adapters_for_agent(agent)` / `register_tools(registry, agent)` —— 按 `AgentDefinition.tools.shared_mcp` / `private_mcp`(及 knowledge 的 `*_mcp_knowledge`)过滤;工具名冲突私有优先覆盖。
+- `reload_private(agent_id)` —— 连接器编辑后重连私有池。
+
+**用户插件 loader(entry points)仍为未实现扩展点。**
+
+---
 
 ---
 
@@ -768,7 +782,48 @@ class ResourceLoader:
 
 **Context files**:`load_project_context_files` 从 `cwd` 沿目录树向上,在遇到 `.git` 前查找 `AGENTS.md` / `CLAUDE.md`,越近的越靠前。
 
-### 6.3 Scene 层(`scene/`)
+### 6.3 AgentDefinition 与 Agent 级隔离(新增)
+
+`resources/agents.py` 定义一等公民 **AgentDefinition**(dataclass + `load_agents` / `get_agent` / `save_agent` / `delete_agent`),搜索 `<cwd>/.pi/agents/` → `~/.pi/agent/agents/`。JSON 结构:
+
+```json
+{
+  "id": "support",
+  "name": "客服助手",
+  "description": "售后咨询",
+  "system_prompt": "你是客服助手…",
+  "tools": {
+    "builtin": ["read", "confirm", "show_widget"],
+    "shared_mcp": ["amap", "tavily"],
+    "private_mcp": ["crm-db"]
+  },
+  "knowledge": {
+    "shared": ["product-faq"],
+    "private": ["refund-policy"],
+    "shared_mcp_knowledge": [],
+    "private_mcp_knowledge": ["crm-kb"]
+  }
+}
+```
+
+语义:
+
+- `tools.builtin` —— 内置工具白名单;块缺失(`tools: null`)= 内置全开。
+- `tools.shared_mcp` / `tools.private_mcp` —— 引用 `shared.mcp.json` / `agents/<id>.mcp.json` 中的 **server 名**。
+- `knowledge.shared` / `knowledge.private` —— 本地文档目录名,相对 `.pi/knowledge/shared/` / `.pi/knowledge/agents/<id>/`。
+- 兼容默认:缺 `tools` / `knowledge` 块 = 「内置全开 + 全部 shared MCP + 全部 shared KB」。
+
+**会话隔离**:`SessionHeader.agent_id`(缺省 `""`)写入 store;`list_sessions(owner, agent_id)` 过滤(显式过滤不匹配旧会话的空 `agent_id`);加载/读写已有会话时校验 `owner` 与 `agent_id`(跨 agent 抛 `PermissionError`,禁止把已有会话绑定到另一 agent)。
+
+**运行时组装**(`scene/http_sse`):
+
+- `MCPPool` 按 `AgentDefinition` 组装 MCP 工具(§3.8)。
+- `CompositeKnowledgeBase` + `ScopedKnowledgeBase`(`knowledge/composite.py`、`knowledge/local_kb.py`)按声明范围组装知识库,source 带 scope 前缀(`shared/…`、`agents/<id>/…`)避免跨层重名冲突。
+- `ChatAssistant.create(..., agent=...)` 使用该组装结果;`agent_id` 优先于 `persona_id`(persona 兼容:无同名 agent 时保留原 persona 路径,不合成——见代码注释中的权衡)。
+
+**HTTP 面**:`GET/POST/DELETE /agents` CRUD;`/chat/stream`、`/sessions`、knowledge、connectors 均支持 `scope` / `agent_id`(验收宿主 `scene/http_sse`)。
+
+### 6.4 Scene 层(`scene/`)
 
 非框架本体,作为示例宿主存在:
 

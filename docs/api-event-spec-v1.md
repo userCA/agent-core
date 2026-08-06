@@ -718,9 +718,12 @@ POST /v1/sessions/{session_id}/runs
   "message": "帮我写一段代码",
   "provider": "openai",
   "model": "gpt-4o",
-  "personaId": "backend-expert"
+  "personaId": "backend-expert",
+  "agentId": "support"
 }
 ```
+
+> **`agentId`（AgentDefinition）优先级高于 `personaId`**：传入 `agentId` 时按 `.pi/agents/<id>.json` 组装该 Agent 的工具/MCP/知识库；仅传 `personaId` 时，先尝试同名 AgentDefinition，否则回退到旧 Persona 兼容路径。会话按 `owner` + `agent_id` 隔离，跨 agent 访问已有会话返回 403（`PermissionError`）。
 
 多模态消息（Content Block 数组）：
 ```json
@@ -776,11 +779,13 @@ POST /v1/sessions/{session_id}/abort
 ### 9.4 会话管理
 
 ```
-GET    /v1/sessions                        列表（分页）
+GET    /v1/sessions                        列表（分页，支持 ?agent_id= 过滤）
 GET    /v1/sessions/{session_id}/messages   历史消息（含 skill_mapping）
 GET    /v1/sessions/{session_id}/export     导出文本
 DELETE /v1/sessions/{session_id}            删除
 ```
+
+> **`?agent_id=`**：仅返回 `header.agent_id` 匹配的会话；不传则返回该 owner 全部会话。读写/删除已有会话时若带 `agent_id`，必须与 `header.agent_id` 一致，否则 403（`PermissionError`）。
 
 #### 历史消息响应中的 skill_mapping
 
@@ -833,6 +838,8 @@ PUT    /v1/knowledge/{name}/tags      设置标签
 DELETE /v1/knowledge/{name}           删除文档
 ```
 
+> **`?scope=shared|agent&agent_id=`**：`shared`（默认）读写 `.pi/knowledge/shared/`（旧扁平目录为回退）；`agent` 读写 `.pi/knowledge/agents/<agent_id>/`，`agent_id` 需通过 `^[a-zA-Z0-9_-]+$` 校验。
+
 ### 9.7 文件上传
 
 ```
@@ -853,6 +860,8 @@ POST   /v1/connectors              添加/更新
 DELETE /v1/connectors/{name}       删除
 POST   /v1/connectors/health       健康检查
 ```
+
+> **`?scope=shared|agent&agent_id=`**：`shared`（默认）读写 `.pi/mcp/shared.mcp.json`（缺省回退根 `.mcp.json`）；`agent` 读写 `.pi/mcp/agents/<agent_id>.mcp.json` 并重连该 Agent 私有 MCP 池。
 
 ### 9.10 Channels
 
@@ -879,6 +888,29 @@ GET  /v1/skills/evolution/audit                         审计日志
 GET  /v1/companion/{uid}          骨骼配置
 POST /v1/companion/{uid}/hatch    孵化
 ```
+
+### 9.13 Agents（AgentDefinition）
+
+```
+GET    /v1/agents                  列表
+POST   /v1/agents                  创建/更新
+DELETE /v1/agents?id={id}          删除
+```
+
+`AgentDefinition` 对应 `.pi/agents/<id>.json`：
+
+```json
+{
+  "id": "support",
+  "name": "客服助手",
+  "description": "售后咨询",
+  "system_prompt": "你是客服助手…",
+  "tools": {"builtin": ["read"], "shared_mcp": ["amap", "tavily"], "private_mcp": []},
+  "knowledge": {"shared": [], "private": [], "shared_mcp_knowledge": [], "private_mcp_knowledge": []}
+}
+```
+
+对话时传 `agentId` 即按该定义组装工具 / MCP / 知识库；`GET /sessions?agent_id=` 过滤会话。
 
 ---
 
