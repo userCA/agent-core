@@ -106,6 +106,22 @@ def test_build_sandbox_globals_includes_safe_builtins_and_json():
     assert g["json"].dumps({"a": 1}) == json.dumps({"a": 1})
 
 
+def test_pattern_sandbox_extras_includes_all_helpers():
+    from agent_core.workflows.sandbox import pattern_sandbox_extras
+
+    extras = pattern_sandbox_extras()
+    expected = {
+        "fanout_synthesize",
+        "adversarial_verify",
+        "generate_and_filter",
+        "tournament",
+        "classify_and_execute",
+        "loop_until",
+    }
+    assert expected <= set(extras.keys())
+    assert all(callable(extras[name]) for name in expected)
+
+
 def test_build_sandbox_globals_merges_extras():
     extra_fn = lambda x: x + 1
     g = build_sandbox_globals(object(), {}, extras={"inc": extra_fn})

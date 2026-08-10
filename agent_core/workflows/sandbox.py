@@ -72,6 +72,27 @@ def validate_workflow_source(source: str) -> ast.AST:
     return tree
 
 
+def pattern_sandbox_extras() -> dict[str, Any]:
+    """Pattern helpers injected into workflow script globals via ``extras``."""
+    from agent_core.workflows.patterns import (
+        adversarial_verify,
+        classify_and_execute,
+        fanout_synthesize,
+        generate_and_filter,
+        loop_until,
+        tournament,
+    )
+
+    return {
+        "fanout_synthesize": fanout_synthesize,
+        "adversarial_verify": adversarial_verify,
+        "generate_and_filter": generate_and_filter,
+        "tournament": tournament,
+        "classify_and_execute": classify_and_execute,
+        "loop_until": loop_until,
+    }
+
+
 def build_sandbox_globals(
     ctx: Any,
     args: dict[str, Any],

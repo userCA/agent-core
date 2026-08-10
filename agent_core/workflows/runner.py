@@ -13,7 +13,11 @@ from agent_core.session.harness import AgentHarness
 from agent_core.workflows.errors import CheckpointError, QuotaExceeded, SandboxError
 from agent_core.workflows.loader import WorkflowLoader, _extract_meta
 from agent_core.workflows.runtime import ProgressCallback, WorkflowContext
-from agent_core.workflows.sandbox import build_sandbox_globals, validate_workflow_source
+from agent_core.workflows.sandbox import (
+    build_sandbox_globals,
+    pattern_sandbox_extras,
+    validate_workflow_source,
+)
 from agent_core.workflows.store import WorkflowStore
 from agent_core.workflows.types import (
     WorkflowCheckpoint,
@@ -166,7 +170,11 @@ class WorkflowRunner:
         )
 
         try:
-            namespace = build_sandbox_globals(ctx, run_args)
+            namespace = build_sandbox_globals(
+                ctx,
+                run_args,
+                extras=pattern_sandbox_extras(),
+            )
             exec(compile(tree, "<workflow>", "exec"), namespace)
             run_fn = namespace.get("run")
             if run_fn is None or not asyncio.iscoroutinefunction(run_fn):
