@@ -120,6 +120,21 @@ agent_core/
 │   ├── diagnostics.py            # ResourceDiagnostics 收集器
 │   └── types.py                  # SourceInfo / Skill / PromptTemplate / Theme / ContextFile
 │
+├── workflows/                    # Dynamic Workflows(Harness-in-Tool 编排)
+│   ├── types.py                  # WorkflowMeta / Options / Checkpoint / Progress / RunResult
+│   ├── errors.py                 # WorkflowError / SandboxError / CheckpointError / QuotaExceeded
+│   ├── sandbox.py                # AST 白名单校验 + 受限 exec 命名空间
+│   ├── runtime.py                # WorkflowContext: phase / log / agent / pipeline
+│   ├── runner.py                 # WorkflowRunner: 加载 → 执行 → checkpoint → 进度
+│   ├── store.py                  # WorkflowStore + CustomEntry(workflow_checkpoint)
+│   ├── loader.py                 # 发现 .pi/workflows / 包内 recipes
+│   ├── patterns.py               # 六大编排模式 helpers(对抗验证、扇出综合等)
+│   ├── tool.py                   # RunWorkflowTool
+│   ├── factory.py                # install_workflows / WorkflowHandle
+│   └── recipes/                  # 内置示例配方
+│       ├── fanout_synthesize.py
+│       └── adversarial_review.py
+│
 ├── logging_config.py             # get_logger / configure_logging(AGENT_CORE_LOG_LEVEL)
 ├── skills/                       # 占位包(skill 实现位于 resources/skills.py)
 └── __init__.py                   # 仅暴露 __version__,无顶层再导出
@@ -144,6 +159,7 @@ tests/                            # 镜像源代码结构 + tests/scene + tests/
 | `extensions/` | `core`,通过事件耦合 `session` |
 | `prompts/` | `core` + `tools` + `resources` |
 | `resources/` | stdlib + pyyaml + pathspec |
+| `workflows/` | `multi_agent` + `session` + `core` + `tools` |
 | `scene/` | 全部 + fastapi/uvicorn/python-dotenv |
 
 ### 1.4 可选 extras(`pyproject.toml` 现状)
@@ -159,6 +175,18 @@ all       = ["motor>=3.4","mcp>=1.0","openai>=1.40","anthropic>=0.34"]
 ```
 
 主依赖已包含 `fastapi` / `uvicorn[standard]` / `pathspec` / `pyyaml` —— 这是为了让 `scene/http_sse` 与 `resources` 开箱可用；后续若严格分层，可移到 `scene` extras。
+
+### 1.5 Dynamic Workflows（Harness-in-Tool）
+
+`workflows/` 提供库级 Dynamic Workflows：**不改 `core/loop.py`**，通过 `install_workflows` 向主编排器注入 `run_workflow` 工具。编排计划与中间结果住在受限 Python 脚本运行时与 `CustomEntry(workflow_checkpoint)`，不堆进主编排器对话上下文（Context Offloading）。
+
+**执行路径：** Orchestrator `AgentHarness` → `run_workflow` tool → `WorkflowRunner` → AST 沙箱 exec → `WorkflowContext.agent/pipeline/phase/log` → `multi_agent.SubAgentRunner`。静态资产位于 `.pi/workflows/*.py` 与包内 `recipes/`；脚本经 AST 白名单校验（禁 import / 危险 builtins），沙箱内仅暴露 `ctx`、`args`、安全 builtins 与只读 pattern helpers。
+
+**与 `multi_agent` 的边界：** `delegate_task` 适合 LLM 在单次 tool call 中列任务（single / parallel / chain）；`run_workflow` 适合**代码持有计划**——循环、分支、phase 级 checkpoint/resume、大规模 `pipeline` fan-out。二者可并存：`run_workflow` 内部通过 `SubAgentRunner` 调子 agent，但 workflow 内禁止嵌套 `run_workflow`（depth=0）。子 agent 默认仍 `allow_nested_delegate=False`。
+
+**与 `planning` 的边界：** 正交。`PlanStore` 面向 LLM 可见的计划步骤与进度可视化；Workflow 自有 phase 树与 checkpoint，**不自动双写** PlanStore（可选 extension 桥接后置）。选用原则：需要用户/UI 跟踪 LLM 生成的计划 → planning；需要脚本级可控编排、上下文卸载与 phase 恢复 → workflows。
+
+**组合方式：** `create_multi_agent_harness(...)` 后调用 `install_workflows(tool_registry=..., sub_agent_runner=..., profile_registry=..., parent_harness=...)`。进度与终态经 `ToolResult.details.workflow` 回传，主 messages 仅保留 tool 摘要。
 
 ---
 
