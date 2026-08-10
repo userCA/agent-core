@@ -60,6 +60,10 @@ class WorkflowContext:
                 self._log = list(resume.log[-_MAX_LOG_ENTRIES:])
 
     @property
+    def args(self) -> dict[str, Any]:
+        return dict(self._args)
+
+    @property
     def current_phase(self) -> str | None:
         return self._current_phase
 
