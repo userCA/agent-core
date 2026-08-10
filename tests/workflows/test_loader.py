@@ -95,3 +95,17 @@ def test_list_meta_returns_workflow_meta_objects(tmp_path):
     assert len(metas) == 1
     assert metas[0].name == "sample-ok"
     assert metas[0].phases == ["p1"]
+
+
+def test_loader_lists_builtin_recipes(tmp_path):
+    loader = WorkflowLoader(search_paths=[str(tmp_path)], include_builtin_recipes=True)
+    names = loader.list_names()
+
+    assert "fanout-synthesize" in names
+    assert "adversarial-review" in names
+
+    fanout = loader.get("fanout-synthesize")
+    assert fanout.meta.phases == ["fanout", "synthesize"]
+
+    review = loader.get("adversarial-review")
+    assert review.meta.phases == ["verify"]

@@ -122,3 +122,37 @@ async def test_inline_source_requires_enable_dynamic_exec(workflow_env):
 
     assert result.status == "failed"
     assert "enable_dynamic_exec" in (result.error_message or "")
+
+
+@pytest.mark.asyncio
+async def test_runner_executes_builtin_fanout_synthesize(workflow_env):
+    from agent_core.workflows.loader import WorkflowLoader
+
+    runner, _, _, provider, _, tmp_path = await workflow_env()
+    runner._loader = WorkflowLoader(
+        search_paths=[str(tmp_path)],
+        include_builtin_recipes=True,
+    )
+
+    items = ["alpha", "beta"]
+    for label in items:
+        provider.queue_script([
+            StreamTextDelta(text=f"mapped-{label}"),
+            StreamMessageEnd(stop_reason="stop", input_tokens=1, output_tokens=1),
+        ])
+    provider.queue_script([
+        StreamTextDelta(text="final synthesis"),
+        StreamMessageEnd(stop_reason="stop", input_tokens=1, output_tokens=1),
+    ])
+
+    result = await runner.run(
+        name="fanout-synthesize",
+        args={"items": items},
+    )
+
+    assert result.status == "completed"
+    assert result.result == "final synthesis"
+    assert result.checkpoint is not None
+    assert "fanout" in result.checkpoint.completed_phases
+    assert "synthesize" in result.checkpoint.completed_phases
+    assert result.checkpoint.phase_outputs["fanout"] == ["mapped-alpha", "mapped-beta"]
