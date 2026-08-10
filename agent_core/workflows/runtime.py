@@ -51,6 +51,8 @@ class WorkflowContext:
         self._log: list[str] = []
         self._completed_phases: set[str] = set()
         self._phase_outputs: dict[str, Any] = {}
+        self._pipeline_total_agents: int | None = None
+        self._pipeline_completed_agents: int = 0
 
         if resume is not None:
             self._completed_phases = set(resume.completed_phases)
@@ -88,6 +90,8 @@ class WorkflowContext:
             progress={
                 "completed_phases": len(self._completed_phases),
                 "total_phases": len(self._phases),
+                "completed_agents": self._pipeline_completed_agents,
+                "total_agents": self._pipeline_total_agents or 0,
             },
         ).model_dump()
         result = self._on_progress(payload)
@@ -164,6 +168,10 @@ class WorkflowContext:
         )
         text = result.response_text or ""
 
+        if self._pipeline_total_agents is not None:
+            self._pipeline_completed_agents += 1
+            await self._emit_progress()
+
         if schema is None:
             return text
 
@@ -207,6 +215,10 @@ class WorkflowContext:
     ) -> list[Any]:
         if not items:
             return []
+
+        self._pipeline_total_agents = len(items)
+        self._pipeline_completed_agents = 0
+        await self._emit_progress()
 
         if concurrency is None or concurrency <= 1:
             results: list[Any] = []

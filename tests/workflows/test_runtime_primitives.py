@@ -140,6 +140,37 @@ async def test_pipeline_preserves_order():
 
 
 @pytest.mark.asyncio
+async def test_pipeline_emits_agent_progress_counters():
+    events: list[dict] = []
+
+    async def on_progress(payload: dict) -> None:
+        events.append(payload)
+
+    provider = FakeProvider()
+    for i in range(3):
+        provider.queue_script([
+            StreamTextDelta(text=f"r{i}"),
+            StreamMessageEnd(stop_reason="stop", input_tokens=1, output_tokens=1),
+        ])
+    ctx, _, _ = await _make_context(provider=provider, on_progress=on_progress)
+
+    async def fn(item, index):
+        return await ctx.agent(f"task {item}", profile="worker")
+
+    await ctx.pipeline([0, 1, 2], fn)
+
+    totals = {e["progress"]["total_agents"] for e in events}
+    assert 3 in totals
+    completed = [
+        e["progress"]["completed_agents"]
+        for e in events
+        if e["progress"].get("total_agents") == 3
+    ]
+    assert 0 in completed
+    assert 3 in completed
+
+
+@pytest.mark.asyncio
 async def test_resume_is_phase_done_and_get_phase_output():
     resume = WorkflowCheckpoint(
         run_id="run-1",

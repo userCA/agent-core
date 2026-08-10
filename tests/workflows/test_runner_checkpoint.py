@@ -108,6 +108,8 @@ async def run(ctx):
     result = await run_task
 
     assert result.status == "aborted"
+    assert result.checkpoint is not None
+    assert result.checkpoint.status == "aborted"
 
 
 @pytest.mark.asyncio

@@ -131,6 +131,8 @@ class WorkflowRunner:
                 progress={
                     "completed_phases": len(ctx._completed_phases),
                     "total_phases": len(meta.phases),
+                    "completed_agents": ctx._pipeline_completed_agents,
+                    "total_agents": ctx._pipeline_total_agents or 0,
                 },
                 error_message=error_message,
                 result=result,
