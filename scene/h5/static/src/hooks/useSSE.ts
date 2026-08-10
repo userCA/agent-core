@@ -46,7 +46,7 @@ interface _DelegationAgent {
 }
 
 interface _Block {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'file' | 'skill' | 'delegation' | 'plan';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'image' | 'file' | 'skill' | 'delegation' | 'plan' | 'workflow';
   content?: string;
   toolName?: string;
   toolCallId?: string;
@@ -72,6 +72,14 @@ interface _Block {
   planTotal?: number;
   planSteps?: Array<{ id: string; title: string; status: string; detail?: string | null }>;
   planStepId?: string;
+  workflowRunId?: string;
+  workflowName?: string;
+  workflowStatus?: string;
+  workflowPhase?: string | null;
+  workflowPhases?: string[];
+  workflowLog?: string[];
+  workflowCompletedAgents?: number;
+  workflowTotalAgents?: number;
 }
 
 export function useSSE() {
@@ -214,7 +222,7 @@ export function useSSE() {
       switch (actionType) {
         case 'tool_call.started': {
           // Special tools use dedicated cards instead of generic tool cards.
-          if (ae.name === 'delegate_task' || ae.name === 'manage_plan') break;
+          if (ae.name === 'delegate_task' || ae.name === 'manage_plan' || ae.name === 'run_workflow') break;
           blocks.push({
             type: 'tool', content: JSON.stringify(ae.arguments),
             toolName: ae.name || ae.toolCallId || 'tool', toolCallId: ae.toolCallId, status: 'running',
@@ -308,6 +316,38 @@ export function useSSE() {
           }
           break;
         }
+
+        case 'workflow.update': {
+          let block = blocks.find(
+            (blk) => blk.type === 'workflow' && blk.workflowRunId === ae.run_id,
+          );
+          if (!block) {
+            block = {
+              type: 'workflow',
+              workflowRunId: ae.run_id,
+              status: 'running',
+              workflowLog: [],
+              workflowPhases: [],
+            };
+            blocks.push(block);
+          }
+          if (ae.run_id) block.workflowRunId = ae.run_id;
+          if (ae.name) block.workflowName = ae.name;
+          if (ae.status) block.workflowStatus = ae.status;
+          if (ae.phase !== undefined) block.workflowPhase = ae.phase;
+          if (ae.phases) block.workflowPhases = ae.phases;
+          if (ae.log) block.workflowLog = ae.log;
+          if (ae.progress?.completed_agents !== undefined) {
+            block.workflowCompletedAgents = ae.progress.completed_agents;
+          }
+          if (ae.progress?.total_agents !== undefined) {
+            block.workflowTotalAgents = ae.progress.total_agents;
+          }
+          const terminal = ae.status === 'completed' || ae.status === 'failed' || ae.status === 'aborted';
+          block.status = terminal ? 'done' : 'running';
+          block.isError = ae.status === 'failed' || ae.status === 'aborted';
+          break;
+        }
         
         case 'skill.started': {
           blocks.push({
@@ -331,7 +371,7 @@ export function useSSE() {
           break;
         
         case 'tool_call.completed': {
-          if (ae.name === 'delegate_task' || ae.name === 'manage_plan') break;
+          if (ae.name === 'delegate_task' || ae.name === 'manage_plan' || ae.name === 'run_workflow') break;
           const b = blocks.find(blk => blk.toolCallId === ae.toolCallId && blk.type === 'tool');
           const resultOutput = ae.result?.output ?? '';
           const isError = ae.result?.isError ?? false;

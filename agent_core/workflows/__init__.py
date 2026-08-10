@@ -8,6 +8,7 @@ from agent_core.workflows.errors import (
 )
 from agent_core.workflows.factory import WorkflowHandle, install_workflows
 from agent_core.workflows.loader import WorkflowLoader
+from agent_core.workflows.prompts import workflow_prompt_snippet
 from agent_core.workflows.patterns import (
     adversarial_verify,
     classify_and_execute,
@@ -53,4 +54,5 @@ __all__ = [
     "install_workflows",
     "loop_until",
     "tournament",
+    "workflow_prompt_snippet",
 ]

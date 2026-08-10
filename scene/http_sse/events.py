@@ -32,6 +32,20 @@ def _delegation_from_result(result: Any) -> dict[str, Any] | None:
     return frame
 
 
+def _workflow_from_result(result: Any) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    details = getattr(result, "details", None)
+    if not isinstance(details, dict):
+        return None
+    payload = details.get("workflow")
+    if not isinstance(payload, dict) or payload.get("type") != "workflow":
+        return None
+    frame = {"event": "workflow", **payload}
+    frame.pop("type", None)
+    return frame
+
+
 def _plan_from_result(result: Any) -> dict[str, Any] | None:
     if result is None:
         return None
@@ -76,8 +90,11 @@ def agent_event_to_sse_frames(evt: AgentEvent) -> list[dict[str, Any]]:
         plan = _plan_from_result(evt.partial_result)
         if plan is not None:
             frames.append(plan)
+        workflow = _workflow_from_result(evt.partial_result)
+        if workflow is not None:
+            frames.append(workflow)
         text = _extract_result_text(evt.partial_result)
-        if text or (deleg is None and plan is None):
+        if text or (deleg is None and plan is None and workflow is None):
             frames.append(
                 {
                     "event": "tool_update",
@@ -94,6 +111,9 @@ def agent_event_to_sse_frames(evt: AgentEvent) -> list[dict[str, Any]]:
         plan = _plan_from_result(evt.result)
         if plan is not None:
             frames.append(plan)
+        workflow = _workflow_from_result(evt.result)
+        if workflow is not None:
+            frames.append(workflow)
         result_dict: dict[str, Any] = {
             "event": "tool_end",
             "tool_name": evt.tool_name,
@@ -146,7 +166,7 @@ def agent_event_to_sse_json(evt: AgentEvent) -> dict[str, Any] | None:
     if not frames:
         return None
     for frame in frames:
-        if frame.get("event") not in ("delegation", "plan"):
+        if frame.get("event") not in ("delegation", "plan", "workflow"):
             return frame
     return frames[0]
 

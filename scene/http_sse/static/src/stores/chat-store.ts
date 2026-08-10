@@ -21,7 +21,7 @@ export interface PlanStepItem {
 }
 
 export interface MessageBlock {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'delegation' | 'plan';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'delegation' | 'plan' | 'workflow';
   text?: string;
   label?: string;
   detail?: string;
@@ -39,6 +39,14 @@ export interface MessageBlock {
   planDone?: number;
   planTotal?: number;
   planSteps?: PlanStepItem[];
+  workflowRunId?: string;
+  workflowName?: string;
+  workflowStatus?: string;
+  workflowPhase?: string | null;
+  workflowPhases?: string[];
+  workflowLog?: string[];
+  workflowCompletedAgents?: number;
+  workflowTotalAgents?: number;
 }
 
 export interface ChatMessage {

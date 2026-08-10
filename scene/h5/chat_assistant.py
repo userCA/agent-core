@@ -87,6 +87,7 @@ class ChatAssistant:
         tool_registry: ToolRegistry | None = None,
         cwd: str = "",
         multi_agent_handle: Any | None = None,
+        workflow_handle: Any | None = None,
         skill_trace_collector: Any | None = None,
         artifact_store: Any | None = None,
         state_store: Any | None = None,
@@ -98,6 +99,7 @@ class ChatAssistant:
         self._session_unsub: Callable[[], None] | None = None
         self._handlers: list[EventHandler] = []
         self._multi_agent_handle = multi_agent_handle
+        self._workflow_handle = workflow_handle
         self._skill_trace_collector = skill_trace_collector
         self._artifact_store = artifact_store
         self._state_store = state_store
@@ -422,6 +424,7 @@ class ChatAssistant:
         )
         from scene.h5.planning_config import planning_enabled
         from scene.h5.compaction_config import compaction_enabled
+        from scene.h5.workflows_config import workflows_enabled
 
         system_prompt_text = prompt.text
         if planning_enabled():
@@ -459,7 +462,12 @@ class ChatAssistant:
         use_multi = (
             multi_agent_enabled() if enable_multi_agent is None else enable_multi_agent
         )
+        if use_multi and workflows_enabled():
+            from agent_core.workflows import workflow_prompt_snippet
+
+            system_prompt_text = system_prompt_text.rstrip() + "\n\n" + workflow_prompt_snippet()
         multi_handle = None
+        workflow_handle = None
         harness_kwargs: dict[str, Any] = {
             "extensions": extensions or None,
             "tool_execution": "sequential",
@@ -506,6 +514,26 @@ class ChatAssistant:
                 tool_registry=tool_registry,
                 **harness_kwargs,
             )
+            if workflows_enabled():
+                from agent_core.workflows import WorkflowOptions, install_workflows, workflow_prompt_snippet
+
+                workflow_handle = install_workflows(
+                    tool_registry=tool_registry,
+                    sub_agent_runner=multi_handle.runner,
+                    profile_registry=multi_handle.registry,
+                    parent_harness=harness,
+                    session_store=store,
+                    session_id=resolved_session_id,
+                    owner=resolved_owner,
+                    options=WorkflowOptions(
+                        search_paths=[os.path.join(cwd, ".pi", "workflows")],
+                    ),
+                )
+                harness.state.system_prompt = (
+                    harness.state.system_prompt.rstrip()
+                    + "\n\n"
+                    + workflow_prompt_snippet(workflows=workflow_handle.list_workflows())
+                )
         else:
             harness = AgentHarness(
                 provider=provider,
@@ -527,6 +555,7 @@ class ChatAssistant:
             tool_registry=tool_registry,
             cwd=cwd,
             multi_agent_handle=multi_handle,
+            workflow_handle=workflow_handle,
             skill_trace_collector=skill_trace_collector,
             artifact_store=artifact_store,
             state_store=state_store,
@@ -623,6 +652,13 @@ class ChatAssistant:
                     loop.create_task(runner.abort_all())
                 except RuntimeError:
                     pass
+        wf_handle = self._workflow_handle
+        if wf_handle is not None:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(wf_handle.abort())
+            except RuntimeError:
+                pass
 
     def provide_human_input(self, tool_call_id: str, values: dict[str, Any]) -> bool:
         """Resume a tool that is waiting for human input."""

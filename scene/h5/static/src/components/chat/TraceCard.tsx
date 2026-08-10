@@ -4,6 +4,7 @@ import Markdown from '../shared/Markdown';
 import WidgetFrame from '../tools/WidgetFrame';
 import DelegationCard from './DelegationCard';
 import PlanCard from './PlanCard';
+import WorkflowCard from './WorkflowCard';
 import './TraceCard.css';
 
 interface Props {
@@ -62,7 +63,8 @@ export default function TraceCard({ blocks }: Props) {
       b.type !== 'tool' &&
       b.type !== 'skill' &&
       b.type !== 'delegation' &&
-      b.type !== 'plan'
+      b.type !== 'plan' &&
+      b.type !== 'workflow'
     ) {
       return false;
     }
@@ -76,10 +78,11 @@ export default function TraceCard({ blocks }: Props) {
   // Delegation/plan render as full cards; think/tool/skill as compact rail nodes
   // Tools with planStepId are grouped under their plan step, not shown flat.
   const compactStepBlocks = stepBlocks.filter(
-    (b) => b.type !== 'delegation' && b.type !== 'plan' && !b.planStepId
+    (b) => b.type !== 'delegation' && b.type !== 'plan' && b.type !== 'workflow' && !b.planStepId
   );
   const delegationBlocks = stepBlocks.filter((b) => b.type === 'delegation');
   const planBlocks = stepBlocks.filter((b) => b.type === 'plan');
+  const workflowBlocks = stepBlocks.filter((b) => b.type === 'workflow');
 
   // Build map: stepId → tool blocks (for PlanCard grouping)
   const planToolsMap = React.useMemo(() => {
@@ -123,6 +126,8 @@ export default function TraceCard({ blocks }: Props) {
   let headLabel = '思考中…';
   if (planBlocks.some((b) => b.status === 'running')) {
     headLabel = '执行计划 · 进行中';
+  } else if (workflowBlocks.some((b) => b.status === 'running')) {
+    headLabel = '工作流 · 进行中';
   } else if (delegationBlocks.some((b) => b.status === 'running')) {
     headLabel = '协调专家 · 进行中';
   } else if (compactStepBlocks.some((b) => b.status === 'running')) {
@@ -183,6 +188,22 @@ export default function TraceCard({ blocks }: Props) {
                   steps={block.planSteps}
                   isError={block.isError}
                   stepTools={planToolsMap}
+                />
+              );
+            }
+            if (block.type === 'workflow') {
+              return (
+                <WorkflowCard
+                  key={`wf-${i}`}
+                  name={block.workflowName}
+                  status={block.status}
+                  workflowStatus={block.workflowStatus}
+                  phase={block.workflowPhase}
+                  phases={block.workflowPhases}
+                  log={block.workflowLog}
+                  completedAgents={block.workflowCompletedAgents}
+                  totalAgents={block.workflowTotalAgents}
+                  isError={block.isError}
                 />
               );
             }

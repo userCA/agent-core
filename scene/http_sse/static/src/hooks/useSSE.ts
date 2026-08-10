@@ -24,7 +24,7 @@ interface _PlanStep {
 }
 
 interface _Block {
-  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'delegation' | 'plan';
+  type: 'text' | 'think' | 'tool' | 'widget' | 'video' | 'delegation' | 'plan' | 'workflow';
   content?: string;
   toolName?: string;
   toolCallId?: string;
@@ -97,7 +97,7 @@ export function useSSE() {
 
       case 'tool_start': {
         // Special tools use dedicated cards instead of generic tool cards.
-        if (evt.tool_name === 'delegate_task' || evt.tool_name === 'manage_plan') break;
+        if (evt.tool_name === 'delegate_task' || evt.tool_name === 'manage_plan' || evt.tool_name === 'run_workflow') break;
         blocks.push({
           type: 'tool', content: JSON.stringify(evt.args),
           toolName: evt.tool_name, toolCallId: evt.tool_call_id, status: 'running',
@@ -179,8 +179,40 @@ export function useSSE() {
         break;
       }
 
+      case 'workflow': {
+        let block = blocks.find(
+          (blk) => blk.type === 'workflow' && blk.workflowRunId === evt.run_id,
+        );
+        if (!block) {
+          block = {
+            type: 'workflow',
+            workflowRunId: evt.run_id,
+            status: 'running',
+            workflowLog: [],
+            workflowPhases: [],
+          };
+          blocks.push(block);
+        }
+        if (evt.run_id) block.workflowRunId = evt.run_id;
+        if (evt.name) block.workflowName = evt.name;
+        if (evt.status) block.workflowStatus = evt.status;
+        if (evt.phase !== undefined) block.workflowPhase = evt.phase;
+        if (evt.phases) block.workflowPhases = evt.phases;
+        if (evt.log) block.workflowLog = evt.log;
+        if (evt.progress?.completed_agents !== undefined) {
+          block.workflowCompletedAgents = evt.progress.completed_agents;
+        }
+        if (evt.progress?.total_agents !== undefined) {
+          block.workflowTotalAgents = evt.progress.total_agents;
+        }
+        const terminal = evt.status === 'completed' || evt.status === 'failed' || evt.status === 'aborted';
+        block.status = terminal ? 'done' : 'running';
+        block.isError = evt.status === 'failed' || evt.status === 'aborted';
+        break;
+      }
+
       case 'tool_end': {
-        if (evt.tool_name === 'delegate_task' || evt.tool_name === 'manage_plan') break;
+        if (evt.tool_name === 'delegate_task' || evt.tool_name === 'manage_plan' || evt.tool_name === 'run_workflow') break;
         const b = blocks.find(blk => blk.toolCallId === evt.tool_call_id && blk.type === 'tool');
         if (b) { b.content = evt.result; b.status = 'done'; b.isError = evt.is_error; }
         if (evt.display?.widget) {

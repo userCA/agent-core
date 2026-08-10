@@ -5,6 +5,7 @@ import WidgetFrame from '../tools/WidgetFrame';
 import Icon from '../shared/Icon';
 import DelegationCard from './DelegationCard';
 import PlanCard from './PlanCard';
+import WorkflowCard from './WorkflowCard';
 import '../tools/StepsPanel.css';
 import '../tools/ToolStep.css';
 
@@ -70,6 +71,23 @@ export default function BlocksRenderer({ blocks }: Props) {
               done={b.planDone}
               total={b.planTotal}
               steps={b.planSteps}
+              isError={b.isError}
+            />
+          );
+        }
+
+        if (b.type === 'workflow') {
+          return (
+            <WorkflowCard
+              key={i}
+              name={b.workflowName}
+              status={b.status}
+              workflowStatus={b.workflowStatus}
+              phase={b.workflowPhase}
+              phases={b.workflowPhases}
+              log={b.workflowLog}
+              completedAgents={b.workflowCompletedAgents}
+              totalAgents={b.workflowTotalAgents}
               isError={b.isError}
             />
           );

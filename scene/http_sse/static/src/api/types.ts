@@ -89,6 +89,19 @@ export interface PlanEvent {
   error_message?: string | null;
 }
 
+export interface WorkflowEvent {
+  event: 'workflow';
+  run_id?: string;
+  name?: string;
+  status?: 'running' | 'completed' | 'failed' | 'aborted' | 'paused';
+  phase?: string | null;
+  phases?: string[];
+  log?: string[];
+  progress?: { completed_agents?: number; total_agents?: number };
+  error_message?: string | null;
+  result?: unknown;
+}
+
 export interface DisplayPayload {
   widget?: WidgetDisplay;
   audio?: AudioDisplay;
@@ -188,6 +201,7 @@ export type SSEEvent =
   | ToolEndEvent
   | DelegationEvent
   | PlanEvent
+  | WorkflowEvent
   | HumanInputRequiredEvent
   | MessageEndEvent
   | ErrorEvent
