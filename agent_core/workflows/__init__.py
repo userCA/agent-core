@@ -6,6 +6,12 @@ from agent_core.workflows.errors import (
     SandboxError,
     WorkflowError,
 )
+from agent_core.workflows.factory import WorkflowHandle, install_workflows
+from agent_core.workflows.loader import WorkflowLoader
+from agent_core.workflows.runtime import WorkflowContext
+from agent_core.workflows.runner import WorkflowRunner
+from agent_core.workflows.store import WorkflowStore
+from agent_core.workflows.tool import RunWorkflowTool
 from agent_core.workflows.types import (
     WorkflowCheckpoint,
     WorkflowMeta,
@@ -18,12 +24,19 @@ from agent_core.workflows.types import (
 __all__ = [
     "CheckpointError",
     "QuotaExceeded",
+    "RunWorkflowTool",
     "SandboxError",
     "WorkflowCheckpoint",
+    "WorkflowContext",
     "WorkflowError",
+    "WorkflowHandle",
+    "WorkflowLoader",
     "WorkflowMeta",
     "WorkflowOptions",
     "WorkflowProgress",
     "WorkflowRunResult",
+    "WorkflowRunner",
     "WorkflowStatus",
+    "WorkflowStore",
+    "install_workflows",
 ]
