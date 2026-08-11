@@ -44,6 +44,7 @@ class _RunnerWorkflowContext(WorkflowContext):
             status=status,
             current_phase=self._current_phase,
             completed_phases=sorted(self._completed_phases),
+            all_phases=list(self._phases),
             phase_outputs=dict(self._phase_outputs),
             args=dict(self._args),
             agent_invocation_count=self._agent_invocation_count,

@@ -15,6 +15,8 @@ function StatusBar({ blocks }: { blocks: MessageBlock[] }) {
       ? '正在协调专家...'
       : running.type === 'plan'
         ? '正在更新计划...'
+        : running.type === 'workflow'
+          ? `工作流执行中${running.workflowName ? ` · ${running.workflowName}` : ''}${running.workflowPhase ? ` · ${running.workflowPhase}` : ''}`
       : running.type === 'tool' ? `正在调用 ${running.label || '工具'}...` : '思考中...'
     : '处理中...';
   return (

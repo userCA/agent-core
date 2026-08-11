@@ -43,6 +43,14 @@ interface _Block {
   planDone?: number;
   planTotal?: number;
   planSteps?: _PlanStep[];
+  workflowRunId?: string;
+  workflowName?: string;
+  workflowStatus?: string;
+  workflowPhase?: string | null;
+  workflowPhases?: string[];
+  workflowLog?: string[];
+  workflowCompletedAgents?: number;
+  workflowTotalAgents?: number;
 }
 
 export function useSSE() {
@@ -197,7 +205,7 @@ export function useSSE() {
         if (evt.name) block.workflowName = evt.name;
         if (evt.status) block.workflowStatus = evt.status;
         if (evt.phase !== undefined) block.workflowPhase = evt.phase;
-        if (evt.phases) block.workflowPhases = evt.phases;
+        if (evt.phases && evt.phases.length > 0) block.workflowPhases = evt.phases;
         if (evt.log) block.workflowLog = evt.log;
         if (evt.progress?.completed_agents !== undefined) {
           block.workflowCompletedAgents = evt.progress.completed_agents;
@@ -292,6 +300,14 @@ export function useSSE() {
       planDone: b.type === 'plan' ? b.planDone : undefined,
       planTotal: b.type === 'plan' ? b.planTotal : undefined,
       planSteps: b.type === 'plan' ? b.planSteps : undefined,
+      workflowRunId: b.type === 'workflow' ? b.workflowRunId : undefined,
+      workflowName: b.type === 'workflow' ? b.workflowName : undefined,
+      workflowStatus: b.type === 'workflow' ? b.workflowStatus : undefined,
+      workflowPhase: b.type === 'workflow' ? b.workflowPhase : undefined,
+      workflowPhases: b.type === 'workflow' ? b.workflowPhases : undefined,
+      workflowLog: b.type === 'workflow' ? b.workflowLog : undefined,
+      workflowCompletedAgents: b.type === 'workflow' ? b.workflowCompletedAgents : undefined,
+      workflowTotalAgents: b.type === 'workflow' ? b.workflowTotalAgents : undefined,
     } as MessageBlock)));
   }, [appendText, setStreamBlocks, addWidget, addAudio, setHitlRequest, setUsage, addMessage, setSessionId]);
 
@@ -357,6 +373,21 @@ export function useSSE() {
             planDone: b.planDone,
             planTotal: b.planTotal,
             planSteps: b.planSteps,
+            status: 'done',
+            isError: b.isError,
+          });
+        } else if (b.type === 'workflow') {
+          msgBlocks.push({
+            type: 'workflow',
+            label: b.workflowName || '工作流',
+            workflowRunId: b.workflowRunId,
+            workflowName: b.workflowName,
+            workflowStatus: b.workflowStatus,
+            workflowPhase: b.workflowPhase,
+            workflowPhases: b.workflowPhases,
+            workflowLog: b.workflowLog,
+            workflowCompletedAgents: b.workflowCompletedAgents,
+            workflowTotalAgents: b.workflowTotalAgents,
             status: 'done',
             isError: b.isError,
           });

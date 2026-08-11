@@ -47,6 +47,7 @@ def _progress_from_result(result: WorkflowRunResult) -> WorkflowProgress:
     progress: dict[str, int] = {}
     if cp is not None:
         phase = cp.current_phase
+        phases = list(cp.all_phases)
         log = list(cp.log)
         progress = {
             "completed_phases": len(cp.completed_phases),

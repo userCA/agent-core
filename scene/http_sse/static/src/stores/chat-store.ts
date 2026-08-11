@@ -300,6 +300,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
               toolBlk.isError = Boolean((msg as Record<string, unknown>).is_error);
             }
           }
+          // Reconstruct workflow block from run_workflow tool result (no matching tool block)
+          if (toolName === 'run_workflow' && content) {
+            const statusMatch = content.match(/status=(\w+)/);
+            const phaseMatch = content.match(/phase=(\w+)/);
+            const nameMatch = content.match(/\[workflow:([^\]]+)\]/);
+            // Parse JSON body for phases (items) and log (analyses)
+            let phases: string[] | undefined;
+            let logEntries: string[] | undefined;
+            const jsonMatch = content.match(/\n(\{[\s\S]*\})\s*$/);
+            if (jsonMatch) {
+              try {
+                const data = JSON.parse(jsonMatch[1]);
+                if (Array.isArray(data.items)) phases = data.items.map(String);
+                if (data.analyses && typeof data.analyses === 'object') {
+                  logEntries = Object.entries(data.analyses).map(
+                    ([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`
+                  );
+                }
+              } catch { /* JSON parse failed, skip phases/log */ }
+            }
+            currentAssistant.blocks.push({
+              type: 'workflow',
+              label: nameMatch?.[1] || '工作流',
+              workflowName: nameMatch?.[1],
+              workflowStatus: statusMatch?.[1] || 'completed',
+              workflowPhase: phaseMatch?.[1] || null,
+              workflowPhases: phases,
+              workflowLog: logEntries,
+              status: 'done',
+              isError: statusMatch?.[1] === 'failed' || statusMatch?.[1] === 'aborted',
+            });
+          }
         }
       }
     }
@@ -342,6 +374,8 @@ function parseAssistantMessage(raw: unknown): { blocks: MessageBlock[] } {
         if (text) blocks.push({ type: 'text', text });
       } else if (type === 'tool_call') {
         const name = (item as Record<string, unknown>).name as string || 'tool';
+        // Skip run_workflow — reconstructed as workflow block from tool_result
+        if (name === 'run_workflow') continue;
         const args = (item as Record<string, unknown>).arguments as Record<string, unknown>;
         blocks.push({ type: 'tool', label: name, detail: JSON.stringify(args || {}) });
       }

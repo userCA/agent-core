@@ -41,6 +41,7 @@ class WorkflowCheckpoint(BaseModel):
     status: WorkflowStatus
     current_phase: str | None = None
     completed_phases: list[str] = Field(default_factory=list)
+    all_phases: list[str] = Field(default_factory=list)
     phase_outputs: dict[str, Any] = Field(default_factory=dict)
     args: dict[str, Any] = Field(default_factory=dict)
     agent_invocation_count: int = 0
