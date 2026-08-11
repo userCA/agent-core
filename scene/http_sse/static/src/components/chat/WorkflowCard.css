@@ -1,91 +1,89 @@
-.workflow-card {
-  margin: 8px 0;
-  border: 1px solid var(--border, #ddd);
+/* ── WorkflowCard: phase list within steps-panel node ── */
+/* Card chrome (step-section, section-summary, section-detail)
+   is provided by StepsPanel.css — this file only defines
+   workflow-specific sub-styles. */
+
+/* Detail panel — visually separated from assistant body text */
+.workflow-detail {
+  background: var(--surface-soft);
   border-radius: var(--radius-sm, 8px);
-  background: var(--surface, #fafafa);
-  font-size: 13px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--accent, #3b82f6);
 }
 
-.workflow-card.running {
-  border-color: var(--accent, #3b82f6);
+.step-section.done-error .workflow-detail {
+  border-left-color: var(--danger, #ef4444);
 }
 
-.workflow-card.error {
-  border-color: var(--danger, #ef4444);
-}
-
-.workflow-summary {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-  font: inherit;
-}
-
-.workflow-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.workflow-phase,
-.workflow-progress {
+/* Phase / progress tags in the header row */
+.workflow-phase-tag,
+.workflow-progress-tag {
   font-size: 11px;
-  color: var(--mute, #888);
-  border: 1px solid var(--border, #ddd);
+  color: var(--mute);
+  border: 1px solid var(--hairline);
   border-radius: 4px;
   padding: 1px 6px;
   font-variant-numeric: tabular-nums;
 }
 
-.workflow-spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--border, #ddd);
-  border-top-color: var(--accent, #3b82f6);
-  border-radius: 50%;
-  animation: workflow-spin 0.8s linear infinite;
-}
-
-@keyframes workflow-spin {
-  to { transform: rotate(360deg); }
-}
-
-.workflow-body {
-  padding: 0 12px 12px;
-}
-
+/* ── Phase list ── */
 .workflow-phases {
   list-style: none;
-  margin: 0 0 8px;
+  margin: 0;
   padding: 0;
 }
 
 .workflow-phase-item {
-  padding: 4px 0;
-  color: var(--mute, #666);
+  padding: 6px 0;
+  border-top: 1px solid var(--hairline);
 }
 
-.workflow-phase-item.current {
+.workflow-phase-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.workflow-phase-name {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--body);
+}
+
+.workflow-phase-status {
+  font-size: 11px;
+  color: var(--mute);
+  flex-shrink: 0;
+}
+
+/* Phase status colors */
+.workflow-phase-item.status-completed .workflow-phase-status {
+  color: var(--success, #22c55e);
+}
+
+.workflow-phase-item.status-current .workflow-phase-status {
   color: var(--accent, #3b82f6);
   font-weight: 600;
 }
 
+.workflow-phase-item.status-current .workflow-phase-name {
+  color: var(--accent, #3b82f6);
+}
+
+.workflow-phase-item.status-pending .workflow-phase-status {
+  color: var(--mute);
+}
+
+/* ── Log section ── */
 .workflow-log {
   list-style: none;
   margin: 0;
-  padding: 8px 0 0;
-  border-top: 1px solid var(--border, #eee);
-  color: var(--mute, #666);
-  font-size: 12px;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--hairline);
+  color: var(--stone);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .workflow-log li {
@@ -95,4 +93,5 @@
 .workflow-log.mute {
   border-top: 0;
   padding-top: 0;
+  color: var(--ash);
 }
