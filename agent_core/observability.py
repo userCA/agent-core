@@ -20,6 +20,7 @@ Without OpenTelemetry, all calls are no-ops.
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import hashlib
 import logging
@@ -29,6 +30,8 @@ import uuid
 from typing import Any, Iterator
 
 logger = logging.getLogger(__name__)
+
+_pending_tool_spans: dict[str, Any] = {}
 
 try:
     from opentelemetry import trace
@@ -45,10 +48,24 @@ def _get_tracer() -> Any:
     return None
 
 
+def build_langfuse_otlp_headers(public_key: str, secret_key: str) -> dict[str, str]:
+    token = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
+    return {
+        "Authorization": f"Basic {token}",
+        "x-langfuse-ingestion-version": "4",
+    }
+
+
+def _env_flag(name: str, default: str = "0") -> bool:
+    return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
+
+
 def configure_otel_exporter(
     exporter: str | None = None,
     *,
     service_name: str = "agent-core",
+    endpoint: str | None = None,
+    headers: dict[str, str] | None = None,
 ) -> bool:
     """Configure the OTEL span exporter based on *exporter* or ``OTEL_EXPORTER``.
 
@@ -91,13 +108,32 @@ def configure_otel_exporter(
             )
             from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-            endpoint = os.environ.get(
+            endpoint = endpoint or os.environ.get(
                 "OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"
             )
             otlp_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
             provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
             trace.set_tracer_provider(provider)
             logger.info("OTEL exporter configured: otlp -> %s", endpoint)
+            return True
+
+        elif exporter == "otlp_http":
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+                OTLPSpanExporter,
+            )
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+            ep = endpoint or os.environ.get(
+                "OTEL_EXPORTER_OTLP_ENDPOINT",
+                "http://localhost:4318",
+            )
+            exporter_kwargs: dict[str, Any] = {"endpoint": ep}
+            if headers:
+                exporter_kwargs["headers"] = headers
+            otlp_exporter = OTLPSpanExporter(**exporter_kwargs)
+            provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+            trace.set_tracer_provider(provider)
+            logger.info("OTEL exporter configured: otlp_http -> %s", ep)
             return True
 
         else:
@@ -113,6 +149,40 @@ def configure_otel_exporter(
         return False
 
 
+def configure_langfuse_otel_from_env(*, service_name: str = "agent-core") -> bool:
+    """If LANGFUSE_ENABLED and keys set, configure OTLP/HTTP to Langfuse. Else False."""
+    if not _env_flag("LANGFUSE_ENABLED"):
+        return False
+    pk = os.environ.get("LANGFUSE_PUBLIC_KEY", "").strip()
+    sk = os.environ.get("LANGFUSE_SECRET_KEY", "").strip()
+    if not pk or not sk:
+        logger.warning(
+            "LANGFUSE_ENABLED but LANGFUSE_PUBLIC_KEY/SECRET_KEY missing; skip"
+        )
+        return False
+    base = os.environ.get("LANGFUSE_BASE_URL", "https://cloud.langfuse.com").rstrip("/")
+    endpoint = f"{base}/api/public/otel"
+    headers = build_langfuse_otlp_headers(pk, sk)
+    ok = configure_otel_exporter(
+        exporter="otlp_http",
+        endpoint=endpoint,
+        headers=headers,
+        service_name=service_name,
+    )
+    if ok:
+        logger.info("Langfuse OTEL exporter configured: %s", endpoint)
+    return ok
+
+
+def _cleanup_pending_tool_spans(run_id: str) -> None:
+    """End and remove any tool spans still pending for *run_id*."""
+    prefix = f"{run_id}:"
+    for key in [k for k in _pending_tool_spans if k.startswith(prefix)]:
+        span = _pending_tool_spans.pop(key, None)
+        if span is not None:
+            span.end()
+
+
 def generate_run_id() -> str:
     """Generate a unique run ID for an agent run."""
     return f"run-{uuid.uuid4().hex[:12]}"
@@ -123,6 +193,20 @@ def system_prompt_hash(prompt: str) -> str:
     if not prompt:
         return ""
     return hashlib.sha256(prompt.encode()).hexdigest()[:12]
+
+
+def agent_span_attributes(*, session_id: str = "", run_id: str = "", **extra: Any) -> dict[str, Any]:
+    attrs: dict[str, Any] = {
+        "agent.session_id": session_id,
+        "agent.run_id": run_id,
+    }
+    if session_id:
+        attrs["session.id"] = session_id
+        attrs["langfuse.session.id"] = session_id
+    if run_id:
+        attrs["langfuse.trace.metadata.run_id"] = run_id
+    attrs.update({k: v for k, v in extra.items() if v is not None and v != ""})
+    return attrs
 
 
 @contextlib.contextmanager
@@ -153,7 +237,7 @@ def observe(
 
     # Register tracing hooks via public API, store references for cleanup
     tracing_before = _make_tracing_before_hook(tracer, session_id, run_id, provider_name, model_id)
-    tracing_after = _make_tracing_after_hook(tracer)
+    tracing_after = _make_tracing_after_hook(tracer, run_id)
 
     harness.add_before_tool_call_hook(tracing_before)
     harness.add_after_tool_call_hook(tracing_after)
@@ -162,13 +246,15 @@ def observe(
     run_span = tracer.start_span(
         "agent.run",
         kind=SpanKind.INTERNAL,
-        attributes={
-            "agent.session_id": session_id,
-            "agent.run_id": run_id,
-            "agent.provider": provider_name,
-            "agent.model": model_id,
-            "agent.system_prompt_hash": system_prompt_hash(system_prompt),
-        },
+        attributes=agent_span_attributes(
+            session_id=session_id,
+            run_id=run_id,
+            **{
+                "agent.provider": provider_name,
+                "agent.model": model_id,
+                "agent.system_prompt_hash": system_prompt_hash(system_prompt),
+            },
+        ),
     )
 
     try:
@@ -180,6 +266,7 @@ def observe(
     finally:
         harness.remove_before_tool_call_hook(tracing_before)
         harness.remove_after_tool_call_hook(tracing_after)
+        _cleanup_pending_tool_spans(run_id)
 
 
 def _make_tracing_before_hook(
@@ -202,33 +289,35 @@ def _make_tracing_before_hook(
         span = tracer.start_span(
             f"agent.tool_call.{name}",
             kind=SpanKind.INTERNAL,
-            attributes={
-                "tool.name": name,
-                "tool.call_id": tc_id,
-                "agent.session_id": session_id,
-                "agent.run_id": run_id,
-                "agent.provider": provider_name,
-                "agent.model": model_id,
-            },
+            attributes=agent_span_attributes(
+                session_id=session_id,
+                run_id=run_id,
+                **{
+                    "tool.name": name,
+                    "tool.call_id": tc_id,
+                    "agent.provider": provider_name,
+                    "agent.model": model_id,
+                },
+            ),
         )
-        # Store span in metadata so the after-hook can end it
-        metadata = call_ctx.setdefault("__tracing", {})
-        metadata["span"] = span
-        metadata.setdefault("spans", []).append(span)
-        return {"inject_metadata": {"__tracing_span": span}}
+        _pending_tool_spans[f"{run_id}:{tc_id}"] = span
+        return None
 
     return _hook
 
 
-def _make_tracing_after_hook(tracer: Any) -> Any:
+def _make_tracing_after_hook(tracer: Any, run_id: str) -> Any:
     """Create an after-tool-call hook that ends tool spans."""
 
     async def _hook(call_ctx: dict[str, Any]) -> dict[str, Any] | None:
-        tracing_meta = call_ctx.get("__tracing", {})
-        span = tracing_meta.get("span")
+        tool_call = call_ctx.get("tool_call")
+        if tool_call is None:
+            return None
+
+        tc_id = getattr(tool_call, "id", "")
+        span = _pending_tool_spans.pop(f"{run_id}:{tc_id}", None)
         if span is not None:
-            is_error = call_ctx.get("is_error", False)
-            if is_error:
+            if call_ctx.get("is_error", False):
                 span.set_status(Status(StatusCode.ERROR))
             span.end()
         return None
@@ -259,11 +348,11 @@ def trace_turn(
     span = tracer.start_span(
         "agent.turn",
         kind=SpanKind.INTERNAL,
-        attributes={
-            "agent.turn_index": turn_index,
-            "agent.session_id": session_id,
-            "agent.run_id": run_id,
-        },
+        attributes=agent_span_attributes(
+            session_id=session_id,
+            run_id=run_id,
+            **{"agent.turn_index": turn_index},
+        ),
     )
     try:
         with trace.use_span(span, end_on_exit=True):
@@ -301,13 +390,15 @@ def trace_llm_call(
     span = tracer.start_span(
         "agent.llm_call",
         kind=SpanKind.CLIENT,
-        attributes={
-            "llm.provider": provider,
-            "llm.model": model,
-            "agent.session_id": session_id,
-            "agent.run_id": run_id,
-            "agent.turn_index": turn_index,
-        },
+        attributes=agent_span_attributes(
+            session_id=session_id,
+            run_id=run_id,
+            **{
+                "llm.provider": provider,
+                "llm.model": model,
+                "agent.turn_index": turn_index,
+            },
+        ),
     )
     try:
         with trace.use_span(span, end_on_exit=False):

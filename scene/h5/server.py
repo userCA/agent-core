@@ -82,9 +82,14 @@ async def lifespan(app: FastAPI):
     from agent_core.logging_config import configure_logging
     configure_logging(level=os.environ.get("AGENT_CORE_LOG_LEVEL", "INFO"))
 
-    # Optional OTEL exporter (console or otlp/Jaeger) — no-op if not configured
-    from agent_core.observability import configure_otel_exporter
-    configure_otel_exporter()
+    # Optional OTEL exporter — Langfuse OTLP preferred, else console/gRPC OTEL
+    from agent_core.observability import (
+        configure_langfuse_otel_from_env,
+        configure_otel_exporter,
+    )
+
+    if not configure_langfuse_otel_from_env():
+        configure_otel_exporter()
 
     await manager.start()
 

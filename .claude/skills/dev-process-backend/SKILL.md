@@ -501,3 +501,29 @@ yield _format_sse(companion_event_to_sse(cevt))
 **规则：**
 1. 使用复合/加权分数时，所有比较运算中的分母必须用同一公式
 2. 变量命名区分裸值和复合值（`confidence` vs `score`），降低混用风险
+
+---
+
+## 规则 30：Tracing hook —— before/after 不能共享 call_ctx 引用
+
+**模式：** `tool_runner` 对 before-hook 和 after-hook 传入**不同的 dict**。在 before-hook 里写入 `call_ctx["__tracing"]` 后，after-hook 读不到，span 永不 `end()`，OTEL/Langfuse 工具链 Trace 树残缺或泄漏。
+
+**真实案例（2026-08-11）：** `observe()` 的 `_make_tracing_before_hook` 把 span 存在 before 的 `call_ctx`；`_make_tracing_after_hook` 在新 dict 上取 `__tracing` 恒为 `None`。修复：模块级 `_pending_tool_spans`，key 为 `{run_id}:{tool_call_id}`；after-hook 按 `tool_call.id` pop 并 end；`observe()` finally 清理孤儿 span。
+
+**规则：**
+1. 跨 before/after 传递 tracing 状态时，**禁止**假设同一 `call_ctx` 对象
+2. 用稳定业务 key（`run_id` + `tool_call.id`）关联 span
+3. run 结束时清理未 pop 的 pending span（并行 tool 时 key 必须含 run_id）
+
+---
+
+## 规则 31：Hook 注册必须可撤销 —— `remove_*` 不能是 no-op
+
+**模式：** context manager（如 `observe()`）在 `finally` 里调用 `remove_before_tool_call_hook`，若 remove 是空实现，每次 user turn 都会 `add` 新 hook 而不移除，导致重复 span / 重复副作用。
+
+**真实案例（2026-08-11）：** `harness_config.remove_before_tool_call_hook` / `remove_after_tool_call_hook` 原为 `pass`。`register_legacy_tool_call` 未返回 `hooks.on()` 的 unsubscribe。修复：register 返回 unsub；add 时存 `id(hook) → unsub`；remove 时 pop 并调用。
+
+**规则：**
+1. 凡 `add_*_hook` 必须有对称且有效的 `remove_*_hook`
+2. `register_legacy_*` 必须返回 `AgentHooks.on()` 的 unsubscribe callable
+3. 写 context manager 包 hook 时，用测试断言：注册两次 remove 一次后 handler 数量不增长

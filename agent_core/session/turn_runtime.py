@@ -47,16 +47,16 @@ async def maybe_await(fn: Any, *args: Any) -> Any:
     return result
 
 
-def register_legacy_tool_call(hooks: AgentHooks, handler: Any) -> None:
+def register_legacy_tool_call(hooks: AgentHooks, handler: Any) -> Callable[[], None]:
     async def _adapter(event: ToolCallHookEvent) -> Any:
         return await maybe_await(handler, event.call_ctx)
-    hooks.on("tool_call", _adapter)
+    return hooks.on("tool_call", _adapter)
 
 
-def register_legacy_tool_result(hooks: AgentHooks, handler: Any) -> None:
+def register_legacy_tool_result(hooks: AgentHooks, handler: Any) -> Callable[[], None]:
     async def _adapter(event: ToolResultHookEvent) -> Any:
         return await maybe_await(handler, event.call_ctx)
-    hooks.on("tool_result", _adapter)
+    return hooks.on("tool_result", _adapter)
 
 
 def register_legacy_context(hooks: AgentHooks, handler: Any) -> None:
@@ -243,6 +243,7 @@ def build_loop_config(
     human_input_gate: Any,
     tool_catalog_threshold: int | None = None,
     disable_tool_routing: bool = False,
+    run_id: str = "",
 ) -> AgentLoopConfig:
     async def auth_resolver(provider_name: str):
         return await auth_source.resolve(provider_name)
@@ -326,6 +327,7 @@ def build_loop_config(
         tool_catalog_threshold=tool_catalog_threshold,
         disable_tool_routing=disable_tool_routing,
         session_id=host.session_id,
+        run_id=run_id,
     )
     config.stream_fn = make_stream_fn(
         provider=provider,

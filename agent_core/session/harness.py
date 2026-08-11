@@ -426,12 +426,15 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
 
         async def _do_run() -> None:
             nonlocal last_assistant
+            from agent_core.observability import generate_run_id, observe
+
             snapshot = self.create_turn_snapshot()
             context = AgentContext(
                 system_prompt=snapshot.system_prompt,
                 messages=list(snapshot.messages),
                 tools=list(snapshot.tools),
             )
+            run_id = generate_run_id()
             compact_cb = self._overflow_compact_callback
             config = build_loop_config(
                 self,
@@ -450,6 +453,7 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
                 human_input_gate=self._human_input_gate,
                 tool_catalog_threshold=self._tool_catalog_threshold,
                 disable_tool_routing=self._disable_tool_routing,
+                run_id=run_id,
             )
 
             before_agent_start = chain_before_agent_start_hooks(self.hooks)
@@ -521,17 +525,29 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
                 await self._handle_event(evt, context)
 
             msgs = [] if continuation else new_messages
-            try:
-                assistants = await run_agent_loop(
-                    msgs, context, config, _emit_sink, self._abort_event,
-                )
-                if last_assistant is None and assistants:
-                    last_assistant = assistants[-1]
-            except Exception as exc:
-                logger.exception("AgentHarness run failed")
-                last_assistant = await self._emit_run_failure(
-                    normalize_harness_error(exc), context, self._abort_event,
-                )
+            model = snapshot.model
+            provider_name = getattr(model, "provider", "") if model else ""
+            model_id = getattr(model, "id", "") if model else ""
+
+            with observe(
+                self,
+                session_id=self._session_id,
+                run_id=run_id,
+                provider_name=provider_name,
+                model_id=model_id,
+                system_prompt=context.system_prompt or "",
+            ):
+                try:
+                    assistants = await run_agent_loop(
+                        msgs, context, config, _emit_sink, self._abort_event,
+                    )
+                    if last_assistant is None and assistants:
+                        last_assistant = assistants[-1]
+                except Exception as exc:
+                    logger.exception("AgentHarness run failed")
+                    last_assistant = await self._emit_run_failure(
+                        normalize_harness_error(exc), context, self._abort_event,
+                    )
 
         task = asyncio.create_task(_do_run())
         self._active_run = task

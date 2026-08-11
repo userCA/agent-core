@@ -26,7 +26,13 @@ openai    = ["openai>=1.40"]
 anthropic = ["anthropic>=0.34"]
 test      = ["pytest>=8", "pytest-asyncio>=0.23", "respx>=0.20"]
 feishu    = ["lark-oapi>=1.6"]
-all       = ["motor>=3.4","mem0ai>=2.0","openviking>=0.3","mcp>=1.0","openai>=1.40","anthropic>=0.34","lark-oapi>=1.6"]
+otel      = [
+    "opentelemetry-api>=1.27",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp-proto-http>=1.27",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.27",
+]
+all       = ["motor>=3.4","mem0ai>=2.0","openviking>=0.3","mcp>=1.0","openai>=1.40","anthropic>=0.34","lark-oapi>=1.6","opentelemetry-api>=1.27","opentelemetry-sdk>=1.27","opentelemetry-exporter-otlp-proto-http>=1.27","opentelemetry-exporter-otlp-proto-grpc>=1.27"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["agent_core"]

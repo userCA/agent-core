@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from agent_core.core.errors import AgentHarnessError
 from agent_core.core.events import ModelUpdate, ResourcesUpdate, ThinkingLevelUpdate, ToolsUpdate
@@ -154,17 +154,37 @@ class HarnessConfigMixin:
     def add_before_agent_start_hook(self: AgentHarness, hook: Any) -> None:
         self.hooks.on("before_agent_start", hook)
 
+    def _tool_call_hook_unsubs(self: AgentHarness) -> dict[int, Callable[[], None]]:
+        unsubs = getattr(self, "_tool_call_hook_unsubs_store", None)
+        if unsubs is None:
+            unsubs = {}
+            self._tool_call_hook_unsubs_store = unsubs
+        return unsubs
+
+    def _tool_result_hook_unsubs(self: AgentHarness) -> dict[int, Callable[[], None]]:
+        unsubs = getattr(self, "_tool_result_hook_unsubs_store", None)
+        if unsubs is None:
+            unsubs = {}
+            self._tool_result_hook_unsubs_store = unsubs
+        return unsubs
+
     def add_before_tool_call_hook(self: AgentHarness, hook: Any) -> None:
-        register_legacy_tool_call(self.hooks, hook)
+        unsub = register_legacy_tool_call(self.hooks, hook)
+        self._tool_call_hook_unsubs()[id(hook)] = unsub
 
     def remove_before_tool_call_hook(self: AgentHarness, hook: Any) -> None:
-        pass
+        unsub = self._tool_call_hook_unsubs().pop(id(hook), None)
+        if unsub is not None:
+            unsub()
 
     def add_after_tool_call_hook(self: AgentHarness, hook: Any) -> None:
-        register_legacy_tool_result(self.hooks, hook)
+        unsub = register_legacy_tool_result(self.hooks, hook)
+        self._tool_result_hook_unsubs()[id(hook)] = unsub
 
     def remove_after_tool_call_hook(self: AgentHarness, hook: Any) -> None:
-        pass
+        unsub = self._tool_result_hook_unsubs().pop(id(hook), None)
+        if unsub is not None:
+            unsub()
 
     def add_transform_context_hook(self: AgentHarness, hook: Any) -> None:
         register_legacy_context(self.hooks, hook)

@@ -1,8 +1,10 @@
 # Agent 可观测性与质量把控计划
 
-> 状态：**轨 A 已完成**（2026-07-29 实施）  
+> 状态：**轨 A 已完成**（2026-07-29 实施）；**轨 B 阶段 1 已实施**（2026-08-11，OTLP 采数）；**阶段 2 待定**（Score/Dataset/反馈）  
 > 目的：指导后续优化——解决「调试看不清」与「线上 prompt/质量没法评」双痛点，并约束 AI 加速开发下的质量闸门。  
-> 相关：`agent_core/observability.py`、`docs/design.md` §9 观察性、`docs/agent-framework-optimization-plan-phase2.md` §5、`docs/reference/agent_protocol.md` §9
+> 相关：`agent_core/observability.py`、`docs/design.md` §9 观察性、`docs/agent-framework-optimization-plan-phase2.md` §5、`docs/reference/agent_protocol.md` §9  
+> **轨 B 实施规格**：`docs/superpowers/specs/2026-08-11-langfuse-scene-integration-design.md`（两阶段：OTLP 采数 → Score/Dataset）  
+> **轨 B 阶段 1 实施计划**：`docs/superpowers/plans/2026-08-11-langfuse-otlp-phase1.md`
 
 ---
 
@@ -223,3 +225,5 @@ run_id / session_id / turn / llm / tool / usage / system_prompt_hash
 |------|------|
 | 2026-07-29 | 初版：双痛点双轨计划、架构边界、质量闸门、实施顺序与验收标准 |
 | 2026-07-29 | 轨 A 实施完成：A1 LLM trace 接入 + A2 结构化日志 + A3 调试回放 + A4 OTEL exporter |
+| 2026-08-11 | 轨 B 设计确认：scene 可选 Langfuse；两阶段 OTLP→Score；规格见 `docs/superpowers/specs/2026-08-11-langfuse-scene-integration-design.md` |
+| 2026-08-11 | 轨 B 阶段 1 实施完成：OTLP/HTTP exporter、`configure_langfuse_otel_from_env`、Harness `observe()`、scene lifespan 优先 Langfuse；阶段 2 待定 |
