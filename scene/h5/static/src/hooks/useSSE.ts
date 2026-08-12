@@ -183,13 +183,7 @@ export function useSSE() {
         // Intermediate turn: clear bubble — text stays in TraceCard only
         useChatStore.setState({ currentText: '' });
       }
-      // Detect error stop reason and show toast (error bubble comes from message.error)
-      if (e.stopReason === 'error' && !errorShownRef.current) {
-        errorShownRef.current = true;
-        const errMsg = '服务暂时不可用，请稍后重试';
-        useToastStore.getState().addToast(errMsg, 'error');
-        addMessage({ id: `err-${Date.now()}`, role: 'error', content: errMsg, timestamp: Date.now() });
-      }
+      // Error UI comes from message.error (may arrive after this end event)
     }
     else if (type === 'message.error') {
       const e = evt as MessageError;
@@ -202,11 +196,15 @@ export function useSSE() {
         friendly = '服务暂时不可用，请稍后重试';
       } else if (rawMsg.includes('timeout') || rawMsg.includes('Timeout')) {
         friendly = '请求超时，请检查网络后重试';
-      } else if (rawMsg.includes('auth') || rawMsg.includes('API key') || rawMsg.includes('Unauthorized')) {
-        friendly = '认证失败，请检查 API 设置';
+      } else if (
+        rawMsg.includes('auth') || rawMsg.includes('API key') || rawMsg.includes('Unauthorized')
+        || rawMsg.includes('Environment variable') || rawMsg.includes('not set for provider')
+      ) {
+        friendly = '认证失败，请检查 .env 中的 API 密钥设置';
       }
       if (!errorShownRef.current) {
         errorShownRef.current = true;
+        useToastStore.getState().addToast(friendly, 'error');
         addMessage({ id: `err-${Date.now()}`, role: 'error', content: friendly, timestamp: Date.now() });
       }
     }

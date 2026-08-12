@@ -15,7 +15,12 @@ interface ModelState {
   selectModel: (provider: string, model: string) => void;
 }
 
-const DEFAULT: ModelOption = { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o', desc: '' };
+const DEFAULT: ModelOption = {
+  provider: 'agnes',
+  model: 'agnes-2.0-flash',
+  label: 'Agnes 2.0 Flash',
+  desc: '256K context, fast agentic',
+};
 
 export const useModelStore = create<ModelState>((set, get) => ({
   models: [DEFAULT],
