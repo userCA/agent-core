@@ -3,6 +3,7 @@
 from agent_core.core.content import TextContent
 from agent_core.core.events import (
     AgentStart,
+    SkillStart,
     ToolExecutionEnd,
     ToolExecutionStart,
     TurnEnd,
@@ -40,7 +41,7 @@ async def test_extract_text_from_textcontent_list():
     assert text == "生成一个视频"
 
 
-async def test_tool_activation_attributes_single_skill():
+async def test_skill_start_attributes_single_skill():
     store = InMemorySkillEvolutionStore()
     collector = SkillTraceCollector(store)
     collector.register_skills([_skill("image-generation", tools=["nolo_video"])])
@@ -59,6 +60,10 @@ async def test_tool_activation_attributes_single_skill():
     await collector.on_event(ctx, AgentStart())
     await collector.on_event(
         ctx,
+        SkillStart(skill_name="image-generation", skill_description="desc"),
+    )
+    await collector.on_event(
+        ctx,
         ToolExecutionStart(tool_call_id="c1", tool_name="nolo_video", args={}),
     )
     await collector.on_event(
@@ -72,6 +77,37 @@ async def test_tool_activation_attributes_single_skill():
     assert traces[0].skill_name == "image-generation"
     assert traces[0].user_query == "生成视频"
     assert traces[0].loaded_rules == ["rule_1"]
+
+
+async def test_tool_call_without_skill_start_does_not_attribute(monkeypatch):
+    monkeypatch.delenv("AGENT_SKILL_LEGACY_TOOL_MAP", raising=False)
+    store = InMemorySkillEvolutionStore()
+    collector = SkillTraceCollector(store)
+    collector.register_skills([_skill("image-generation", tools=["nolo_video"])])
+
+    class FakeState:
+        system_prompt = (
+            "<available_skills>\n"
+            '  <skill name="image-generation">desc</skill>\n'
+            '  <skill name="code-review">desc</skill>\n'
+            "</available_skills>"
+        )
+        messages = [type("U", (), {"role": "user", "content": "生成视频"})()]
+
+    ctx = ExtensionContext(session_id="s1", harness=type("A", (), {"state": FakeState()})(), store=store)
+    await collector.on_event(ctx, AgentStart())
+    await collector.on_event(
+        ctx,
+        ToolExecutionStart(tool_call_id="c1", tool_name="nolo_video", args={}),
+    )
+    await collector.on_event(
+        ctx,
+        ToolExecutionEnd(tool_call_id="c1", tool_name="nolo_video", result="ok", is_error=False),
+    )
+    await collector.on_event(ctx, TurnEnd(message=_FakeMessage(), tool_results=[]))
+
+    traces = await store.get_traces()
+    assert traces == []
 
 
 async def test_multiple_available_skills_without_activation_skips_trace():

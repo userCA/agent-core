@@ -140,7 +140,7 @@ def test_configure_langfuse_enabled_with_keys_calls_http_exporter(monkeypatch):
     )
     assert configure_langfuse_otel_from_env() is True
     assert called["exporter"] == "otlp_http"
-    assert called["endpoint"] == "http://localhost:3000/api/public/otel"
+    assert called["endpoint"] == "http://localhost:3000/api/public/otel/v1/traces"
     assert called["headers"]["x-langfuse-ingestion-version"] == "4"
 
 
@@ -248,3 +248,21 @@ def test_cleanup_pending_tool_spans_ends_orphans():
     assert "other-run:tc-x" in obs._pending_tool_spans
 
     obs._pending_tool_spans.pop("other-run:tc-x", None)
+
+
+def test_apply_skill_activation_attributes():
+    from unittest.mock import MagicMock
+
+    from agent_core.observability import _apply_skill_activation_attributes
+
+    harness = MagicMock()
+    harness.skill_activations = [("demo-skill", "load_skill"), ("other", "injected")]
+    run_span = MagicMock()
+
+    _apply_skill_activation_attributes(run_span, harness)
+
+    run_span.set_attribute.assert_any_call("agent.skills.activated", "demo-skill,other")
+    run_span.set_attribute.assert_any_call(
+        "agent.skills.sources",
+        "demo-skill:load_skill,other:injected",
+    )

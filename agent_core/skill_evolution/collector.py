@@ -38,6 +38,7 @@ from agent_core.core.events import (
 
 from .store import SkillEvolutionStore
 from .types import ExecutionOutcome, PathStep, SkillEvolutionTrace
+from agent_core.resources.skill_activation import skill_legacy_tool_map_enabled
 
 
 _log = logging.getLogger(__name__)
@@ -137,9 +138,10 @@ class SkillTraceCollector(Extension):
 
         elif isinstance(evt, ToolExecutionStart):
             self._pending_args[evt.tool_call_id] = dict(evt.args or {})
-            skill_name = self._tool_to_skill.get(evt.tool_name)
-            if skill_name:
-                self._activate_skill(skill_name)
+            if skill_legacy_tool_map_enabled():
+                skill_name = self._tool_to_skill.get(evt.tool_name)
+                if skill_name:
+                    self._activate_skill(skill_name)
 
         elif isinstance(evt, ToolExecutionEnd):
             args = self._pending_args.pop(evt.tool_call_id, {})

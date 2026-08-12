@@ -27,6 +27,7 @@ from agent_core.resources.loader import ResourceLoader
 from agent_core.retrieval.base import Retriever
 from agent_core.resources.personas import Persona
 from agent_core.resources.types import Skill
+from agent_core.resources.skill_activation import skill_progressive_enabled
 from agent_core.tools.base import Tool, ToolRegistry
 from agent_core.tools.aigc_creation import create_nolo_video_tool
 from agent_core.tools.local import create_all_tools
@@ -34,6 +35,7 @@ from agent_core.tools.music import create_text_to_music_tool
 from agent_core.tools.widgets import ShowWidgetTool
 
 from scene.http_sse.request_context import current_request_headers
+from scene.skill_runtime import SkillRuntime
 
 
 def _generate_session_id() -> str:
@@ -155,6 +157,8 @@ class ChatAssistant:
         self._artifact_store = artifact_store
         self._state_store = state_store
         self._agent = agent
+        self._skill_runtime = SkillRuntime(self._skills, harness)
+        self._skill_runtime.register_tools(self._tool_registry)
 
     @classmethod
     async def create(
@@ -404,6 +408,7 @@ class ChatAssistant:
             active_tools=tool_registry.to_definitions(),
             skills=skills,
             context_files=context_files,
+            skill_progressive=skill_progressive_enabled(),
         )
 
         # Auto-retrieval: inject knowledge base context before each LLM call
@@ -663,6 +668,7 @@ class ChatAssistant:
     async def start(self) -> None:
         """Start the harness and subscribe to agent events."""
         await self._harness.start()
+        self._skill_runtime.bind_handlers(self._handlers)
         self._session_unsub = self._harness.subscribe(self._on_agent_event)
 
     def on_event(self, handler: EventHandler) -> Callable[[], None]:
@@ -682,7 +688,7 @@ class ChatAssistant:
 
         Supports /skill:name commands which inject skill content into the prompt.
         """
-        expanded = self._expand_skill_command(text)
+        expanded = await self._skill_runtime.expand_user_message(text)
         await self._harness.prompt(expanded)
 
     async def continue_(self) -> None:
@@ -739,44 +745,15 @@ class ChatAssistant:
         result.sort(key=lambda t: t["name"])
         return result
 
-    def _expand_skill_command(self, text: str) -> str:
-        """Expand /skill:name commands to inject skill content.
-
-        Returns the expanded text, or the original if not a skill command.
-        """
-        if not text.startswith("/skill:"):
-            return text
-
-        space_idx = text.find(" ")
-        skill_name = text[7:space_idx] if space_idx != -1 else text[7:]
-        args = text[space_idx + 1:].strip() if space_idx != -1 else ""
-
-        skill = next((s for s in self._skills if s.name == skill_name), None)
-        if skill is None:
-            return text
-
-        try:
-            with open(skill.source.origin, "r", encoding="utf-8") as f:
-                content = f.read()
-        except Exception:
-            return text
-
-        # Strip frontmatter from skill content
-        body = content
-        if body.startswith("---"):
-            parts = body.split("---", 2)
-            if len(parts) >= 3:
-                body = parts[2].strip()
-
-        skill_block = (
-            f'<skill name="{skill.name}" location="{skill.source.origin}">\n'
-            f"References are relative to {skill.source.base_dir}.\n\n"
-            f"{body}\n"
-            f"</skill>"
-        )
-        return f"{skill_block}\n\n{args}" if args else skill_block
-
     async def _on_agent_event(self, evt: AgentEvent) -> None:
+        from agent_core.core.events import AgentEnd, TurnEnd
+
+        if isinstance(evt, TurnEnd):
+            await self._skill_runtime.handle_turn_end(self._handlers)
+
+        if isinstance(evt, AgentEnd):
+            self._skill_runtime.clear_on_agent_end()
+
         for handler in list(self._handlers):
             result = handler(evt)
             if asyncio.iscoroutine(result):

@@ -132,6 +132,7 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
         self._active_run: asyncio.Task | None = None
         self._abort_event: asyncio.Event | None = None
         self._pending_tool_calls: set[str] = set()
+        self._skill_activations: list[tuple[str, str]] = []
         self._phase = AgentHarnessPhase.IDLE
         self._active_tool_names: list[str] | None = None
         self._stream_options: dict[str, Any] = {}
@@ -175,6 +176,16 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
     @property
     def pending_tool_calls(self) -> set[str]:
         return self._pending_tool_calls
+
+    @property
+    def skill_activations(self) -> list[tuple[str, str]]:
+        return list(self._skill_activations)
+
+    def record_skill_activation(self, name: str, source: str) -> None:
+        self._skill_activations.append((name, source))
+
+    def clear_skill_activations(self) -> None:
+        self._skill_activations.clear()
 
     @property
     def messages(self) -> list[Any]:
@@ -420,6 +431,7 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
         self.phase = AgentHarnessPhase.TURN
         self._abort_event = asyncio.Event()
         self._pending_tool_calls.clear()
+        self.clear_skill_activations()
         self.state.is_streaming = True
         self.state.error_message = None
         last_assistant: AssistantMessage | None = None

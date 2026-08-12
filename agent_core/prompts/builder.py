@@ -43,6 +43,7 @@ class SystemPromptBuilder:
         path_cases_section: str | None = None,
         catalog_mode: bool = False,
         catalog_entries: list[ToolCatalogEntry] | None = None,
+        skill_progressive: bool = True,
     ) -> SystemPrompt:
         sections: list[SystemPromptSection] = []
 
@@ -131,6 +132,14 @@ class SystemPromptBuilder:
         skill_list = skills or []
         if skill_list:
             lines = ["", "## Skills", ""]
+            if skill_progressive:
+                lines.extend([
+                    "Skills are listed below by name and description only.",
+                    "Before following a skill's procedure, you MUST call load_skill with that name",
+                    "(or the user may invoke /skill:<name>).",
+                    "Do not invent skill steps from the description alone.",
+                    "",
+                ])
             lines.append("<available_skills>")
             for skill in skill_list:
                 if not skill.disable_model_invocation:

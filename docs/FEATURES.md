@@ -101,7 +101,8 @@
 | Skill Evolution Pending Store | ✅ 完成 | JSONL 持久化存储待审批提案，有 pending 时阻塞新进化周期，支持 force 绕过 |
 | Skill Evolution 前端阻塞提示 | ✅ 完成 | EvolutionPanel 检测 blocked 状态并弹出 toast 提示用户先处理现有提案 |
 | Session tree / leaf | ❌ 不做 | 与 TS navigateTree 不对齐；文档非目标 |
-| SkillStart/SkillEnd emit | ⏳ planned | 待 `skill()` 公开 API |
+| SkillStart/SkillEnd emit | ✅ 完成 | `/skill:` 与 `load_skill` 显式激活时发出；不再靠 tool→skill 反推 |
+| Skill 严格渐进式暴露 | ✅ 完成 | L1 目录 + `load_skill` 工具 + prompt 指引；`AGENT_SKILL_PROGRESSIVE=1`（默认） |
 | HarnessSession facade | ⏳ planned | 扩展侧 pending-write 门面（TS 亦未完成） |
 
 ## 微信小程序（uni-app）功能

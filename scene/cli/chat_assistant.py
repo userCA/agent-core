@@ -26,8 +26,11 @@ from agent_core.prompts.builder import SystemPromptBuilder
 from agent_core.resources.agents import AgentDefinition
 from agent_core.resources.loader import ResourceLoader
 from agent_core.resources.types import Skill
+from agent_core.resources.skill_activation import skill_progressive_enabled
 from agent_core.tools.base import Tool, ToolRegistry
 from agent_core.tools.local import create_all_tools
+
+from scene.skill_runtime import SkillRuntime
 
 
 def _generate_session_id() -> str:
@@ -57,6 +60,11 @@ class ChatAssistant:
         self._cwd = cwd or os.getcwd()
         self._session_unsub: Callable[[], None] | None = None
         self._handlers: list[EventHandler] = []
+        if harness is not None:
+            self._skill_runtime = SkillRuntime(self._skills, harness)
+            self._skill_runtime.register_tools(self._tool_registry)
+        else:
+            self._skill_runtime = None
 
     @classmethod
     async def create(
@@ -155,6 +163,7 @@ class ChatAssistant:
             active_tools=tool_registry.to_definitions(),
             skills=skills,
             context_files=context_files,
+            skill_progressive=skill_progressive_enabled(),
         )
 
         harness = AgentHarness(
@@ -186,6 +195,8 @@ class ChatAssistant:
     async def start(self) -> None:
         """Start the harness and subscribe to agent events."""
         await self._harness.start()
+        if self._skill_runtime is not None:
+            self._skill_runtime.bind_handlers(self._handlers)
         self._session_unsub = self._harness.subscribe(self._on_agent_event)
 
     def on_event(self, handler: EventHandler) -> Callable[[], None]:
@@ -202,7 +213,10 @@ class ChatAssistant:
 
     async def send_message(self, text: str) -> None:
         """Send a user message to the assistant."""
-        expanded = self._expand_skill_command(text)
+        if self._skill_runtime is not None:
+            expanded = await self._skill_runtime.expand_user_message(text)
+        else:
+            expanded = text
         await self._harness.prompt(expanded)
 
     async def continue_(self) -> None:
@@ -226,39 +240,15 @@ class ChatAssistant:
     def tool_names(self) -> list[str]:
         return list(self._tool_registry)
 
-    def _expand_skill_command(self, text: str) -> str:
-        if not text.startswith("/skill:"):
-            return text
-
-        space_idx = text.find(" ")
-        skill_name = text[7:space_idx] if space_idx != -1 else text[7:]
-        args = text[space_idx + 1:].strip() if space_idx != -1 else ""
-
-        skill = next((s for s in self._skills if s.name == skill_name), None)
-        if skill is None:
-            return text
-
-        try:
-            with open(skill.source.origin, "r", encoding="utf-8") as f:
-                content = f.read()
-        except Exception:
-            return text
-
-        body = content
-        if body.startswith("---"):
-            parts = body.split("---", 2)
-            if len(parts) >= 3:
-                body = parts[2].strip()
-
-        skill_block = (
-            f'<skill name="{skill.name}" location="{skill.source.origin}">\n'
-            f"References are relative to {skill.source.base_dir}.\n\n"
-            f"{body}\n"
-            f"</skill>"
-        )
-        return f"{skill_block}\n\n{args}" if args else skill_block
-
     async def _on_agent_event(self, evt: AgentEvent) -> None:
+        from agent_core.core.events import AgentEnd, TurnEnd
+
+        if self._skill_runtime is not None:
+            if isinstance(evt, TurnEnd):
+                await self._skill_runtime.handle_turn_end(self._handlers)
+            if isinstance(evt, AgentEnd):
+                self._skill_runtime.clear_on_agent_end()
+
         for handler in list(self._handlers):
             result = handler(evt)
             if asyncio.iscoroutine(result):

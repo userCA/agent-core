@@ -39,6 +39,23 @@ def test_builder_with_context_files():
     assert result.context_file_count == 1
 
 
+def test_builder_with_skills_progressive_instructions():
+    builder = SystemPromptBuilder()
+    skills = [
+        Skill(
+            name="test-skill",
+            description="A test skill",
+            content="---\nname: test-skill\n---\n\nSecret body that must not appear.",
+            source=SourceInfo(source="project", scope="project", origin="/x", base_dir="/x"),
+        )
+    ]
+    result = builder.build(cwd="/p", skills=skills, skill_progressive=True)
+    assert "load_skill" in result.text
+    assert "test-skill" in result.text
+    assert "A test skill" in result.text
+    assert "Secret body that must not appear" not in result.text
+
+
 def test_builder_with_skills():
     builder = SystemPromptBuilder()
     skills = [

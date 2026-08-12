@@ -161,7 +161,8 @@ def configure_langfuse_otel_from_env(*, service_name: str = "agent-core") -> boo
         )
         return False
     base = os.environ.get("LANGFUSE_BASE_URL", "https://cloud.langfuse.com").rstrip("/")
-    endpoint = f"{base}/api/public/otel"
+    # Python OTLPSpanExporter expects the traces path (Langfuse SDK uses the same).
+    endpoint = f"{base}/api/public/otel/v1/traces"
     headers = build_langfuse_otlp_headers(pk, sk)
     ok = configure_otel_exporter(
         exporter="otlp_http",
@@ -264,9 +265,20 @@ def observe(
         run_span.set_status(Status(StatusCode.ERROR))
         raise
     finally:
+        _apply_skill_activation_attributes(run_span, harness)
         harness.remove_before_tool_call_hook(tracing_before)
         harness.remove_after_tool_call_hook(tracing_after)
         _cleanup_pending_tool_spans(run_id)
+
+
+def _apply_skill_activation_attributes(run_span: Any, harness: Any) -> None:
+    activations = getattr(harness, "skill_activations", None)
+    if not activations:
+        return
+    names = sorted({name for name, _ in activations})
+    run_span.set_attribute("agent.skills.activated", ",".join(names))
+    sources = ",".join(f"{name}:{source}" for name, source in activations)
+    run_span.set_attribute("agent.skills.sources", sources)
 
 
 def _make_tracing_before_hook(
