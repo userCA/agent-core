@@ -25,7 +25,6 @@ import contextlib
 import hashlib
 import logging
 import os
-import time
 import uuid
 from typing import Any, Iterator
 
@@ -196,7 +195,13 @@ def system_prompt_hash(prompt: str) -> str:
     return hashlib.sha256(prompt.encode()).hexdigest()[:12]
 
 
-def agent_span_attributes(*, session_id: str = "", run_id: str = "", **extra: Any) -> dict[str, Any]:
+def agent_span_attributes(
+    *,
+    session_id: str = "",
+    run_id: str = "",
+    user_id: str = "",
+    **extra: Any,
+) -> dict[str, Any]:
     attrs: dict[str, Any] = {
         "agent.session_id": session_id,
         "agent.run_id": run_id,
@@ -206,8 +211,23 @@ def agent_span_attributes(*, session_id: str = "", run_id: str = "", **extra: An
         attrs["langfuse.session.id"] = session_id
     if run_id:
         attrs["langfuse.trace.metadata.run_id"] = run_id
+    if user_id:
+        attrs["user.id"] = user_id
     attrs.update({k: v for k, v in extra.items() if v is not None and v != ""})
     return attrs
+
+
+def _resolve_observe_user_id(harness: Any, user_id: str = "") -> str:
+    """Resolve user.id for observability spans.
+
+    Priority: 1) explicit ``user_id`` 2) ``harness.observability_user_id`` 3) ``harness.owner``.
+    """
+    if user_id:
+        return user_id
+    uid = getattr(harness, "observability_user_id", "") or ""
+    if uid:
+        return uid
+    return getattr(harness, "owner", "") or ""
 
 
 @contextlib.contextmanager
@@ -219,6 +239,7 @@ def observe(
     provider_name: str = "",
     model_id: str = "",
     system_prompt: str = "",
+    user_id: str = "",
 ) -> Iterator[None]:
     """Instrument an AgentHarness with OpenTelemetry spans (no-op if OTEL unavailable).
 
@@ -236,8 +257,12 @@ def observe(
         yield
         return
 
+    resolved_user_id = _resolve_observe_user_id(harness, user_id)
+
     # Register tracing hooks via public API, store references for cleanup
-    tracing_before = _make_tracing_before_hook(tracer, session_id, run_id, provider_name, model_id)
+    tracing_before = _make_tracing_before_hook(
+        tracer, session_id, run_id, provider_name, model_id, resolved_user_id,
+    )
     tracing_after = _make_tracing_after_hook(tracer, run_id)
 
     harness.add_before_tool_call_hook(tracing_before)
@@ -250,6 +275,7 @@ def observe(
         attributes=agent_span_attributes(
             session_id=session_id,
             run_id=run_id,
+            user_id=resolved_user_id,
             **{
                 "agent.provider": provider_name,
                 "agent.model": model_id,
@@ -287,6 +313,7 @@ def _make_tracing_before_hook(
     run_id: str,
     provider_name: str,
     model_id: str,
+    user_id: str = "",
 ) -> Any:
     """Create a before-tool-call hook that starts a span for each tool."""
 
@@ -304,6 +331,7 @@ def _make_tracing_before_hook(
             attributes=agent_span_attributes(
                 session_id=session_id,
                 run_id=run_id,
+                user_id=user_id,
                 **{
                     "tool.name": name,
                     "tool.call_id": tc_id,
@@ -382,12 +410,16 @@ def trace_llm_call(
     session_id: str = "",
     run_id: str = "",
     turn_index: int = 0,
+    user_id: str = "",
 ) -> Iterator[dict[str, Any]]:
     """Context manager for LLM streaming calls.
 
     Yields a mutable *result* dict.  Callers should populate it with
     ``input_tokens``, ``output_tokens`` and ``stop_reason`` after the
     stream completes so the span attributes carry full usage data.
+
+    Span attributes follow OpenTelemetry GenAI semantic conventions
+    (``gen_ai.*``, ``user.id``, ``session.id``).
     """
     if not _otel_available:
         yield {}
@@ -397,7 +429,6 @@ def trace_llm_call(
         yield {}
         return
 
-    start = time.monotonic()
     result: dict[str, Any] = {}
     span = tracer.start_span(
         "agent.llm_call",
@@ -405,9 +436,11 @@ def trace_llm_call(
         attributes=agent_span_attributes(
             session_id=session_id,
             run_id=run_id,
+            user_id=user_id,
             **{
-                "llm.provider": provider,
-                "llm.model": model,
+                "gen_ai.operation.name": "chat",
+                "gen_ai.system": provider,
+                "gen_ai.request.model": model,
                 "agent.turn_index": turn_index,
             },
         ),
@@ -419,12 +452,10 @@ def trace_llm_call(
         span.set_status(Status(StatusCode.ERROR))
         raise
     finally:
-        elapsed = time.monotonic() - start
-        span.set_attribute("latency_ms", round(elapsed * 1000, 2))
         if result.get("input_tokens") is not None:
-            span.set_attribute("llm.usage.input_tokens", result["input_tokens"])
+            span.set_attribute("gen_ai.usage.input_tokens", result["input_tokens"])
         if result.get("output_tokens") is not None:
-            span.set_attribute("llm.usage.output_tokens", result["output_tokens"])
+            span.set_attribute("gen_ai.usage.output_tokens", result["output_tokens"])
         if result.get("stop_reason"):
-            span.set_attribute("llm.stop_reason", result["stop_reason"])
+            span.set_attribute("gen_ai.response.finish_reasons", result["stop_reason"])
         span.end()

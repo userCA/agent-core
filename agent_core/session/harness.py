@@ -141,8 +141,17 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
         self._closed = False
         self._ext_runner: ExtensionRunner | None = None
         self._overflow_compact_callback: Any | None = None
+        self._observability_user_id: str = ""
 
     # ── HarnessFacade / TurnRuntimeHost ─────────────────────────────
+
+    @property
+    def observability_user_id(self) -> str:
+        return self._observability_user_id
+
+    @observability_user_id.setter
+    def observability_user_id(self, value: str) -> None:
+        self._observability_user_id = value or ""
 
     @property
     def session_id(self) -> str:
@@ -438,7 +447,7 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
 
         async def _do_run() -> None:
             nonlocal last_assistant
-            from agent_core.observability import generate_run_id, observe
+            from agent_core.observability import generate_run_id, observe, _resolve_observe_user_id
 
             snapshot = self.create_turn_snapshot()
             context = AgentContext(
@@ -548,6 +557,7 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
                 provider_name=provider_name,
                 model_id=model_id,
                 system_prompt=context.system_prompt or "",
+                user_id=_resolve_observe_user_id(self),
             ):
                 try:
                     assistants = await run_agent_loop(

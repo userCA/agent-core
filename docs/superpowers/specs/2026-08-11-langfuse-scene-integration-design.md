@@ -33,8 +33,8 @@
 agent_core（数据面，厂商无关）
   AgentEvent + OTEL spans:
     agent.run → agent.turn → agent.llm_call | agent.tool_call.*
-  身份字段: run_id / session_id / turn_index
-  度量字段: usage / latency_ms / stop_reason / system_prompt_hash
+  身份字段: run_id / session_id / user.id / turn_index
+  度量字段: gen_ai.usage.* / gen_ai.response.finish_reasons / system_prompt_hash（延迟靠 span duration）
         ↓
 scene/http_sse + scene/h5（组装出口）
   阶段 1: OTLP/HTTP → Langfuse `/api/public/otel`
@@ -87,7 +87,7 @@ scene/http_sse + scene/h5（组装出口）
 ```
 agent.run
  ├─ agent.turn (turn_index=0)
- │   ├─ agent.llm_call   (usage, latency_ms, model)
+ │   ├─ agent.llm_call   (gen_ai.* usage, model, finish_reasons)
  │   └─ agent.tool_call.* (若有工具)
  └─ agent.turn ...
 ```
@@ -174,17 +174,25 @@ with observe(
 - `observe()` 仅在 OTEL 可用时有副作用；不可用时透传  
 - 不在 `loop.py` 内引入 scene/Langfuse 概念
 
-### 5.5 Span 属性约定（便于 Langfuse 过滤）
+### 5.5 Span 属性约定（OTEL GenAI + Langfuse 出口）
 
-在现有 `agent.*` 属性之外，阶段 1 至少保证 **每个 span** 带上：
+**数据面**（`agent_core/observability.py`）按 OpenTelemetry GenAI 语义约定写入，**不**依赖 Langfuse 私有前缀才能出数。Langfuse 作为 OTLP 出口时读取标准 `gen_ai.*` / `user.id` / `session.id`。
 
-| 属性 | 来源 |
-|------|------|
-| `agent.run_id` | 已有 |
-| `agent.session_id` | 已有 |
-| `session.id` 或 `langfuse.session.id` | 与 `agent.session_id` 同值（便于 UI 过滤） |
-| `langfuse.trace.metadata.run_id` | 同 `run_id`（可选但推荐） |
-| `llm.provider` / `llm.model` / usage / `latency_ms` | llm span 已有 |
+| 属性 | 来源 | 说明 |
+|------|------|------|
+| `agent.run_id` | 已有 | |
+| `agent.session_id` | 已有 | |
+| `session.id` / `langfuse.session.id` | 与 `agent.session_id` 同值 | UI session 筛选 |
+| `langfuse.trace.metadata.run_id` | 同 `run_id` | 可选兼容 |
+| `user.id` | scene `uid`/`owner` → `harness.observability_user_id` | User consumption 聚合 |
+| `gen_ai.operation.name` | llm span | 固定 `"chat"` |
+| `gen_ai.system` | llm span | provider 名 |
+| `gen_ai.request.model` | llm span | model id；Langfuse 据此识别 generation |
+| `gen_ai.usage.input_tokens` / `output_tokens` | llm span stream 结束后 | |
+| `gen_ai.response.finish_reasons` | llm span | 原 stop_reason |
+| span duration | OTEL 自动 | 替代已删除的 `latency_ms` |
+
+**已删除**（测试期一次切干净）：`llm.*`、`latency_ms`。`system_prompt_hash` 仍挂在 `agent.run`。
 
 `system_prompt_hash` 挂在 `agent.run`（已有）。默认 **不上报** 完整 system prompt / 用户原文；`LANGFUSE_CAPTURE_CONTENT=1` 时才允许截断写入（实现可放阶段 1.1 或阶段 2，阶段 1 MVP 可只做元数据）。
 

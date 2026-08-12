@@ -52,6 +52,132 @@ def test_agent_span_attributes_empty_omits_aliases():
     assert attrs == {"agent.session_id": "", "agent.run_id": ""}
 
 
+def test_agent_span_attributes_include_user_id():
+    attrs = agent_span_attributes(session_id="sess-1", run_id="run-abc", user_id="u-42")
+    assert attrs["user.id"] == "u-42"
+    empty_attrs = agent_span_attributes(session_id="s1", run_id="r1", user_id="")
+    assert "user.id" not in empty_attrs
+
+
+def test_trace_llm_call_sets_gen_ai_attributes(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from agent_core import observability as obs
+    from agent_core.observability import trace_llm_call
+
+    monkeypatch.setattr(obs, "_otel_available", True)
+    fake_kind = MagicMock()
+    fake_kind.CLIENT = "CLIENT"
+    monkeypatch.setattr(obs, "SpanKind", fake_kind, raising=False)
+    fake_status_code = MagicMock()
+    fake_status_code.ERROR = "ERROR"
+    monkeypatch.setattr(obs, "StatusCode", fake_status_code, raising=False)
+    monkeypatch.setattr(obs, "Status", MagicMock(), raising=False)
+    monkeypatch.setattr(obs, "trace", MagicMock(), raising=False)
+
+    mock_span = MagicMock()
+    mock_tracer = MagicMock()
+    mock_tracer.start_span.return_value = mock_span
+    monkeypatch.setattr(obs, "_get_tracer", lambda: mock_tracer)
+
+    with trace_llm_call(
+        provider="deepseek",
+        model="deepseek-v4-flash",
+        session_id="s1",
+        run_id="run-1",
+        user_id="u-42",
+    ) as result:
+        result["input_tokens"] = 10
+        result["output_tokens"] = 20
+        result["stop_reason"] = "stop"
+
+    attrs = mock_tracer.start_span.call_args.kwargs["attributes"]
+    assert attrs["gen_ai.operation.name"] == "chat"
+    assert attrs["gen_ai.request.model"] == "deepseek-v4-flash"
+    assert attrs["gen_ai.system"] == "deepseek"
+    assert attrs["user.id"] == "u-42"
+    assert "llm.model" not in attrs
+    assert "llm.provider" not in attrs
+    assert "langfuse.observation.type" not in attrs
+    mock_span.set_attribute.assert_any_call("gen_ai.usage.input_tokens", 10)
+    mock_span.set_attribute.assert_any_call("gen_ai.usage.output_tokens", 20)
+    mock_span.set_attribute.assert_any_call("gen_ai.response.finish_reasons", "stop")
+    set_keys = [c.args[0] for c in mock_span.set_attribute.call_args_list]
+    assert "llm.usage.input_tokens" not in set_keys
+    assert "latency_ms" not in set_keys
+
+
+def test_observe_sets_user_id_on_run_span(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from agent_core import observability as obs
+    from agent_core.observability import observe
+
+    monkeypatch.setattr(obs, "_otel_available", True)
+    fake_kind = MagicMock()
+    fake_kind.INTERNAL = "INTERNAL"
+    monkeypatch.setattr(obs, "SpanKind", fake_kind, raising=False)
+    fake_status_code = MagicMock()
+    fake_status_code.ERROR = "ERROR"
+    monkeypatch.setattr(obs, "StatusCode", fake_status_code, raising=False)
+    monkeypatch.setattr(obs, "Status", MagicMock(), raising=False)
+    monkeypatch.setattr(obs, "trace", MagicMock(), raising=False)
+
+    mock_span = MagicMock()
+    mock_tracer = MagicMock()
+    mock_tracer.start_span.return_value = mock_span
+    monkeypatch.setattr(obs, "_get_tracer", lambda: mock_tracer)
+
+    harness = MagicMock()
+    harness.skill_activations = []
+    harness.add_before_tool_call_hook = MagicMock()
+    harness.add_after_tool_call_hook = MagicMock()
+    harness.remove_before_tool_call_hook = MagicMock()
+    harness.remove_after_tool_call_hook = MagicMock()
+
+    with observe(harness, session_id="s1", run_id="run-1", user_id="u1"):
+        pass
+
+    attrs = mock_tracer.start_span.call_args.kwargs["attributes"]
+    assert attrs["user.id"] == "u1"
+
+
+def test_observe_resolves_user_id_from_harness(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from agent_core import observability as obs
+    from agent_core.observability import observe
+
+    monkeypatch.setattr(obs, "_otel_available", True)
+    fake_kind = MagicMock()
+    fake_kind.INTERNAL = "INTERNAL"
+    monkeypatch.setattr(obs, "SpanKind", fake_kind, raising=False)
+    fake_status_code = MagicMock()
+    fake_status_code.ERROR = "ERROR"
+    monkeypatch.setattr(obs, "StatusCode", fake_status_code, raising=False)
+    monkeypatch.setattr(obs, "Status", MagicMock(), raising=False)
+    monkeypatch.setattr(obs, "trace", MagicMock(), raising=False)
+
+    mock_span = MagicMock()
+    mock_tracer = MagicMock()
+    mock_tracer.start_span.return_value = mock_span
+    monkeypatch.setattr(obs, "_get_tracer", lambda: mock_tracer)
+
+    harness = MagicMock()
+    harness.observability_user_id = "from-harness"
+    harness.skill_activations = []
+    harness.add_before_tool_call_hook = MagicMock()
+    harness.add_after_tool_call_hook = MagicMock()
+    harness.remove_before_tool_call_hook = MagicMock()
+    harness.remove_after_tool_call_hook = MagicMock()
+
+    with observe(harness, session_id="s1", run_id="run-1"):
+        pass
+
+    attrs = mock_tracer.start_span.call_args.kwargs["attributes"]
+    assert attrs["user.id"] == "from-harness"
+
+
 def test_trace_turn_no_op_without_otel():
     """trace_turn is a no-op when OTEL is not installed."""
     entered = False

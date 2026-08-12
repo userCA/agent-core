@@ -551,6 +551,9 @@ class ChatAssistant:
                 **harness_kwargs,
             )
 
+        if resolved_owner:
+            harness.observability_user_id = resolved_owner
+
         assistant = cls(
             harness=harness,
             skills=skills,

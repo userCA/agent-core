@@ -102,3 +102,4 @@ class AgentLoopConfig:
     # Observability identity fields; set by harness/scene layer.
     session_id: str = ""
     run_id: str = ""
+    user_id: str = ""

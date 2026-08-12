@@ -92,12 +92,12 @@
 | Skill 分组路由 (Phase 2) | ✅ 完成 | category + trigger_keywords + SkillRouter，每轮按用户消息动态过滤 skill |
 | 全口径预算 (Phase 4) | ✅ 完成 | tool schema token 纳入 budget pre-check，防止上下文窗口爆炸 |
 | 结构化日志 | ✅ 完成 | `ContextFormatter` 自动注入 `session_id`/`run_id`/`turn_index`，http_sse + H5 场景均已接入 |
-| LLM Trace 接入 | ✅ 完成 | `trace_llm_call` 包裹所有 LLM 调用点，捕获 usage/latency/stop_reason |
-| Run/Turn OTEL Span | ✅ 完成 | `observe()` 创建 `agent.run` span；`trace_turn()` 创建 `agent.turn` span |
+| LLM Trace 接入 | ✅ 完成 | `trace_llm_call` 写 OTEL GenAI 属性（`gen_ai.*`），延迟靠 span duration |
+| Run/Turn OTEL Span | ✅ 完成 | `observe()` 创建 `agent.run` span + `user.id`；`trace_turn()` 创建 `agent.turn` span |
 | run_id 生成 | ✅ 完成 | `AgentStart` 事件携带 `run_id`，可跨日志/事件流/replay 文件关联 |
 | 调试回放 | ✅ 完成 | `RunReplayRecorder`（`ENABLE_RUN_REPLAY=1`）将 run 事件摘要落本地 JSON，http_sse + H5 场景均已接入 |
 | OTEL Exporter | ✅ 完成 | `configure_otel_exporter()` 支持 console/otlp，http_sse + H5 场景 lifespan 均已配置 |
-| Langfuse OTLP（轨 B 阶段 1） | ✅ 完成 | `configure_langfuse_otel_from_env` + harness `observe()`；零 langfuse 包 |
+| Langfuse OTLP（轨 B 阶段 1） | ✅ 完成 | `configure_langfuse_otel_from_env` + harness `observe()`；GenAI 属性对齐 Langfuse Dashboard |
 | Skill Evolution Pending Store | ✅ 完成 | JSONL 持久化存储待审批提案，有 pending 时阻塞新进化周期，支持 force 绕过 |
 | Skill Evolution 前端阻塞提示 | ✅ 完成 | EvolutionPanel 检测 blocked 状态并弹出 toast 提示用户先处理现有提案 |
 | Session tree / leaf | ❌ 不做 | 与 TS navigateTree 不对齐；文档非目标 |

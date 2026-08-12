@@ -285,6 +285,7 @@ async def run_agent_loop(
                         session_id=config.session_id,
                         run_id=config.run_id,
                         turn_index=turn_count,
+                        user_id=config.user_id,
                     ) as _llm_trace:
                         async for upd in _stream_assistant(
                             config=config,
@@ -396,6 +397,7 @@ async def run_agent_loop(
                     session_id=config.session_id,
                     run_id=config.run_id,
                     turn_index=turn_count,
+                    user_id=config.user_id,
                 ) as _llm_trace_result:
                     async for upd in _stream_assistant(
                         config=config,
@@ -429,6 +431,7 @@ async def run_agent_loop(
                     session_id=config.session_id,
                     run_id=config.run_id,
                     turn_index=turn_count,
+                    user_id=config.user_id,
                 ) as _llm_trace_result:
                     async for upd in _stream_assistant(
                         config=config,

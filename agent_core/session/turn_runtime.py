@@ -328,6 +328,7 @@ def build_loop_config(
         disable_tool_routing=disable_tool_routing,
         session_id=host.session_id,
         run_id=run_id,
+        user_id=getattr(host, "observability_user_id", "") or getattr(host, "owner", "") or "",
     )
     config.stream_fn = make_stream_fn(
         provider=provider,
