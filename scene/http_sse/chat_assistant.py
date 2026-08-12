@@ -157,7 +157,7 @@ class ChatAssistant:
         self._artifact_store = artifact_store
         self._state_store = state_store
         self._agent = agent
-        self._skill_runtime = SkillRuntime(self._skills, harness)
+        self._skill_runtime = SkillRuntime(self._skills, harness, cwd=self._cwd)
         self._skill_runtime.register_tools(self._tool_registry)
 
     @classmethod

@@ -26,6 +26,34 @@ def skill_legacy_tool_map_enabled() -> bool:
     )
 
 
+def skill_path_read_activation_enabled() -> bool:
+    return os.environ.get("AGENT_SKILL_PATH_READ_ACTIVATION", "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def normalize_read_path(path: str, *, cwd: str = "") -> str:
+    if not path:
+        return ""
+    if not os.path.isabs(path) and cwd:
+        path = os.path.join(cwd, path)
+    return os.path.normpath(path)
+
+
+def find_skill_by_read_path(path: str, skills: list[Skill], *, cwd: str = "") -> Skill | None:
+    """Return the skill whose SKILL.md is being read, if any."""
+    norm = normalize_read_path(path, cwd=cwd)
+    if not norm or not norm.endswith("SKILL.md"):
+        return None
+    for skill in skills:
+        if os.path.normpath(skill.source.origin) == norm:
+            return skill
+    return None
+
+
 def strip_skill_frontmatter(content: str) -> str:
     body = content
     if body.startswith("---"):

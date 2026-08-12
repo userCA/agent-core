@@ -103,7 +103,7 @@ class ChatAssistant:
         self._skill_trace_collector = skill_trace_collector
         self._artifact_store = artifact_store
         self._state_store = state_store
-        self._skill_runtime = SkillRuntime(self._skills, harness)
+        self._skill_runtime = SkillRuntime(self._skills, harness, cwd=self._cwd)
         self._skill_runtime.register_tools(self._tool_registry)
 
         # Legacy mapping for frontend display / history restoration (not primary attribution)
@@ -595,13 +595,18 @@ class ChatAssistant:
         self._session_unsub = self._harness.subscribe(self._on_agent_event)
 
         # Persist tool_to_skill mapping for history restoration (once per session)
+        # Display-only mapping for history UI (not skill activation / attribution).
         if self._tool_to_skill and not self._skill_mapping_persisted:
             mapping = {tool: skill.name for tool, skill in self._tool_to_skill.items()}
-            # Also include descriptions for frontend display
-            descriptions = {skill.name: skill.description for skill in self._tool_to_skill.values()}
+            descriptions = {skill.name: skill.description for skill in self._skills}
             entry = CustomEntry(
                 custom_type="skill_mapping",
-                data={"tool_to_skill": mapping, "descriptions": descriptions},
+                data={
+                    "tool_to_skill": mapping,
+                    "descriptions": descriptions,
+                    "skill_names": [s.name for s in self._skills],
+                    "attribution": "display_only",
+                },
                 id=f"skill-map-{int(time.time() * 1000)}",
             )
             try:

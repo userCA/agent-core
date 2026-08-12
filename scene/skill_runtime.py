@@ -11,6 +11,8 @@ from agent_core.resources.skill_activation import (
     SkillActivationTracker,
     expand_skill_command,
     find_skill,
+    find_skill_by_read_path,
+    skill_path_read_activation_enabled,
     skill_progressive_enabled,
 )
 from agent_core.resources.types import Skill
@@ -24,12 +26,14 @@ EventHandler = Callable[[Any], Awaitable[None] | None]
 class SkillRuntime:
     """Skill activation state and helpers shared by scene ChatAssistants."""
 
-    def __init__(self, skills: list[Skill], harness: AgentHarness) -> None:
+    def __init__(self, skills: list[Skill], harness: AgentHarness, *, cwd: str = "") -> None:
         self.skills = skills
         self.harness = harness
+        self.cwd = cwd
         self.tracker = SkillActivationTracker()
         self._active_skills: set[str] = set()
         self._handlers: list[EventHandler] = []
+        harness.add_before_tool_call_hook(self.before_tool_call)
 
     def bind_handlers(self, handlers: list[EventHandler]) -> None:
         self._handlers = handlers
@@ -47,6 +51,20 @@ class SkillRuntime:
 
     async def _on_load_skill_activate(self, skill: Skill, source: str) -> None:
         await self._emit_skill_start(skill, source=source)
+
+    async def before_tool_call(self, call_ctx: dict[str, Any]) -> dict[str, Any] | None:
+        if not skill_path_read_activation_enabled():
+            return None
+        tool_call = call_ctx.get("tool_call")
+        if tool_call is None or getattr(tool_call, "name", "") != "read":
+            return None
+        raw_path = (call_ctx.get("input") or {}).get("path", "")
+        skill = find_skill_by_read_path(str(raw_path), self.skills, cwd=self.cwd)
+        if skill is None:
+            return None
+        if self.tracker.activate(skill.name, source="path_read"):
+            await self._emit_skill_start(skill, source="path_read")
+        return None
 
     async def expand_user_message(self, text: str) -> str:
         expanded, should_emit = expand_skill_command(text, self.skills, self.tracker)

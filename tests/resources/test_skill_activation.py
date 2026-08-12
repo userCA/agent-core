@@ -3,6 +3,7 @@
 from agent_core.resources.skill_activation import (
     SkillActivationTracker,
     expand_skill_command,
+    find_skill_by_read_path,
     format_skill_block,
     strip_skill_frontmatter,
 )
@@ -43,3 +44,18 @@ def test_expand_skill_command_records_activation():
 
     _, should_emit_again = expand_skill_command("/skill:demo-skill again", [_skill()], tracker)
     assert should_emit_again is False
+
+
+def test_find_skill_by_read_path_matches_origin():
+    skill = _skill()
+    matched = find_skill_by_read_path(
+        "/tmp/demo-skill/SKILL.md",
+        [skill],
+    )
+    assert matched is not None
+    assert matched.name == "demo-skill"
+
+
+def test_find_skill_by_read_path_ignores_unrelated_files():
+    skill = _skill()
+    assert find_skill_by_read_path("/tmp/other/readme.md", [skill]) is None

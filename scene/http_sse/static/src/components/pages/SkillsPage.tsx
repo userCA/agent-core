@@ -202,6 +202,12 @@ export default function SkillsPage({ onBack }: Props) {
         )}
 
         {!loading && skills.length > 0 && (
+          <p className="page-hint" style={{ marginBottom: 12, fontSize: 13, opacity: 0.85 }}>
+            模型默认只看到技能名称与描述。使用前请先调用 <code>load_skill</code>，或发送 <code>/skill:名称</code> 注入全文。
+          </p>
+        )}
+
+        {!loading && skills.length > 0 && (
           <p className="page-section-title">
             已启用 {enabledCount}/{skills.length}
           </p>
@@ -227,6 +233,8 @@ export default function SkillsPage({ onBack }: Props) {
                 <p className="card-desc">{s.description}</p>
                 <div className="card-meta">
                   <code>/skill:{s.name}</code>
+                  <span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>
+                  <code>load_skill</code>
                 </div>
                 <EvolutionPanel skillName={s.name} />
               </div>
