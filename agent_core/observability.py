@@ -457,5 +457,7 @@ def trace_llm_call(
         if result.get("output_tokens") is not None:
             span.set_attribute("gen_ai.usage.output_tokens", result["output_tokens"])
         if result.get("stop_reason"):
-            span.set_attribute("gen_ai.response.finish_reasons", result["stop_reason"])
+            # 为什么改:OTel GenAI 语义约定定义 gen_ai.response.finish_reasons 为 string[](数组),原实现写入单个字符串,违反本提交宣称对齐的规范
+            # 会影响什么:仅 LLM span 该属性值变为 ["stop"] 数组形式,供 Langfuse 等按约定解析,不影响 agent 循环逻辑
+            span.set_attribute("gen_ai.response.finish_reasons", [result["stop_reason"]])
         span.end()
