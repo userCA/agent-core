@@ -34,8 +34,11 @@ from typing import Any, Iterator
 logger = logging.getLogger(__name__)
 
 _pending_tool_spans: dict[str, Any] = {}
+# run_id -> span context token for the active agent.turn span
+_pending_turn_spans: dict[str, Any] = {}
 
 try:
+    from opentelemetry import context as _otel_context
     from opentelemetry import trace
     from opentelemetry.trace import SpanKind, Status, StatusCode
 
@@ -205,10 +208,7 @@ def agent_span_attributes(
     user_id: str = "",
     **extra: Any,
 ) -> dict[str, Any]:
-    attrs: dict[str, Any] = {
-        "agent.session_id": session_id,
-        "agent.run_id": run_id,
-    }
+    attrs: dict[str, Any] = {}
     if session_id:
         attrs["session.id"] = session_id
         attrs["langfuse.session.id"] = session_id
@@ -249,7 +249,8 @@ def observe(
     Creates a top-level ``agent.run`` span that parents all turn, LLM and
     tool spans.  Registers tracing hooks via
     ``harness.add_before_tool_call_hook`` /
-    ``harness.add_after_tool_call_hook``.
+    ``harness.add_after_tool_call_hook`` and subscribes to harness events
+    so each ``TurnStart``/``TurnEnd`` pair becomes an ``agent.turn`` span.
     """
     if not _otel_available:
         yield
@@ -264,12 +265,19 @@ def observe(
 
     # Register tracing hooks via public API, store references for cleanup
     tracing_before = _make_tracing_before_hook(
-        tracer, session_id, run_id, provider_name, model_id, resolved_user_id,
+        tracer, session_id, run_id, resolved_user_id,
     )
     tracing_after = _make_tracing_after_hook(tracer, run_id)
 
     harness.add_before_tool_call_hook(tracing_before)
     harness.add_after_tool_call_hook(tracing_after)
+
+    # Turn spans are driven by harness events, so any code path that emits
+    # TurnStart/TurnEnd (including the max_turns forced-summary turn) is
+    # covered without touching the loop.
+    unsubscribe = _subscribe_turn_spans(
+        harness, tracer, session_id, run_id, resolved_user_id,
+    )
 
     # Create run-level span
     run_span = tracer.start_span(
@@ -297,7 +305,70 @@ def observe(
         _apply_skill_activation_attributes(run_span, harness)
         harness.remove_before_tool_call_hook(tracing_before)
         harness.remove_after_tool_call_hook(tracing_after)
+        unsubscribe()
         _cleanup_pending_tool_spans(run_id)
+        _cleanup_pending_turn_spans(run_id)
+
+
+def _subscribe_turn_spans(
+    harness: Any,
+    tracer: Any,
+    session_id: str,
+    run_id: str,
+    user_id: str,
+) -> Any:
+    """Subscribe to harness events to create ``agent.turn`` spans.
+
+    Returns an unsubscribe callable.  A ``TurnStart`` event starts an
+    ``agent.turn`` span and attaches it as the active span so the
+    ``agent.llm_call`` and ``agent.tool_call`` spans created within the
+    turn inherit it as parent; ``TurnEnd`` detaches and ends it.
+    """
+    turn_index = 0
+
+    def _on_event(evt: Any) -> None:
+        nonlocal turn_index
+        etype = getattr(evt, "type", "")
+        if etype == "turn_start":
+            turn_index += 1
+            # Defensive: a previous turn may have been cut short (exception)
+            # without a TurnEnd event — close it before starting a new one.
+            stale = _pending_turn_spans.pop(run_id, None)
+            if stale is not None:
+                stale_span, stale_token = stale
+                _otel_context.detach(stale_token)
+                stale_span.end()
+            span = tracer.start_span(
+                "agent.turn",
+                kind=SpanKind.INTERNAL,
+                attributes=agent_span_attributes(
+                    session_id=session_id,
+                    run_id=run_id,
+                    user_id=user_id,
+                    **{"agent.turn_index": turn_index},
+                ),
+            )
+            ctx = trace.set_span_in_context(span)
+            token = _otel_context.attach(ctx)
+            _pending_turn_spans[run_id] = (span, token)
+        elif etype == "turn_end":
+            entry = _pending_turn_spans.pop(run_id, None)
+            if entry is not None:
+                span, token = entry
+                _otel_context.detach(token)
+                span.end()
+
+    unsubscribe = harness.subscribe(_on_event)
+    return unsubscribe
+
+
+def _cleanup_pending_turn_spans(run_id: str) -> None:
+    """End and detach any turn span still pending for *run_id*."""
+    entry = _pending_turn_spans.pop(run_id, None)
+    if entry is not None:
+        span, token = entry
+        _otel_context.detach(token)
+        span.end()
 
 
 def _apply_skill_activation_attributes(run_span: Any, harness: Any) -> None:
@@ -310,12 +381,25 @@ def _apply_skill_activation_attributes(run_span: Any, harness: Any) -> None:
     run_span.set_attribute("agent.skills.sources", sources)
 
 
+def _tool_result_text(result: Any) -> str:
+    """Extract a plain-text summary from a ToolResult for span attributes."""
+    if result is None:
+        return ""
+    content = getattr(result, "content", None)
+    if not content:
+        return ""
+    parts = []
+    for block in content:
+        text = getattr(block, "text", None)
+        if text:
+            parts.append(text)
+    return "\n".join(parts)
+
+
 def _make_tracing_before_hook(
     tracer: Any,
     session_id: str,
     run_id: str,
-    provider_name: str,
-    model_id: str,
     user_id: str = "",
 ) -> Any:
     """Create a before-tool-call hook that starts a span for each tool."""
@@ -338,11 +422,12 @@ def _make_tracing_before_hook(
                 **{
                     "tool.name": name,
                     "tool.call_id": tc_id,
-                    "agent.provider": provider_name,
-                    "agent.model": model_id,
                 },
             ),
         )
+        args = call_ctx.get("args")
+        if _env_flag("LANGFUSE_CAPTURE_CONTENT"):
+            span.set_attribute("tool.input", json.dumps(args, ensure_ascii=False))
         _pending_tool_spans[f"{run_id}:{tc_id}"] = span
         return None
 
@@ -362,78 +447,16 @@ def _make_tracing_after_hook(tracer: Any, run_id: str) -> Any:
         if span is not None:
             if call_ctx.get("is_error", False):
                 span.set_status(Status(StatusCode.ERROR))
+            if _env_flag("LANGFUSE_CAPTURE_CONTENT"):
+                result = call_ctx.get("result")
+                text = _tool_result_text(result)
+                if text:
+                    attr = "tool.error" if call_ctx.get("is_error", False) else "tool.output"
+                    span.set_attribute(attr, text[:2000])
             span.end()
         return None
 
     return _hook
-
-
-@contextlib.contextmanager
-def trace_turn(
-    *,
-    turn_index: int = 0,
-    session_id: str = "",
-    run_id: str = "",
-) -> Iterator[None]:
-    """Context manager for a single agent turn (LLM call + tool execution).
-
-    Creates an ``agent.turn`` span that parents any ``agent.llm_call`` and
-    ``agent.tool_call`` spans started within its scope.
-    """
-    if not _otel_available:
-        yield
-        return
-    tracer = _get_tracer()
-    if tracer is None:
-        yield
-        return
-
-    span = tracer.start_span(
-        "agent.turn",
-        kind=SpanKind.INTERNAL,
-        attributes=agent_span_attributes(
-            session_id=session_id,
-            run_id=run_id,
-            **{"agent.turn_index": turn_index},
-        ),
-    )
-    try:
-        with trace.use_span(span, end_on_exit=True):
-            yield
-    except Exception:
-        span.set_status(Status(StatusCode.ERROR))
-        raise
-
-
-# Optional Langfuse SDK client for usage/cost tracking.
-# OTLP ingestion on some self-hosted v4.x does not map usage_details,
-# so we send a supplementary SDK generation inside the same OTel trace
-# to get accurate cost calculation.
-_langfuse_client: Any = None
-
-
-def _get_langfuse_client() -> Any:
-    """Lazily initialise and return the Langfuse SDK client (or None)."""
-    global _langfuse_client
-    if _langfuse_client is not None:
-        return _langfuse_client
-    if not _env_flag("LANGFUSE_ENABLED"):
-        return None
-    try:
-        from langfuse import Langfuse
-
-        _langfuse_client = Langfuse(
-            public_key=os.environ.get("LANGFUSE_PUBLIC_KEY", ""),
-            secret_key=os.environ.get("LANGFUSE_SECRET_KEY", ""),
-            host=os.environ.get(
-                "LANGFUSE_BASE_URL", "https://cloud.langfuse.com"
-            ),
-        )
-        logger.info("Langfuse SDK client initialised for cost tracking")
-        return _langfuse_client
-    except Exception:
-        logger.debug("Langfuse SDK not available; cost tracking via SDK disabled")
-        return None
 
 
 @contextlib.contextmanager
@@ -445,21 +468,21 @@ def trace_llm_call(
     run_id: str = "",
     turn_index: int = 0,
     user_id: str = "",
+    prompt: str = "",
 ) -> Iterator[dict[str, Any]]:
     """Context manager for LLM streaming calls.
 
     Yields a mutable *result* dict.  Callers should populate it with
-    ``input_tokens``, ``output_tokens`` and ``stop_reason`` after the
-    stream completes so the span attributes carry full usage data.
+    ``input_tokens``, ``output_tokens``, ``stop_reason`` and optionally
+    ``completion`` after the stream completes so the span attributes carry
+    full usage data.
 
     Span attributes follow OpenTelemetry GenAI semantic conventions
     (``gen_ai.*``, ``user.id``, ``session.id``).
 
-    When the Langfuse SDK is available, a supplementary *generation*
-    observation is created inside the same OTel trace so that
-    ``usage_details`` (and therefore cost) is correctly recorded —
-    some self-hosted Langfuse v4.x OTLP ingestors do not map
-    ``langfuse.observation.usage_details`` from raw OTLP spans.
+    When ``LANGFUSE_CAPTURE_CONTENT=1`` is set, the prompt text passed as
+    ``prompt`` and the ``completion`` key returned in the result dict are
+    written to the span (truncated); otherwise they are not captured.
     """
     if not _otel_available:
         yield {}
@@ -482,14 +505,16 @@ def trace_llm_call(
                 "gen_ai.system": provider,
                 "gen_ai.request.model": model,
                 "agent.turn_index": turn_index,
-                # Langfuse OTLP ingestion requires these langfuse.* attributes
-                # to map span data to the Langfuse data model.  gen_ai.* alone
-                # is not mapped by all self-hosted versions.
+                # Langfuse OTLP ingestion requires this attribute to map the
+                # span to the Langfuse data model as a generation.  gen_ai.*
+                # alone is not mapped by all self-hosted versions.
                 "langfuse.observation.type": "generation",
-                "langfuse.observation.model": model,
             },
         ),
     )
+    if _env_flag("LANGFUSE_CAPTURE_CONTENT"):
+        if prompt:
+            span.set_attribute("gen_ai.prompt", prompt[:2000])
     try:
         with trace.use_span(span, end_on_exit=False):
             yield result
@@ -497,6 +522,8 @@ def trace_llm_call(
         span.set_status(Status(StatusCode.ERROR))
         raise
     finally:
+        if _env_flag("LANGFUSE_CAPTURE_CONTENT") and result.get("completion"):
+            span.set_attribute("gen_ai.completion", result["completion"][:2000])
         if result.get("input_tokens") is not None:
             span.set_attribute("gen_ai.usage.input_tokens", result["input_tokens"])
         if result.get("output_tokens") is not None:
@@ -527,54 +554,4 @@ def trace_llm_call(
             usage["output"] = result["output_tokens"]
         if usage:
             span.set_attribute("langfuse.observation.usage_details", json.dumps(usage))
-
-        # Supplementary SDK generation for cost tracking.
-        # Must be created while the OTLP span is still the active span
-        # so the SDK generation inherits the same trace_id.
-        with trace.use_span(span, end_on_exit=False):
-            _send_sdk_generation(
-                model=model,
-                usage=usage,
-                user_id=user_id,
-                session_id=session_id,
-            )
         span.end()
-
-
-def _send_sdk_generation(
-    *,
-    model: str,
-    usage: dict[str, int],
-    user_id: str = "",
-    session_id: str = "",
-) -> None:
-    """Fire-and-forget: create a Langfuse SDK generation for cost tracking.
-
-    Uses the global OTel tracer provider so the generation shares the
-    same trace_id as the OTLP spans.  Errors are silently caught to
-    avoid disrupting the main flow.
-    """
-    client = _get_langfuse_client()
-    if client is None or not usage:
-        return
-    try:
-        # Build metadata to override SDK scope attributes leaking into observation metadata
-        obs_metadata: dict[str, Any] = {
-            "source": "agent-core",
-            "provider": "deepseek",
-        }
-        if user_id:
-            obs_metadata["user_id"] = user_id
-        if session_id:
-            obs_metadata["session_id"] = session_id
-
-        gen = client.start_observation(
-            name="agent.llm_call",
-            as_type="generation",
-            model=model or None,
-            usage_details=usage if usage else None,
-            metadata=obs_metadata,
-        )
-        gen.end()
-    except Exception:
-        logger.debug("SDK cost generation failed", exc_info=True)

@@ -12,7 +12,6 @@ from agent_core.observability import (
     generate_run_id,
     system_prompt_hash,
     trace_llm_call,
-    trace_turn,
 )
 
 
@@ -40,16 +39,16 @@ def test_system_prompt_hash_empty():
 
 def test_agent_span_attributes_include_session_aliases():
     attrs = agent_span_attributes(session_id="sess-1", run_id="run-abc")
-    assert attrs["agent.session_id"] == "sess-1"
-    assert attrs["agent.run_id"] == "run-abc"
     assert attrs["session.id"] == "sess-1"
     assert attrs["langfuse.session.id"] == "sess-1"
     assert attrs["langfuse.trace.metadata.run_id"] == "run-abc"
+    assert "agent.session_id" not in attrs
+    assert "agent.run_id" not in attrs
 
 
 def test_agent_span_attributes_empty_omits_aliases():
     attrs = agent_span_attributes(session_id="", run_id="")
-    assert attrs == {"agent.session_id": "", "agent.run_id": ""}
+    assert attrs == {}
 
 
 def test_agent_span_attributes_include_user_id():
@@ -97,7 +96,7 @@ def test_trace_llm_call_sets_gen_ai_attributes(monkeypatch):
     assert attrs["gen_ai.system"] == "deepseek"
     assert attrs["user.id"] == "u-42"
     assert attrs["langfuse.observation.type"] == "generation"
-    assert attrs["langfuse.observation.model"] == "deepseek-v4-flash"
+    assert "langfuse.observation.model" not in attrs  # 无效属性名，model 走 gen_ai.request.model
     assert "llm.model" not in attrs
     assert "llm.provider" not in attrs
     mock_span.set_attribute.assert_any_call("gen_ai.usage.input_tokens", 10)
@@ -182,12 +181,58 @@ def test_observe_resolves_user_id_from_harness(monkeypatch):
     assert attrs["user.id"] == "from-harness"
 
 
-def test_trace_turn_no_op_without_otel():
-    """trace_turn is a no-op when OTEL is not installed."""
-    entered = False
-    with trace_turn(turn_index=1, session_id="s1", run_id="r1"):
-        entered = True
-    assert entered
+@pytest.mark.asyncio
+async def test_subscribe_turn_spans_creates_turn_span(monkeypatch):
+    """TurnStart/TurnEnd events create and end an agent.turn span."""
+    from unittest.mock import MagicMock
+
+    from agent_core import observability as obs
+    from agent_core.core.events import TurnEnd, TurnStart
+    from agent_core.observability import _subscribe_turn_spans
+
+    if not obs._otel_available:
+        fake_kind = MagicMock()
+        fake_kind.INTERNAL = "INTERNAL"
+        monkeypatch.setattr(obs, "SpanKind", fake_kind, raising=False)
+        fake_status_code = MagicMock()
+        fake_status_code.ERROR = "ERROR"
+        monkeypatch.setattr(obs, "StatusCode", fake_status_code, raising=False)
+        monkeypatch.setattr(obs, "Status", MagicMock(), raising=False)
+
+    mock_span = MagicMock()
+    mock_tracer = MagicMock()
+    mock_tracer.start_span.return_value = mock_span
+    monkeypatch.setattr(obs, "_get_tracer", lambda: mock_tracer)
+
+    harness = MagicMock()
+    captured: dict = {}
+
+    def _fake_subscribe(listener):
+        captured["listener"] = listener
+        return lambda: None
+
+    harness.subscribe = _fake_subscribe
+
+    run_id = "run-turn123456"
+    _subscribe_turn_spans(harness, mock_tracer, "sess", run_id, "u1")
+
+    listener = captured["listener"]
+    assert listener is not None
+
+    await _notify(listener, TurnStart())
+    assert run_id in obs._pending_turn_spans
+    attrs = mock_tracer.start_span.call_args.kwargs["attributes"]
+    assert attrs["agent.turn_index"] == 1
+
+    await _notify(listener, TurnEnd(message=MagicMock(), tool_results=[]))
+    assert run_id not in obs._pending_turn_spans
+    mock_span.end.assert_called_once()
+
+
+async def _notify(listener, evt):
+    result = listener(evt)
+    if asyncio.iscoroutine(result):
+        await result
 
 
 def test_trace_llm_call_no_op_yields_dict():
@@ -301,7 +346,7 @@ async def test_tracing_after_hook_ends_pending_span(monkeypatch):
     mock_tracer.start_span.return_value = mock_span
 
     run_id = "run-test123456"
-    before = _make_tracing_before_hook(mock_tracer, "sess", run_id, "fake", "m1")
+    before = _make_tracing_before_hook(mock_tracer, "sess", run_id, "u1")
     after = _make_tracing_after_hook(mock_tracer, run_id)
 
     tool_call = MagicMock()
@@ -338,7 +383,7 @@ async def test_tracing_after_hook_sets_error_status(monkeypatch):
     mock_tracer.start_span.return_value = mock_span
 
     run_id = "run-err1234567"
-    before = _make_tracing_before_hook(mock_tracer, "sess", run_id, "fake", "m1")
+    before = _make_tracing_before_hook(mock_tracer, "sess", run_id, "u1")
     after = _make_tracing_after_hook(mock_tracer, run_id)
 
     tool_call = MagicMock()

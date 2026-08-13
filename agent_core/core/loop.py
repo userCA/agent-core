@@ -33,7 +33,7 @@ from agent_core.compaction.budget import (
 )
 from agent_core.core.tool_guard import DuplicateToolCallGuard
 from agent_core.logging_config import set_log_context
-from agent_core.observability import generate_run_id, trace_llm_call, trace_turn
+from agent_core.observability import generate_run_id, trace_llm_call
 from agent_core.providers.base import tools_to_provider_format
 from agent_core.providers.types import (
     StreamError,
@@ -44,6 +44,23 @@ from agent_core.providers.types import (
     StreamToolCallEnd,
     StreamToolCallStart,
 )
+
+
+def _assistant_text(msg: AssistantMessage) -> str:
+    """Join the text content of an assistant message (for trace capture)."""
+    return "".join(c.text for c in msg.content if isinstance(c, TextContent))
+
+
+def _last_user_prompt(messages: list[Any]) -> str:
+    """Return the text of the most recent user message, or empty string."""
+    for msg in reversed(messages):
+        role = getattr(msg, "role", None)
+        if role != "user":
+            continue
+        parts = [c.text for c in msg.content if isinstance(c, TextContent)]
+        if parts:
+            return "\n".join(parts)
+    return ""
 
 _log = logging.getLogger(__name__)
 
@@ -232,91 +249,87 @@ async def run_agent_loop(
                     run_id=config.run_id,
                     turn_index=turn_count + 1,
                 )
-                with trace_turn(
-                    turn_index=turn_count + 1,
-                    session_id=config.session_id,
-                    run_id=config.run_id,
-                ):
-                    await emit(TurnStart())
-                    turn_count += 1
-
-                    ok, budget_detail = await _ensure_prompt_budget(
-                        context=context, config=config
-                    )
-                    if not ok:
-                        assistant = _budget_exceeded_assistant(config, budget_detail)
-                        await emit(MessageStart(message=assistant))
-                        await emit(MessageEnd(message=assistant))
-                        context.messages.append(assistant)
-                        new_assistant_messages.append(assistant)
-                        await emit(TurnEnd(message=assistant, tool_results=[]))
-                        break
-
-                    ok, rep_detail = _ensure_single_representation(
-                        context=context, config=config
-                    )
-                    if not ok:
-                        assistant = _single_rep_assistant(config, rep_detail)
-                        await emit(MessageStart(message=assistant))
-                        await emit(MessageEnd(message=assistant))
-                        context.messages.append(assistant)
-                        new_assistant_messages.append(assistant)
-                        await emit(TurnEnd(message=assistant, tool_results=[]))
-                        break
-
-                    llm_messages = await config.convert_to_llm(context.messages)
-                    if config.transform_context is not None:
-                        llm_messages = await config.transform_context(llm_messages, signal)
-
-                    auth = await config.auth_resolver(config.model.provider)
-                    assistant = AssistantMessage(
-                        content=[],
-                        usage=Usage(),
-                        stop_reason="stop",
-                        provider=config.model.provider,
-                        model=config.model.id,
-                        timestamp=time.time(),
-                    )
+                await emit(TurnStart())
+                turn_count += 1
+                ok, budget_detail = await _ensure_prompt_budget(
+                    context=context, config=config
+                )
+                if not ok:
+                    assistant = _budget_exceeded_assistant(config, budget_detail)
                     await emit(MessageStart(message=assistant))
-                    _llm_start = time.monotonic()
-                    with trace_llm_call(
-                        provider=config.model.provider,
-                        model=config.model.id,
-                        session_id=config.session_id,
-                        run_id=config.run_id,
-                        turn_index=turn_count,
-                        user_id=config.user_id,
-                    ) as _llm_trace:
-                        async for upd in _stream_assistant(
-                            config=config,
-                            llm_messages=llm_messages,
-                            tool_defs=[],  # No tools — force text-only response
-                            auth=auth,
-                            signal=signal,
-                            system_prompt=context.system_prompt,
-                            assistant=assistant,
-                        ):
-                            await emit(upd)
-                        _llm_trace.update(
-                            input_tokens=assistant.usage.input_tokens,
-                            output_tokens=assistant.usage.output_tokens,
-                            stop_reason=assistant.stop_reason,
-                            first_token_time=assistant.first_token_time,
-                        )
-                    _llm_ms = (time.monotonic() - _llm_start) * 1000
-                    _log.info(
-                        "LLM call done: model=%s stop=%s in=%d out=%d %.0fms",
-                        config.model.id, assistant.stop_reason,
-                        assistant.usage.input_tokens,
-                        assistant.usage.output_tokens, _llm_ms,
-                    )
-                    if assistant.stop_reason == "error" and assistant.error_message:
-                        _log.warning("LLM error: %s", assistant.error_message[:300])
                     await emit(MessageEnd(message=assistant))
                     context.messages.append(assistant)
                     new_assistant_messages.append(assistant)
-                    _log.info("Turn %d ended: stop=%s", turn_count, assistant.stop_reason)
                     await emit(TurnEnd(message=assistant, tool_results=[]))
+                    break
+
+                ok, rep_detail = _ensure_single_representation(
+                    context=context, config=config
+                )
+                if not ok:
+                    assistant = _single_rep_assistant(config, rep_detail)
+                    await emit(MessageStart(message=assistant))
+                    await emit(MessageEnd(message=assistant))
+                    context.messages.append(assistant)
+                    new_assistant_messages.append(assistant)
+                    await emit(TurnEnd(message=assistant, tool_results=[]))
+                    break
+
+                llm_messages = await config.convert_to_llm(context.messages)
+                if config.transform_context is not None:
+                    llm_messages = await config.transform_context(llm_messages, signal)
+
+                auth = await config.auth_resolver(config.model.provider)
+                assistant = AssistantMessage(
+                    content=[],
+                    usage=Usage(),
+                    stop_reason="stop",
+                    provider=config.model.provider,
+                    model=config.model.id,
+                    timestamp=time.time(),
+                )
+                await emit(MessageStart(message=assistant))
+                _llm_start = time.monotonic()
+                with trace_llm_call(
+                    provider=config.model.provider,
+                    model=config.model.id,
+                    session_id=config.session_id,
+                    run_id=config.run_id,
+                    turn_index=turn_count,
+                    user_id=config.user_id,
+                    prompt=_last_user_prompt(context.messages),
+                ) as _llm_trace:
+                    async for upd in _stream_assistant(
+                        config=config,
+                        llm_messages=llm_messages,
+                        tool_defs=[],  # No tools — force text-only response
+                        auth=auth,
+                        signal=signal,
+                        system_prompt=context.system_prompt,
+                        assistant=assistant,
+                    ):
+                        await emit(upd)
+                    _llm_trace.update(
+                        input_tokens=assistant.usage.input_tokens,
+                        output_tokens=assistant.usage.output_tokens,
+                        stop_reason=assistant.stop_reason,
+                        first_token_time=assistant.first_token_time,
+                        completion=_assistant_text(assistant),
+                    )
+                _llm_ms = (time.monotonic() - _llm_start) * 1000
+                _log.info(
+                    "LLM call done: model=%s stop=%s in=%d out=%d %.0fms",
+                    config.model.id, assistant.stop_reason,
+                    assistant.usage.input_tokens,
+                    assistant.usage.output_tokens, _llm_ms,
+                )
+                if assistant.stop_reason == "error" and assistant.error_message:
+                    _log.warning("LLM error: %s", assistant.error_message[:300])
+                await emit(MessageEnd(message=assistant))
+                context.messages.append(assistant)
+                new_assistant_messages.append(assistant)
+                _log.info("Turn %d ended: stop=%s", turn_count, assistant.stop_reason)
+                await emit(TurnEnd(message=assistant, tool_results=[]))
             break
 
         await emit(TurnStart())
@@ -399,6 +412,7 @@ async def run_agent_loop(
                     run_id=config.run_id,
                     turn_index=turn_count,
                     user_id=config.user_id,
+                    prompt=_last_user_prompt(context.messages),
                 ) as _llm_trace_result:
                     async for upd in _stream_assistant(
                         config=config,
@@ -415,6 +429,7 @@ async def run_agent_loop(
                         output_tokens=assistant.usage.output_tokens,
                         stop_reason=assistant.stop_reason,
                         first_token_time=assistant.first_token_time,
+                        completion=_assistant_text(assistant),
                     )
                 _log.info(
                     "LLM call done: model=%s stop=%s in=%d out=%d %.0fms",
@@ -434,6 +449,7 @@ async def run_agent_loop(
                     run_id=config.run_id,
                     turn_index=turn_count,
                     user_id=config.user_id,
+                    prompt=_last_user_prompt(context.messages),
                 ) as _llm_trace_result:
                     async for upd in _stream_assistant(
                         config=config,
@@ -450,6 +466,7 @@ async def run_agent_loop(
                         output_tokens=assistant.usage.output_tokens,
                         stop_reason=assistant.stop_reason,
                         first_token_time=assistant.first_token_time,
+                        completion=_assistant_text(assistant),
                     )
                 _log.info(
                     "LLM call done (retry %d): model=%s stop=%s in=%d out=%d %.0fms",
