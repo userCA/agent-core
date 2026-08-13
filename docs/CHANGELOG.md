@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-08-13 16:35 — Langfuse 自建实例 cost 追踪、TTFT 追踪、metadata 修复
+
+**问题**：切换 Langfuse 自建实例（v4.9.0 events_only 模式）后，Dashboard 中 model cost 始终为 $0，TTFT 缺失，SDK generation metadata 泄露 OTel scope 属性。
+
+**根因**：
+1. Langfuse v4 events_only 模式不映射 OTLP span 中的 `usage_details`，导致 cost 无法计算
+2. `trace_llm_call` 的 `finally` 块在 `with` 退出时执行，但 token 数据在 `with` 块外才被写入 result dict
+3. SDK 补充 generation 设置了 `completion_start_time`，但其 span start_time 晚于 first token 时间，导致 TTFT 为负数
+4. SDK generation 未设置 metadata，导致 OTel scope 属性（`langfuse-sdk`、`public_key`）泄露
+
+**方案**：
+- 新增 Langfuse SDK 客户端（`_get_langfuse_client`），在 OTLP span 内创建补充 generation 携带 usage/model
+- 将 `loop.py` 中三处 `trace.update()` 从 `with` 块外移入块内
+- 在 `_stream_assistant` 中捕获首个 `StreamTextDelta` 时间戳，设置 `completionStartTime`
+- SDK generation 传入 `metadata` 参数覆盖 scope 属性，不再设置 `completion_start_time`
+- `AssistantMessage` 新增 `first_token_time` 字段
+
+**改动范围**：
+- `agent_core/observability.py`：SDK 客户端、TTFT 属性、metadata 修复
+- `agent_core/core/loop.py`：trace.update() 时序修复、首 token 捕获
+- `agent_core/core/messages.py`：first_token_time 字段
+- `tests/core/test_observability.py`：断言更新
+
+**影响面**：观测性模块、核心循环、消息模型
+
 ## 2026-08-04 09:47 — Skill Evolution 提案审批阻塞机制
 
 **需求**：技能进化生成的改进提案需要先临时存档，等审批后才应用，且存在未审批内容时不执行下次进化。
