@@ -297,12 +297,13 @@ async def run_agent_loop(
                             assistant=assistant,
                         ):
                             await emit(upd)
+                        _llm_trace.update(
+                            input_tokens=assistant.usage.input_tokens,
+                            output_tokens=assistant.usage.output_tokens,
+                            stop_reason=assistant.stop_reason,
+                            first_token_time=assistant.first_token_time,
+                        )
                     _llm_ms = (time.monotonic() - _llm_start) * 1000
-                    _llm_trace.update(
-                        input_tokens=assistant.usage.input_tokens,
-                        output_tokens=assistant.usage.output_tokens,
-                        stop_reason=assistant.stop_reason,
-                    )
                     _log.info(
                         "LLM call done: model=%s stop=%s in=%d out=%d %.0fms",
                         config.model.id, assistant.stop_reason,
@@ -409,11 +410,12 @@ async def run_agent_loop(
                         assistant=assistant,
                     ):
                         await emit(upd)
-                _llm_trace_result.update(
-                    input_tokens=assistant.usage.input_tokens,
-                    output_tokens=assistant.usage.output_tokens,
-                    stop_reason=assistant.stop_reason,
-                )
+                    _llm_trace_result.update(
+                        input_tokens=assistant.usage.input_tokens,
+                        output_tokens=assistant.usage.output_tokens,
+                        stop_reason=assistant.stop_reason,
+                        first_token_time=assistant.first_token_time,
+                    )
                 _log.info(
                     "LLM call done: model=%s stop=%s in=%d out=%d %.0fms",
                     config.model.id, assistant.stop_reason,
@@ -443,11 +445,12 @@ async def run_agent_loop(
                         assistant=assistant,
                     ):
                         buffered.append(upd)
-                _llm_trace_result.update(
-                    input_tokens=assistant.usage.input_tokens,
-                    output_tokens=assistant.usage.output_tokens,
-                    stop_reason=assistant.stop_reason,
-                )
+                    _llm_trace_result.update(
+                        input_tokens=assistant.usage.input_tokens,
+                        output_tokens=assistant.usage.output_tokens,
+                        stop_reason=assistant.stop_reason,
+                        first_token_time=assistant.first_token_time,
+                    )
                 _log.info(
                     "LLM call done (retry %d): model=%s stop=%s in=%d out=%d %.0fms",
                     retry_count, config.model.id, assistant.stop_reason,
@@ -607,6 +610,7 @@ async def _stream_assistant(
     text_buf = ""
     tool_buffers: dict[str, dict[str, Any]] = {}
     error_message: str | None = None
+    _first_token_captured = False
 
     stream = config.stream_fn(
         model=config.model,
@@ -621,6 +625,9 @@ async def _stream_assistant(
     )
     async for evt in stream:
         if isinstance(evt, StreamTextDelta):
+            if not _first_token_captured:
+                assistant.first_token_time = time.time()
+                _first_token_captured = True
             text_buf += evt.text
             yield MessageUpdate(message=assistant, delta=TextDelta(text=evt.text))
         elif isinstance(evt, StreamThinkingDelta):

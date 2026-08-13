@@ -47,6 +47,7 @@ class AssistantMessage(BaseModel):
     provider: str | None = None
     model: str | None = None
     timestamp: float
+    first_token_time: float | None = None
 
     def tool_calls(self) -> list[ToolCallContent]:
         return [c for c in self.content if isinstance(c, ToolCallContent)]

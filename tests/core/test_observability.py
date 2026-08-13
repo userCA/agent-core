@@ -96,12 +96,16 @@ def test_trace_llm_call_sets_gen_ai_attributes(monkeypatch):
     assert attrs["gen_ai.request.model"] == "deepseek-v4-flash"
     assert attrs["gen_ai.system"] == "deepseek"
     assert attrs["user.id"] == "u-42"
+    assert attrs["langfuse.observation.type"] == "generation"
+    assert attrs["langfuse.observation.model"] == "deepseek-v4-flash"
     assert "llm.model" not in attrs
     assert "llm.provider" not in attrs
-    assert "langfuse.observation.type" not in attrs
     mock_span.set_attribute.assert_any_call("gen_ai.usage.input_tokens", 10)
     mock_span.set_attribute.assert_any_call("gen_ai.usage.output_tokens", 20)
     mock_span.set_attribute.assert_any_call("gen_ai.response.finish_reasons", "stop")
+    mock_span.set_attribute.assert_any_call(
+        "langfuse.observation.usage_details", '{"input": 10, "output": 20}'
+    )
     set_keys = [c.args[0] for c in mock_span.set_attribute.call_args_list]
     assert "llm.usage.input_tokens" not in set_keys
     assert "latency_ms" not in set_keys

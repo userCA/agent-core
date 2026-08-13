@@ -22,9 +22,12 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import datetime
 import hashlib
+import json
 import logging
 import os
+import time
 import uuid
 from typing import Any, Iterator
 
@@ -402,6 +405,37 @@ def trace_turn(
         raise
 
 
+# Optional Langfuse SDK client for usage/cost tracking.
+# OTLP ingestion on some self-hosted v4.x does not map usage_details,
+# so we send a supplementary SDK generation inside the same OTel trace
+# to get accurate cost calculation.
+_langfuse_client: Any = None
+
+
+def _get_langfuse_client() -> Any:
+    """Lazily initialise and return the Langfuse SDK client (or None)."""
+    global _langfuse_client
+    if _langfuse_client is not None:
+        return _langfuse_client
+    if not _env_flag("LANGFUSE_ENABLED"):
+        return None
+    try:
+        from langfuse import Langfuse
+
+        _langfuse_client = Langfuse(
+            public_key=os.environ.get("LANGFUSE_PUBLIC_KEY", ""),
+            secret_key=os.environ.get("LANGFUSE_SECRET_KEY", ""),
+            host=os.environ.get(
+                "LANGFUSE_BASE_URL", "https://cloud.langfuse.com"
+            ),
+        )
+        logger.info("Langfuse SDK client initialised for cost tracking")
+        return _langfuse_client
+    except Exception:
+        logger.debug("Langfuse SDK not available; cost tracking via SDK disabled")
+        return None
+
+
 @contextlib.contextmanager
 def trace_llm_call(
     *,
@@ -420,6 +454,12 @@ def trace_llm_call(
 
     Span attributes follow OpenTelemetry GenAI semantic conventions
     (``gen_ai.*``, ``user.id``, ``session.id``).
+
+    When the Langfuse SDK is available, a supplementary *generation*
+    observation is created inside the same OTel trace so that
+    ``usage_details`` (and therefore cost) is correctly recorded —
+    some self-hosted Langfuse v4.x OTLP ingestors do not map
+    ``langfuse.observation.usage_details`` from raw OTLP spans.
     """
     if not _otel_available:
         yield {}
@@ -442,6 +482,11 @@ def trace_llm_call(
                 "gen_ai.system": provider,
                 "gen_ai.request.model": model,
                 "agent.turn_index": turn_index,
+                # Langfuse OTLP ingestion requires these langfuse.* attributes
+                # to map span data to the Langfuse data model.  gen_ai.* alone
+                # is not mapped by all self-hosted versions.
+                "langfuse.observation.type": "generation",
+                "langfuse.observation.model": model,
             },
         ),
     )
@@ -458,4 +503,78 @@ def trace_llm_call(
             span.set_attribute("gen_ai.usage.output_tokens", result["output_tokens"])
         if result.get("stop_reason"):
             span.set_attribute("gen_ai.response.finish_reasons", result["stop_reason"])
+        # TTFT: completion_start_time for time-to-first-token calculation
+        first_token_ts = result.get("first_token_time")
+        if first_token_ts is not None:
+            span.set_attribute(
+                "gen_ai.response.first_token_time",
+                datetime.datetime.fromtimestamp(
+                    first_token_ts, tz=datetime.timezone.utc
+                ).isoformat(),
+            )
+            span.set_attribute(
+                "langfuse.observation.completion_start_time",
+                datetime.datetime.fromtimestamp(
+                    first_token_ts, tz=datetime.timezone.utc
+                ).isoformat(),
+            )
+        # Langfuse-native usage_details (JSON) — needed for self-hosted v4.x
+        # that does not auto-map gen_ai.usage.* to usageDetails.
+        usage = {}
+        if result.get("input_tokens") is not None:
+            usage["input"] = result["input_tokens"]
+        if result.get("output_tokens") is not None:
+            usage["output"] = result["output_tokens"]
+        if usage:
+            span.set_attribute("langfuse.observation.usage_details", json.dumps(usage))
+
+        # Supplementary SDK generation for cost tracking.
+        # Must be created while the OTLP span is still the active span
+        # so the SDK generation inherits the same trace_id.
+        with trace.use_span(span, end_on_exit=False):
+            _send_sdk_generation(
+                model=model,
+                usage=usage,
+                user_id=user_id,
+                session_id=session_id,
+            )
         span.end()
+
+
+def _send_sdk_generation(
+    *,
+    model: str,
+    usage: dict[str, int],
+    user_id: str = "",
+    session_id: str = "",
+) -> None:
+    """Fire-and-forget: create a Langfuse SDK generation for cost tracking.
+
+    Uses the global OTel tracer provider so the generation shares the
+    same trace_id as the OTLP spans.  Errors are silently caught to
+    avoid disrupting the main flow.
+    """
+    client = _get_langfuse_client()
+    if client is None or not usage:
+        return
+    try:
+        # Build metadata to override SDK scope attributes leaking into observation metadata
+        obs_metadata: dict[str, Any] = {
+            "source": "agent-core",
+            "provider": "deepseek",
+        }
+        if user_id:
+            obs_metadata["user_id"] = user_id
+        if session_id:
+            obs_metadata["session_id"] = session_id
+
+        gen = client.start_observation(
+            name="agent.llm_call",
+            as_type="generation",
+            model=model or None,
+            usage_details=usage if usage else None,
+            metadata=obs_metadata,
+        )
+        gen.end()
+    except Exception:
+        logger.debug("SDK cost generation failed", exc_info=True)
