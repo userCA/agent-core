@@ -17,6 +17,7 @@ from agent_core.core.hooks import (
     ToolResultHookEvent,
 )
 from agent_core.core.stream_options import clone_stream_options
+from agent_core.observability import resolve_observe_user_id
 from agent_core.providers.auth import AuthSource
 from agent_core.providers.base import ModelProvider
 from agent_core.tools.mutation_queue import FileMutationQueue
@@ -328,7 +329,9 @@ def build_loop_config(
         disable_tool_routing=disable_tool_routing,
         session_id=host.session_id,
         run_id=run_id,
-        user_id=getattr(host, "observability_user_id", "") or getattr(host, "owner", "") or "",
+        # 为什么改:与 observability.resolve_observe_user_id 是同一解析链,此前内联重复实现易漂移
+        # 会影响什么:user_id 解析结果与之前完全一致(observability_user_id → owner),无行为变化
+        user_id=resolve_observe_user_id(host),
     )
     config.stream_fn = make_stream_fn(
         provider=provider,

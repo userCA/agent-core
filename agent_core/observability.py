@@ -217,11 +217,14 @@ def agent_span_attributes(
     return attrs
 
 
-def _resolve_observe_user_id(harness: Any, user_id: str = "") -> str:
+def resolve_observe_user_id(harness: Any, user_id: str = "") -> str:
     """Resolve user.id for observability spans.
 
     Priority: 1) explicit ``user_id`` 2) ``harness.observability_user_id`` 3) ``harness.owner``.
     """
+    # 为什么改:该函数被 session 层(harness/turn_runtime)跨模块复用,下划线私有命名违反约定,
+    # 且 turn_runtime 内联重复实现了同一解析链,存在漂移风险
+    # 会影响什么:对外改名 resolve_observe_user_id(原私有名不再存在);解析优先级与行为完全不变
     if user_id:
         return user_id
     uid = getattr(harness, "observability_user_id", "") or ""
@@ -257,7 +260,7 @@ def observe(
         yield
         return
 
-    resolved_user_id = _resolve_observe_user_id(harness, user_id)
+    resolved_user_id = resolve_observe_user_id(harness, user_id)
 
     # Register tracing hooks via public API, store references for cleanup
     tracing_before = _make_tracing_before_hook(
