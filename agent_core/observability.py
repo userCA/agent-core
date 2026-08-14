@@ -217,11 +217,14 @@ def agent_span_attributes(
     return attrs
 
 
-def _resolve_observe_user_id(harness: Any, user_id: str = "") -> str:
+def resolve_observe_user_id(harness: Any, user_id: str = "") -> str:
     """Resolve user.id for observability spans.
 
     Priority: 1) explicit ``user_id`` 2) ``harness.observability_user_id`` 3) ``harness.owner``.
     """
+    # 为什么改:该函数被 session 层(harness/turn_runtime)跨模块复用,下划线私有命名违反约定,
+    # 且 turn_runtime 内联重复实现了同一解析链,存在漂移风险
+    # 会影响什么:对外改名 resolve_observe_user_id(原私有名不再存在);解析优先级与行为完全不变
     if user_id:
         return user_id
     uid = getattr(harness, "observability_user_id", "") or ""
@@ -257,7 +260,7 @@ def observe(
         yield
         return
 
-    resolved_user_id = _resolve_observe_user_id(harness, user_id)
+    resolved_user_id = resolve_observe_user_id(harness, user_id)
 
     # Register tracing hooks via public API, store references for cleanup
     tracing_before = _make_tracing_before_hook(
@@ -457,5 +460,7 @@ def trace_llm_call(
         if result.get("output_tokens") is not None:
             span.set_attribute("gen_ai.usage.output_tokens", result["output_tokens"])
         if result.get("stop_reason"):
-            span.set_attribute("gen_ai.response.finish_reasons", result["stop_reason"])
+            # 为什么改:OTel GenAI 语义约定定义 gen_ai.response.finish_reasons 为 string[](数组),原实现写入单个字符串,违反本提交宣称对齐的规范
+            # 会影响什么:仅 LLM span 该属性值变为 ["stop"] 数组形式,供 Langfuse 等按约定解析,不影响 agent 循环逻辑
+            span.set_attribute("gen_ai.response.finish_reasons", [result["stop_reason"]])
         span.end()

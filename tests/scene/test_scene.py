@@ -9,7 +9,7 @@ import tempfile
 from agent_core.prompts.builder import SystemPromptBuilder
 from agent_core.resources.loader import ResourceLoader
 from agent_core.resources.types import Skill, SourceInfo
-from scene.cli.chat_assistant import ChatAssistant
+from scene.skill_runtime import SkillRuntime
 
 
 def test_system_prompt_builder():
@@ -46,7 +46,20 @@ def test_system_prompt_builder_with_skills():
     assert "Python skill" in prompt.text
 
 
-async def test_chat_assistant_expand_skill_command():
+class _StubHarness:
+    """SkillRuntime 依赖的最小 harness 替身(仅供测试)。"""
+
+    def __init__(self) -> None:
+        self.activations: list[tuple[str, str]] = []
+
+    def add_before_tool_call_hook(self, hook: object) -> None:
+        pass
+
+    def record_skill_activation(self, name: str, source: str) -> None:
+        self.activations.append((name, source))
+
+
+async def test_skill_runtime_expand_skill_command():
     with tempfile.TemporaryDirectory() as tmpdir:
         skill_dir = os.path.join(tmpdir, "my-skill")
         os.makedirs(skill_dir)
@@ -56,22 +69,16 @@ async def test_chat_assistant_expand_skill_command():
         loader = ResourceLoader(cwd=tmpdir, extra_skill_paths=[skill_dir])
         skills, _ = loader.load_skills()
 
-        assistant = ChatAssistant(
-            agent=None,  # type: ignore[arg-type]
-            skills=skills,
-            cwd=tmpdir,
-        )
+        harness = _StubHarness()
+        runtime = SkillRuntime(skills, harness, cwd=tmpdir)  # type: ignore[arg-type]
 
-        expanded = assistant._expand_skill_command("/skill:my-skill hello")
+        expanded = await runtime.expand_user_message("/skill:my-skill hello")
         assert "Skill content here" in expanded
         assert "hello" in expanded
+        assert harness.activations == [("my-skill", "injected")]
 
 
-def test_chat_assistant_expand_unknown_skill():
-    assistant = ChatAssistant(
-        agent=None,  # type: ignore[arg-type]
-        skills=[],
-        cwd="/tmp",
-    )
-    text = assistant._expand_skill_command("/skill:unknown hello")
+async def test_skill_runtime_expand_unknown_skill():
+    runtime = SkillRuntime([], _StubHarness(), cwd="/tmp")  # type: ignore[arg-type]
+    text = await runtime.expand_user_message("/skill:unknown hello")
     assert text == "/skill:unknown hello"

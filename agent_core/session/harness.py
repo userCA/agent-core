@@ -447,7 +447,7 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
 
         async def _do_run() -> None:
             nonlocal last_assistant
-            from agent_core.observability import generate_run_id, observe, _resolve_observe_user_id
+            from agent_core.observability import generate_run_id, observe, resolve_observe_user_id
 
             snapshot = self.create_turn_snapshot()
             context = AgentContext(
@@ -557,7 +557,7 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
                 provider_name=provider_name,
                 model_id=model_id,
                 system_prompt=context.system_prompt or "",
-                user_id=_resolve_observe_user_id(self),
+                user_id=resolve_observe_user_id(self),
             ):
                 try:
                     assistants = await run_agent_loop(
