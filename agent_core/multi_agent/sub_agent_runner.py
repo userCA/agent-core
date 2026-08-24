@@ -9,6 +9,8 @@ from typing import Any, Awaitable, Callable
 
 from agent_core.core.content import TextContent
 from agent_core.core.messages import AssistantMessage
+from agent_core.tools.a2a_tool import A2AAgentTool
+from agent_core.tools.base import ToolContext
 from agent_core.multi_agent.profile_registry import AgentProfileRegistry
 from agent_core.multi_agent.sub_agent_factory import SubAgentFactory
 from agent_core.multi_agent.types import AgentProfile, SubAgentResult, SubAgentStatus
@@ -120,6 +122,17 @@ class SubAgentRunner:
                             error_message="aborted before start",
                             duration_ms=int((time.perf_counter() - started) * 1000),
                         )
+                    if profile.transport == "a2a":
+                        return await self._run_remote(
+                            profile,
+                            task,
+                            delegation_id=delegation_id,
+                            mode=mode,
+                            index=index,
+                            total=total,
+                            signal=signal,
+                            on_progress=on_progress,
+                        )
                     harness, session_id = await self._factory.create(profile)
                     async with self._lock:
                         self._active[session_id] = harness
@@ -199,6 +212,103 @@ class SubAgentRunner:
             },
         )
         return result
+
+    async def _run_remote(
+        self,
+        profile: AgentProfile,
+        task: str,
+        *,
+        delegation_id: str,
+        mode: str = "single",
+        index: int = 0,
+        total: int = 1,
+        signal: asyncio.Event | None = None,
+        on_progress: ProgressCallback | None = None,
+    ) -> SubAgentResult:
+        """Execute a task against a remote A2A agent profile.
+
+        The remote agent is wrapped as an :class:`A2AAgentTool`; progress and
+        abort map onto the same delegation event flow as local sub-agents.
+        ``session_id`` carries the A2A task id so callers can correlate.
+        """
+        started = time.perf_counter()
+        if not profile.endpoint:
+            return SubAgentResult(
+                agent_name=profile.name,
+                task=task,
+                status="failed",
+                response_text="",
+                error_message="a2a profile missing endpoint",
+                duration_ms=int((time.perf_counter() - started) * 1000),
+            )
+        tool = A2AAgentTool(
+            name=profile.name,
+            description=profile.description,
+            base_url=profile.endpoint,
+            token_env=profile.auth_token_env,
+            timeout_seconds=profile.timeout_seconds,
+        )
+
+        async def _on_update(result: Any) -> None:
+            if on_progress is None:
+                return
+            payload = (result.details or {}).get("delegation") if result.details else None
+            if payload is None:
+                return
+            res = on_progress(payload)
+            if inspect.isawaitable(res):
+                await res
+
+        ctx = ToolContext(signal=signal, on_update=_on_update)
+        result_status: SubAgentStatus
+        try:
+            result = await tool.execute("", {"prompt": task}, ctx)
+        except Exception as exc:
+            result_status = "failed"
+            text = ""
+            error_message = str(exc)
+            task_id = None
+        else:
+            details = result.details or {}
+            delegation = details.get("delegation") or {}
+            status = delegation.get("status") or "failed"
+            result_status = (
+                "completed" if status == "completed"
+                else "aborted" if status in ("aborted", "canceled")
+                else "failed"
+            )
+            text = "".join(
+                c.text for c in result.content if isinstance(c, TextContent)
+            )
+            error_message = delegation.get("error_message")
+            task_id = delegation.get("task_id")
+        sub = SubAgentResult(
+            agent_name=profile.name,
+            task=task,
+            status=result_status,
+            response_text=text,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            error_message=error_message,
+            session_id=task_id,
+        )
+        await self._emit(
+            on_progress,
+            {
+                "type": "delegation",
+                "phase": "agent_end",
+                "mode": mode,
+                "delegation_id": delegation_id,
+                "agent": profile.name,
+                "task": task,
+                "status": sub.status,
+                "index": index,
+                "total": total,
+                "summary": (sub.response_text or "")[:200],
+                "error_message": sub.error_message,
+                "session_id": sub.session_id,
+            },
+        )
+        return sub
 
     async def run_parallel(
         self,

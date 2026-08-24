@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 IsolationMode = Literal["isolated", "forked"]
 DelegationMode = Literal["single", "parallel", "chain"]
+AgentTransport = Literal["local", "a2a"]
 SubAgentStatus = Literal["completed", "failed", "aborted"]
 
 SystemPromptValue = str | Callable[..., Awaitable[str] | str]
@@ -27,6 +28,12 @@ class AgentProfile:
     isolation: IsolationMode = "isolated"
     max_concurrency: int = 1
     allow_nested_delegate: bool = False
+    # Remote agent transport (standard A2A). When transport="a2a", the
+    # profile must set ``endpoint``; ``system_prompt``/``model`` are ignored.
+    transport: AgentTransport = "local"
+    endpoint: str | None = None
+    auth_token_env: str | None = None
+    timeout_seconds: float = 120.0
 
 
 @dataclass
