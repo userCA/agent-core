@@ -158,6 +158,7 @@ export interface SelectOption {
 export interface MessageEndEvent {
   event: 'message_end';
   usage: UsageInfo | null;
+  run_id?: string;
 }
 
 export interface UsageInfo {

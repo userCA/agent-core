@@ -13,6 +13,7 @@ from typing import Any
 
 from agent_core.core.events import (
     AgentEvent,
+    CompactionEvent,
     HumanInputRequired,
     MessageEnd,
     MessageStart,
@@ -264,6 +265,18 @@ def agent_event_to_sse_json(
     # -- MessageStart (currently a no-op; server emits message.start) ---------
     if isinstance(evt, MessageStart):
         return None
+
+    # -- CompactionEvent — notify frontend of context compaction --------------
+    if isinstance(evt, CompactionEvent):
+        return {
+            "sse_event": "action",
+            "data": {
+                "actionType": "context.compacted",
+                "tokensBefore": evt.tokens_before,
+                "tokensAfter": evt.tokens_after,
+                "reason": evt.reason,
+            },
+        }
 
     # -- MessageUpdate (text / thinking / tool-call deltas) --------------------
     if isinstance(evt, MessageUpdate):

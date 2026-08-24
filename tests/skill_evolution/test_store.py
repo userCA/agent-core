@@ -79,6 +79,28 @@ class TestInMemorySkillEvolutionStore:
         assert len(failures) == 1
         assert failures[0].execution_outcome == ExecutionOutcome.FAILURE
 
+    async def test_get_traces_merges_feedback_overlay(self, store):
+        main = SkillEvolutionTrace(
+            trace_id="t1",
+            skill_name="demo",
+            user_query="q",
+            run_id="run-1",
+        )
+        await store.save_trace(main)
+        overlay = SkillEvolutionTrace(
+            trace_id="t1-feedback",
+            skill_name="",
+            run_id="run-1",
+            user_feedback="thumbs down",
+            human_signal={"vote": "dislike"},
+            execution_details={"type": "feedback", "original_run_id": "run-1"},
+        )
+        await store.save_trace(overlay)
+        traces = await store.get_traces(skill_name="demo")
+        assert len(traces) == 1
+        assert traces[0].human_signal == {"vote": "dislike"}
+        assert traces[0].user_feedback == "thumbs down"
+
     async def test_pagination(self, store):
         # Create 5 traces
         for i in range(5):

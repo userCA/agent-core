@@ -1,6 +1,6 @@
 # Skill 自进化：现状缺口与完善路线图
 
-> **日期**：2026-08-03  
+> **日期**：2026-08-03（初版）· **2026-08-17 续**：下一步以 [`docs/superpowers/specs/2026-08-17-trace-quality-and-eval-loop-design.md`](./superpowers/specs/2026-08-17-trace-quality-and-eval-loop-design.md) 为准。  
 > **目的**：基于本地实测与代码核对，记录「库已齐、闭环未通」的真实状态，并给出可执行的后续开发优先级。  
 > **相关文档**：[`skill-self-evolution.md`](./skill-self-evolution.md)（能力说明）、[`superpowers/specs/2026-07-23-skill-grpo-evolution-design.md`](./superpowers/specs/2026-07-23-skill-grpo-evolution-design.md)（GRPO 设计）、[`agent-framework-optimization-plan-phase2.md`](./agent-framework-optimization-plan-phase2.md) §3（已知工程债）
 
@@ -264,3 +264,5 @@ Week D+（P3/P4）
 | 2026-08-03 | **P0–P2 首波落地**：collector 归因/query/outcome 修复；Scene 注册 skill→tool；analyze 接 provider；analyzed cursor 持久化；steps 失败 heuristic；accept 默认过验证门（`force` 可选） |
 | 2026-08-03 | **P3 scheduler**：`evolution_scheduler.py` + `evolution_service.py`；`ENABLE_EVOLUTION_SCHEDULER`；`/skills/evolution/scheduler/status` |
 | 2026-08-03 | **P2.2 agent_runner**：`ValidationHarnessRunner` + trace 派生 test cases；accept 默认真实 before/after 验证 |
+| 2026-08-17 | 复核：盘上 440 条 jsonl 仍为 7-31 脏数据；SkillStart 未进 harness 总线导致修复后漏采。后续开发改走 [trace-quality spec](./superpowers/specs/2026-08-17-trace-quality-and-eval-loop-design.md) + [plan](./superpowers/plans/2026-08-17-trace-quality-and-eval-loop.md)，本文 P0–P4 不再作为施工清单 |
+| 2026-08-17（实施） | **阶段 1+2 代码落地**：`emit_event`、collector `run_id`、脏 jsonl 隔离、SSE `runId`、聊天 👍/👎、feedback overlay 合并、Langfuse Score（无 SDK）。待手工验收新 jsonl 与 Langfuse 面板 |

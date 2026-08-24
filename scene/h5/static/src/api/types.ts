@@ -40,6 +40,7 @@ export interface MessageEnd {
   stopReason: StopReason;
   completedAt: number;
   usage: Usage | null;
+  runId?: string;
 }
 
 export interface MessageError {

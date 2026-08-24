@@ -81,6 +81,7 @@ class SkillTraceCollector(Extension):
         self._pending_args: dict[str, dict[str, Any]] = {}
         self._active_group_id: str | None = None
         self._active_task_key: str | None = None
+        self._active_run_id: str = ""
         self._consecutive_failures: int = 0
 
     @property
@@ -131,6 +132,7 @@ class SkillTraceCollector(Extension):
             self._turn_active_skills.clear()
             self._pending_steps.clear()
             self._pending_args.clear()
+            self._active_run_id = evt.run_id or ""
             # Keep _active_group_id / _active_task_key across starts within a GroupRollout.
 
         elif isinstance(evt, SkillStart):
@@ -184,6 +186,7 @@ class SkillTraceCollector(Extension):
             trace = SkillEvolutionTrace(
                 trace_id=str(uuid.uuid4()),
                 session_id=ctx.session_id,
+                run_id=self._active_run_id,
                 user_query=user_query,
                 skill_name=skill_name,
                 loaded_rules=rule_ids,
@@ -211,6 +214,13 @@ class SkillTraceCollector(Extension):
         """Return skill names to trace for this turn (conservative attribution)."""
         if self._turn_active_skills:
             return sorted(self._turn_active_skills)
+
+        activations = getattr(ctx.harness, "skill_activations", None) or []
+        names = sorted({name for name, _src in activations if name})
+        if names:
+            for name in names:
+                self._activate_skill(name)
+            return names
 
         injected = self._extract_injected_skill_names(ctx)
         if injected:
@@ -391,28 +401,42 @@ class SkillTraceCollector(Extension):
 
     async def record_user_feedback(
         self,
-        trace_id: str,
-        feedback: str,
+        trace_id: str = "",
+        feedback: str = "",
         was_helpful: bool | None = None,
+        *,
+        run_id: str | None = None,
     ) -> None:
-        """Manually attach user feedback to a trace (append-only)."""
+        """Manually attach user feedback to a trace (append-only overlay)."""
         if was_helpful is True:
             outcome = ExecutionOutcome.SUCCESS
+            human_signal: dict[str, Any] | None = {"vote": "like"}
         elif was_helpful is False:
             outcome = ExecutionOutcome.FAILURE
+            human_signal = {"vote": "dislike"}
         else:
             outcome = ExecutionOutcome.PARTIAL
+            human_signal = None
+
+        key = trace_id or run_id or "unknown"
+        details: dict[str, Any] = {"type": "feedback"}
+        if trace_id:
+            details["original_trace_id"] = trace_id
+        if run_id:
+            details["original_run_id"] = run_id
 
         feedback_trace = SkillEvolutionTrace(
-            trace_id=f"{trace_id}-feedback",
+            trace_id=f"{key}-feedback",
+            run_id=run_id or "",
             user_query="",
             skill_name="",
             execution_outcome=outcome,
-            user_feedback=feedback,
-            execution_details={"original_trace_id": trace_id, "type": "feedback"},
+            user_feedback=feedback or None,
+            human_signal=human_signal,
+            execution_details=details,
         )
         await self.store.save_trace(feedback_trace)
-        _log.debug("Recorded feedback for trace %s", trace_id)
+        _log.debug("Recorded feedback overlay for trace_id=%s run_id=%s", trace_id, run_id)
 
 
 def create_skill_trace_collector(

@@ -10,6 +10,7 @@ from agent_core.core.context import AgentContext
 from agent_core.core.events import (
     AgentEnd,
     AgentEvent,
+    CompactionEvent,
     MessageEnd,
     MessageStart,
     MessageUpdate,
@@ -49,6 +50,8 @@ class HarnessEventsMixin:
             self.state.streaming_message = None
             await self.flush_pending_writes()
             self.phase = AgentHarnessPhase.IDLE
+            # Run threshold compaction BEFORE notifying AgentEnd,
+            # so CompactionEvent reaches the SSE stream before it closes.
             if self._compactor is not None:
                 await self._maybe_threshold_compact()
 
@@ -77,6 +80,11 @@ class HarnessEventsMixin:
                 )
                 if compacted.summary and compacted.kept_count > 0:
                     await self._apply_compaction_result(compacted, messages)
+                    await self._notify_listeners(CompactionEvent(
+                        tokens_before=compacted.tokens_before,
+                        tokens_after=compacted.tokens_after,
+                        reason="overflow",
+                    ))
                     return True
                 return False
             except Exception as exc:
@@ -107,19 +115,44 @@ class HarnessEventsMixin:
             model = getattr(self.state, "model", None)
             context_window = getattr(model, "context_window", 0) if model else 0
             messages = list(self.state.messages)
+            from agent_core.compaction.strategies import total_tokens as _tt
+            _current_tokens = _tt(messages)
+            _compactor_threshold = getattr(self._compactor, '_threshold', 0.8)
+            _threshold_tokens = int(context_window * _compactor_threshold) if context_window else 0
+            logger.info(
+                "[Compaction] Check: messages=%d tokens=%d threshold=%d (window=%d, ratio=%.2f) needs_compact=%s",
+                len(messages), _current_tokens, _threshold_tokens, context_window, _compactor_threshold,
+                _current_tokens >= _threshold_tokens if _threshold_tokens else False,
+            )
             if not context_window or not self._compactor.should_compact(
                 messages, context_window=context_window,
             ):
                 return
             if self._phase != AgentHarnessPhase.IDLE:
+                logger.info("[Compaction] Skipped: phase=%s (not IDLE)", self._phase)
                 return
+            logger.info("[Compaction] Executing threshold compaction...")
             self.phase = AgentHarnessPhase.COMPACTION
             try:
                 compacted = await self._compactor.compact(
                     messages, reason="threshold", signal=None,
                 )
+                logger.info(
+                    "[Compaction] Result: summary=%d chars kept=%d tokens %d->%d",
+                    len(compacted.summary), compacted.kept_count,
+                    compacted.tokens_before, compacted.tokens_after,
+                )
                 if compacted.summary and compacted.kept_count > 0:
                     await self._apply_compaction_result(compacted, messages)
+                    await self._notify_listeners(CompactionEvent(
+                        tokens_before=compacted.tokens_before,
+                        tokens_after=compacted.tokens_after,
+                        reason="threshold",
+                    ))
+                    logger.info("[Compaction] Applied successfully")
+                else:
+                    logger.info("[Compaction] Not applied: summary_empty=%s kept=%d",
+                                not compacted.summary, compacted.kept_count)
             finally:
                 self.phase = AgentHarnessPhase.IDLE
         except Exception as exc:

@@ -16,10 +16,10 @@ load_dotenv()
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from agent_core.core.content import ImageContent
-from agent_core.core.events import AgentEnd, AgentEvent
+from agent_core.core.events import AgentEnd, AgentEvent, AgentStart
 from agent_core.resources.personas import load_personas
 
 from scene.h5.events import agent_event_to_sse_json, companion_event_to_v1, create_tracker
@@ -244,6 +244,8 @@ async def _event_stream(
 
     unsub = assistant.on_event(_handler)
 
+    last_run_id = ""
+
     try:
         # Convert multimodal content blocks to images for the Agent
         images = _content_blocks_to_images(content_blocks)
@@ -302,9 +304,16 @@ async def _event_stream(
                     event="action",
                 )
                 continue
+            if isinstance(evt, AgentStart):
+                last_run_id = evt.run_id or ""
             sse_out = agent_event_to_sse_json(evt, tracker=tracker)
             if sse_out is not None:
-                yield _emit_v1(sse_out)
+                outputs = sse_out if isinstance(sse_out, list) else [sse_out]
+                for item in outputs:
+                    data = item.get("data") or {}
+                    if data.get("type") == "message.end" and last_run_id:
+                        data["runId"] = last_run_id
+                    yield _emit_v1(item)
             if isinstance(evt, AgentEnd):
                 break
 
@@ -870,9 +879,24 @@ class EvolutionAnalyzeRequest(BaseModel):
 
 
 class EvolutionFeedbackRequest(BaseModel):
-    trace_id: str = Field(..., min_length=1, max_length=200)
-    feedback: str = Field(..., min_length=1, max_length=4000)
+    trace_id: str | None = Field(default=None, max_length=200)
+    run_id: str | None = Field(default=None, max_length=64)
+    session_id: str | None = Field(default=None, max_length=200)
+    feedback: str = Field(default="", max_length=4000)
     was_helpful: bool | None = None
+
+    @field_validator("trace_id", "run_id", mode="before")
+    @classmethod
+    def _empty_str_to_none(cls, v: Any) -> Any:
+        if v == "":
+            return None
+        return v
+
+    @model_validator(mode="after")
+    def _need_id(self) -> EvolutionFeedbackRequest:
+        if not self.trace_id and not self.run_id:
+            raise ValueError("trace_id or run_id required")
+        return self
 
 
 class EvolutionProposalAction(BaseModel):
@@ -911,20 +935,29 @@ async def get_evolution_summary() -> dict[str, Any]:
 
 @app.post("/skills/evolution/feedback")
 async def record_evolution_feedback(body: EvolutionFeedbackRequest) -> dict[str, Any]:
-    """Attach user feedback to a skill evolution trace (append-only)."""
+    """Attach user feedback to a skill evolution trace (append-only overlay)."""
     from fastapi import HTTPException
 
     from scene.h5.evolution_config import build_skill_trace_collector
+    from scene.http_sse.langfuse_score import submit_user_score
 
     collector = build_skill_trace_collector()
     if collector is None:
         raise HTTPException(status_code=404, detail="skill evolution disabled")
     await collector.record_user_feedback(
-        body.trace_id,
+        body.trace_id or "",
         body.feedback,
         was_helpful=body.was_helpful,
+        run_id=body.run_id,
     )
-    return {"ok": True, "trace_id": body.trace_id}
+    if body.was_helpful is not None and body.run_id:
+        await submit_user_score(
+            run_id=body.run_id,
+            session_id=body.session_id or "",
+            value=1.0 if body.was_helpful else 0.0,
+            comment=body.feedback,
+        )
+    return {"ok": True, "trace_id": body.trace_id, "run_id": body.run_id}
 
 
 @app.post("/skills/evolution/analyze")

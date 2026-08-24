@@ -1,6 +1,6 @@
 # Agent 可观测性与质量把控计划
 
-> 状态：**轨 A 已完成**（2026-07-29 实施）；**轨 B 阶段 1 已实施**（2026-08-11，OTLP 采数）；**阶段 2 待定**（Score/Dataset/反馈）  
+> 状态：**轨 A 已完成**（2026-07-29 实施）；**轨 B 阶段 1 已实施**（2026-08-11，OTLP 采数）；**阶段 2 最小打分**见 [`docs/superpowers/specs/2026-08-17-trace-quality-and-eval-loop-design.md`](./superpowers/specs/2026-08-17-trace-quality-and-eval-loop-design.md)（Dataset/回放仍待定）  
 > 目的：指导后续优化——解决「调试看不清」与「线上 prompt/质量没法评」双痛点，并约束 AI 加速开发下的质量闸门。  
 > 相关：`agent_core/observability.py`、`docs/design.md` §9 观察性、`docs/agent-framework-optimization-plan-phase2.md` §5、`docs/reference/agent_protocol.md` §9  
 > **轨 B 实施规格**：`docs/superpowers/specs/2026-08-11-langfuse-scene-integration-design.md`（两阶段：OTLP 采数 → Score/Dataset）  

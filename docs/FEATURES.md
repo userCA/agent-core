@@ -23,7 +23,7 @@
 | Header 标题 | ✅ 完成 | 对称三区布局，标题可点击唤起宠物，新建会话右侧按钮 |
 | 工具面板 | ✅ 完成 | 定位限制在手机框架内，不再超出操作界面 |
 | 错误处理 | ✅ 完成 | 中文友好提示 + 去重 + 429 自动重试 |
-| 消息气泡 | ✅ 完成 | user/assistant/error 三种样式，用户气泡 min-width: 120px，推理与结果拆分独立卡片 |
+| 消息气泡 | ✅ 完成 | user/assistant/error 三种样式，用户气泡 min-width: 120px，推理与结果拆分独立卡片；助手消息 👍/👎 反馈（需 runId） |
 | 历史记录 | ✅ 完成 | 卡片式布局 + 搜索 |
 | 欢迎页选项 | ✅ 完成 | 4 分类 × 4 选项，全部可用，工具链完整 |
 | SuggestionPills | ✅ 完成 | 仅会话中展示快捷操作，欢迎页隐藏 |
@@ -98,6 +98,9 @@
 | 调试回放 | ✅ 完成 | `RunReplayRecorder`（`ENABLE_RUN_REPLAY=1`）将 run 事件摘要落本地 JSON，http_sse + H5 场景均已接入 |
 | OTEL Exporter | ✅ 完成 | `configure_otel_exporter()` 支持 console/otlp，http_sse + H5 场景 lifespan 均已配置 |
 | Langfuse OTLP（轨 B 阶段 1） | ✅ 完成 | `configure_langfuse_otel_from_env` + harness `observe()`；GenAI 属性对齐 Langfuse Dashboard |
+| Langfuse Score 用户反馈（轨 B 阶段 2 最小） | ✅ 完成 | `/skills/evolution/feedback` 可选 POST Score（httpx，无 langfuse SDK）；`LANGFUSE_*` 未配置时静默跳过 |
+| Skill Evolution trace 采集修复 | ✅ 完成 | `emit_event` 总线 + collector `run_id` + `skill_activations` 归因；脏 jsonl 隔离脚本 |
+| Skill Evolution 聊天反馈 | ✅ 完成 | 助手气泡 👍/👎（需 `runId`）→ feedback overlay 合并主 trace |
 | Skill Evolution Pending Store | ✅ 完成 | JSONL 持久化存储待审批提案，有 pending 时阻塞新进化周期，支持 force 绕过 |
 | Skill Evolution 前端阻塞提示 | ✅ 完成 | EvolutionPanel 检测 blocked 状态并弹出 toast 提示用户先处理现有提案 |
 | Session tree / leaf | ❌ 不做 | 与 TS navigateTree 不对齐；文档非目标 |

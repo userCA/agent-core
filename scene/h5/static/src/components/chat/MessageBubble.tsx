@@ -1,6 +1,9 @@
 import React, { useCallback, useState } from 'react';
 import { motion } from 'motion/react';
 import type { ChatMessage } from '../../stores/chat-store';
+import { useChatStore } from '../../stores/chat-store';
+import { useSessionStore } from '../../stores/session-store';
+import { submitRunFeedback } from '../../api/client';
 import Markdown from '../shared/Markdown';
 import TraceCard from './TraceCard';
 import AudioPlayer from '../tools/AudioPlayer';
@@ -8,6 +11,64 @@ import Icon, { ICON_SIZES } from '../shared/Icon';
 import TooltipWrap from '../shared/TooltipWrap';
 import { useToastStore } from '../../stores/toast-store';
 import './MessageBubble.css';
+
+interface FeedbackButtonsProps {
+  runId?: string;
+  feedbackVote?: 'up' | 'down';
+  messageId: string;
+}
+
+function FeedbackButtons({ runId, feedbackVote, messageId }: FeedbackButtonsProps) {
+  const addToast = useToastStore((s) => s.addToast);
+  const sessionId = useSessionStore((s) => s.sessionId);
+  const setMessageFeedbackVote = useChatStore((s) => s.setMessageFeedbackVote);
+
+  const handleFeedback = useCallback(async (helpful: boolean) => {
+    if (!runId || feedbackVote) return;
+    const vote = helpful ? 'up' : 'down';
+    setMessageFeedbackVote(messageId, vote);
+    try {
+      await submitRunFeedback({
+        run_id: runId,
+        was_helpful: helpful,
+        session_id: sessionId ?? undefined,
+      });
+      addToast('感谢反馈', 'success');
+    } catch {
+      setMessageFeedbackVote(messageId, undefined);
+      addToast('反馈提交失败', 'error');
+    }
+  }, [runId, feedbackVote, messageId, sessionId, setMessageFeedbackVote, addToast]);
+
+  if (!runId) return null;
+
+  return (
+    <>
+      <TooltipWrap label="有帮助">
+        <button
+          type="button"
+          className={`msg-action-btn${feedbackVote === 'up' ? ' is-active' : ''}`}
+          onClick={() => handleFeedback(true)}
+          disabled={!!feedbackVote}
+          aria-label="有帮助"
+        >
+          <Icon name="thumbs-up" size={12} />
+        </button>
+      </TooltipWrap>
+      <TooltipWrap label="没帮助">
+        <button
+          type="button"
+          className={`msg-action-btn${feedbackVote === 'down' ? ' is-active' : ''}`}
+          onClick={() => handleFeedback(false)}
+          disabled={!!feedbackVote}
+          aria-label="没帮助"
+        >
+          <Icon name="thumbs-down" size={12} />
+        </button>
+      </TooltipWrap>
+    </>
+  );
+}
 
 interface Props {
   message: ChatMessage;
@@ -35,7 +96,7 @@ const MoonAvatar = () => (
 );
 
 export default function MessageBubble({ message }: Props) {
-  const { role, content, usage, toolCallId, blocks, audios, timestamp } = message;
+  const { role, content, usage, toolCallId, blocks, audios, timestamp, runId, feedbackVote, id: messageId } = message;
   const [copied, setCopied] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
 
@@ -181,6 +242,7 @@ export default function MessageBubble({ message }: Props) {
                   {copied ? '已复制' : '复制'}
                 </button>
               </TooltipWrap>
+              <FeedbackButtons runId={runId} feedbackVote={feedbackVote} messageId={messageId} />
             </div>
             {usage && (
               <div className="usage-info">
@@ -205,6 +267,7 @@ export default function MessageBubble({ message }: Props) {
                   {copied ? '已复制' : '复制'}
                 </button>
               </TooltipWrap>
+              <FeedbackButtons runId={runId} feedbackVote={feedbackVote} messageId={messageId} />
             </div>
           </>
         )}

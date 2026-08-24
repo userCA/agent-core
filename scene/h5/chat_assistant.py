@@ -489,7 +489,13 @@ class ChatAssistant:
         if compaction_enabled():
             from agent_core.compaction import create_default_compactor
 
-            harness_kwargs["compactor"] = create_default_compactor()
+            _compact_threshold = float(os.environ.get("COMPACTION_THRESHOLD", "0.8"))
+            _compact_keep = int(os.environ.get("COMPACTION_KEEP_RECENT", "10"))
+            logger.info("[Compaction] Configured: threshold=%.2f keep_recent=%d", _compact_threshold, _compact_keep)
+            harness_kwargs["compactor"] = create_default_compactor(
+                threshold=_compact_threshold,
+                keep_recent=_compact_keep,
+            )
 
         if use_multi:
             from agent_core.multi_agent import create_multi_agent_harness

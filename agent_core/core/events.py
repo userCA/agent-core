@@ -175,6 +175,14 @@ class ResourcesUpdate(_EventBase):
     previous_resources: Any = None
 
 
+class CompactionEvent(_EventBase):
+    """Context compaction was performed during this turn."""
+    type: Literal["compaction"] = "compaction"
+    tokens_before: int = 0
+    tokens_after: int = 0
+    reason: str = ""
+
+
 AgentEvent = Annotated[
     Union[
         AgentStart,
@@ -198,6 +206,7 @@ AgentEvent = Annotated[
         Settled,
         AbortEvent,
         ResourcesUpdate,
+        CompactionEvent,
     ],
     Field(discriminator="type"),
 ]

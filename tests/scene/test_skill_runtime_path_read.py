@@ -39,10 +39,12 @@ def runtime(monkeypatch):
     emitted: list[str] = []
 
     async def handler(evt):
-        emitted.append(evt.skill_name)
+        name = getattr(evt, "skill_name", None)
+        if name:
+            emitted.append(name)
 
+    harness.subscribe(handler)
     rt = SkillRuntime([_skill()], harness, cwd="/tmp")
-    rt.bind_handlers([handler])
     return rt, emitted
 
 

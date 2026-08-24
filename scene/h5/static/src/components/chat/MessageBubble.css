@@ -297,6 +297,16 @@
     outline-offset: 2px;
 }
 
+.msg-action-btn.is-active {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.msg-action-btn:disabled {
+    opacity: 0.85;
+    cursor: default;
+}
+
 /* ── Date Divider ── */
 .date-divider {
     display: flex;

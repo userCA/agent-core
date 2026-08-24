@@ -69,6 +69,8 @@ export interface ChatMessage {
   usage?: Usage | null;
   toolCallId?: string;
   attachments?: string[];
+  runId?: string;
+  feedbackVote?: 'up' | 'down';
   timestamp: number;
 }
 
@@ -99,6 +101,7 @@ interface ChatState {
 
   // actions
   addMessage: (msg: ChatMessage) => void;
+  setMessageFeedbackVote: (id: string, vote: 'up' | 'down' | undefined) => void;
   setStreamingMessageId: (id: string | null) => void;
   setStreaming: (v: boolean) => void;
   appendText: (text: string) => void;
@@ -132,6 +135,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   addMessage: (msg) =>
     set((s) => ({ messages: [...s.messages, msg] })),
+
+  setMessageFeedbackVote: (id, vote) =>
+    set((s) => ({
+      messages: s.messages.map((m) => (m.id === id ? { ...m, feedbackVote: vote } : m)),
+    })),
 
   setStreamingMessageId: (id) => set({ streamingMessageId: id }),
   setStreaming: (v) => set({ isStreaming: v }),

@@ -1,6 +1,9 @@
 import React, { useCallback, useState } from 'react';
 import { motion } from 'motion/react';
 import type { ChatMessage } from '../../stores/chat-store';
+import { useChatStore } from '../../stores/chat-store';
+import { useSessionStore } from '../../stores/session-store';
+import { submitRunFeedback } from '../../api/client';
 import Markdown from '../shared/Markdown';
 import BlocksRenderer from './BlocksRenderer';
 import AudioPlayer from '../tools/AudioPlayer';
@@ -14,9 +17,11 @@ interface Props {
 }
 
 export default function MessageBubble({ message }: Props) {
-  const { role, content, usage, toolCallId, blocks, audios } = message;
+  const { role, content, usage, toolCallId, blocks, audios, runId, feedbackVote, id: messageId } = message;
   const [copied, setCopied] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
+  const sessionId = useSessionStore((s) => s.sessionId);
+  const setMessageFeedbackVote = useChatStore((s) => s.setMessageFeedbackVote);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(content).then(() => {
@@ -27,6 +32,23 @@ export default function MessageBubble({ message }: Props) {
       addToast('复制失败', 'error');
     });
   }, [content, addToast]);
+
+  const handleFeedback = useCallback(async (helpful: boolean) => {
+    if (!runId || feedbackVote) return;
+    const vote = helpful ? 'up' : 'down';
+    setMessageFeedbackVote(messageId, vote);
+    try {
+      await submitRunFeedback({
+        run_id: runId,
+        was_helpful: helpful,
+        session_id: sessionId ?? undefined,
+      });
+      addToast('感谢反馈', 'success');
+    } catch {
+      setMessageFeedbackVote(messageId, undefined);
+      addToast('反馈提交失败', 'error');
+    }
+  }, [runId, feedbackVote, messageId, sessionId, setMessageFeedbackVote, addToast]);
 
   if (role === 'user') {
     return (
@@ -107,6 +129,32 @@ export default function MessageBubble({ message }: Props) {
               {copied ? '已复制' : '复制'}
             </button>
           </TooltipWrap>
+          {runId && (
+            <>
+              <TooltipWrap label="有帮助">
+                <button
+                  type="button"
+                  className={`msg-action-btn${feedbackVote === 'up' ? ' is-active' : ''}`}
+                  onClick={() => handleFeedback(true)}
+                  disabled={!!feedbackVote}
+                  aria-label="有帮助"
+                >
+                  <Icon name="thumbs-up" size={12} />
+                </button>
+              </TooltipWrap>
+              <TooltipWrap label="没帮助">
+                <button
+                  type="button"
+                  className={`msg-action-btn${feedbackVote === 'down' ? ' is-active' : ''}`}
+                  onClick={() => handleFeedback(false)}
+                  disabled={!!feedbackVote}
+                  aria-label="没帮助"
+                >
+                  <Icon name="thumbs-down" size={12} />
+                </button>
+              </TooltipWrap>
+            </>
+          )}
         </div>
         {usage && (
           <div className="usage-info">

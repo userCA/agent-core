@@ -44,6 +44,13 @@ from .types import (
 
 _log = logging.getLogger(__name__)
 
+
+def is_legacy_user_query(query: str) -> bool:
+    """Detect pre-P0 traces with TextContent/ImageContent repr in user_query."""
+    q = query or ""
+    return "[TextContent" in q or "ImageContent(" in q
+
+
 _ANALYZE_FAILURE_PROMPT = """You are a skill evolution analyst. Given a failed execution trace, propose a specific change to the skill rule that would prevent this failure.
 
 Trace data:
@@ -167,13 +174,22 @@ class OfflineEvolutionAgent:
             limit=self.batch_size,
         )
 
+        legacy_traces = [t for t in traces if is_legacy_user_query(t.user_query)]
+        traces = [t for t in traces if not is_legacy_user_query(t.user_query)]
+        skipped_legacy = len(legacy_traces)
+
         # Filter out already-analyzed traces
         new_traces = [t for t in traces if t.trace_id not in self._analyzed_trace_ids]
         skipped = len(traces) - len(new_traces)
         if skipped:
             _log.info(f"[EvolutionAgent] Skipping {skipped} already-analyzed traces")
         if not new_traces:
-            return {"status": "skipped", "reason": "no_new_traces", "trace_count": len(traces)}
+            return {
+                "status": "skipped",
+                "reason": "no_new_traces",
+                "trace_count": len(traces),
+                "skipped_legacy": skipped_legacy,
+            }
 
         _log.info(f"[EvolutionAgent] Analyzing {len(new_traces)} new traces for {skill_name}")
 
@@ -230,7 +246,8 @@ class OfflineEvolutionAgent:
             "status": "completed",
             "cycle_id": str(uuid.uuid4()),
             "skill_name": skill_name,
-            "traces_analyzed": len(traces),
+            "traces_analyzed": len(new_traces),
+            "skipped_legacy": skipped_legacy,
             "success_traces": len(success_traces),
             "failure_traces": len(failure_traces),
             "proposals_generated": len(proposals),

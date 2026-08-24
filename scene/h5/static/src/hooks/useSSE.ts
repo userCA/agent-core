@@ -95,6 +95,7 @@ export function useSSE() {
   const currentPlanStepTitleRef = useRef<string | null>(null);
   // Fade-out timeout ref — prevents stale cleanup from interfering with new streams
   const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentRunIdRef = useRef('');
 
   const {
     setStreaming, addMessage, setStreamingMessageId,
@@ -157,6 +158,7 @@ export function useSSE() {
     if (type === 'message.start') {
       const e = evt as MessageStart;
       setSessionId(e.sessionId);
+      if (e.runId) currentRunIdRef.current = e.runId;
       // Mark turn boundary — blocks from this index belong to the new turn
       turnStartIdxRef.current = blocksRef.current.length;
       // New LLM turn always starts as intermediate until message.end says otherwise
@@ -164,6 +166,7 @@ export function useSSE() {
     }
     else if (type === 'message.end') {
       const e = evt as MessageEnd;
+      if (e.runId) currentRunIdRef.current = e.runId;
       setUsage(e.usage);
       // Back-tag current turn's blocks based on stopReason
       const phase: 'intermediate' | 'final' = e.stopReason === 'end_turn' ? 'final' : 'intermediate';
@@ -201,6 +204,15 @@ export function useSSE() {
         || rawMsg.includes('Environment variable') || rawMsg.includes('not set for provider')
       ) {
         friendly = '认证失败，请检查 .env 中的 API 密钥设置';
+      } else if (
+        rawMsg.includes('PROMPT_BUDGET_EXCEEDED') || rawMsg.includes('prompt_budget')
+      ) {
+        friendly = '对话上下文过长，系统正在尝试压缩后继续，请稍后重试';
+      } else if (
+        rawMsg.includes('context_overflow') || rawMsg.includes('context length')
+        || rawMsg.includes('maximum context') || rawMsg.includes('too long')
+      ) {
+        friendly = '对话内容超出模型上下文限制，请开启新对话后重试';
       }
       if (!errorShownRef.current) {
         errorShownRef.current = true;
@@ -414,6 +426,17 @@ export function useSSE() {
           setHitlRequest(null);
           break;
         }
+
+        case 'context.compacted': {
+          const before = ae.tokensBefore || 0;
+          const after = ae.tokensAfter || 0;
+          const ratio = before > 0 ? Math.round((1 - after / before) * 100) : 0;
+          useToastStore.getState().addToast(
+            `上下文已压缩 (${before.toLocaleString()} → ${after.toLocaleString()} tokens, 减少 ${ratio}%)`,
+            'info',
+          );
+          break;
+        }
       }
     }
     // -- Content blocks (phase field present) --
@@ -556,6 +579,7 @@ export function useSSE() {
     blocksRef.current = [];
     errorShownRef.current = false;
     turnStartIdxRef.current = 0;
+    currentRunIdRef.current = '';
     currentTurnPhaseRef.current = 'intermediate';
     const assistantId = `asst-${Date.now()}`;
     setStreamingMessageId(assistantId);
@@ -682,6 +706,7 @@ export function useSSE() {
         widgets: finalState.widgets.length > 0 ? [...finalState.widgets] : undefined,
         audios: finalState.audios.length > 0 ? [...finalState.audios] : undefined,
         usage: finalState.usage,
+        runId: currentRunIdRef.current || undefined,
         timestamp: Date.now(),
       });
     } catch (err: unknown) {

@@ -26,6 +26,7 @@ def _trace_to_dict(trace: SkillEvolutionTrace) -> dict:
         "trace_id": trace.trace_id,
         "timestamp": trace.timestamp,
         "session_id": trace.session_id,
+        "run_id": trace.run_id,
         "user_query": trace.user_query,
         "skill_name": trace.skill_name,
         "loaded_rules": trace.loaded_rules,
@@ -63,6 +64,7 @@ def _trace_from_dict(data: dict) -> SkillEvolutionTrace:
         trace_id=data["trace_id"],
         timestamp=data.get("timestamp", 0.0),
         session_id=data.get("session_id"),
+        run_id=data.get("run_id", ""),
         user_query=data.get("user_query", ""),
         skill_name=data.get("skill_name", ""),
         loaded_rules=data.get("loaded_rules", []),
@@ -78,6 +80,65 @@ def _trace_from_dict(data: dict) -> SkillEvolutionTrace:
         advantage=data.get("advantage"),
         human_signal=data.get("human_signal"),
     )
+
+
+def _is_feedback_overlay(trace: SkillEvolutionTrace) -> bool:
+    details = trace.execution_details or {}
+    return details.get("type") == "feedback"
+
+
+def _merge_feedback_overlays(traces: list[SkillEvolutionTrace]) -> list[SkillEvolutionTrace]:
+    """Merge append-only feedback rows into their primary traces."""
+    overlays: list[SkillEvolutionTrace] = []
+    mains: list[SkillEvolutionTrace] = []
+    for trace in traces:
+        if _is_feedback_overlay(trace):
+            overlays.append(trace)
+        else:
+            mains.append(trace)
+    if not overlays:
+        return mains
+
+    by_trace_id = {t.trace_id: t for t in mains}
+    by_run_id: dict[str, list[SkillEvolutionTrace]] = {}
+    for t in mains:
+        if t.run_id:
+            by_run_id.setdefault(t.run_id, []).append(t)
+
+    for overlay in overlays:
+        details = overlay.execution_details or {}
+        orig_id = str(details.get("original_trace_id") or "")
+        orig_run = str(details.get("original_run_id") or overlay.run_id or "")
+        targets: list[SkillEvolutionTrace] = []
+        if orig_id and orig_id in by_trace_id:
+            targets = [by_trace_id[orig_id]]
+        elif orig_run and orig_run in by_run_id:
+            targets = by_run_id[orig_run]
+        for target in targets:
+            if overlay.user_feedback:
+                target.user_feedback = overlay.user_feedback
+            if overlay.human_signal:
+                target.human_signal = overlay.human_signal
+    return mains
+
+
+def _query_traces(
+    traces: list[SkillEvolutionTrace],
+    skill_name: str | None = None,
+    outcome: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[SkillEvolutionTrace]:
+    """Filter primary traces, merge matching feedback overlays, then paginate."""
+    overlays = [t for t in traces if _is_feedback_overlay(t)]
+    mains = [t for t in traces if not _is_feedback_overlay(t)]
+    if skill_name:
+        mains = [t for t in mains if t.skill_name == skill_name]
+    if outcome:
+        mains = [t for t in mains if t.execution_outcome.value == outcome]
+    merged = _merge_feedback_overlays(mains + overlays)
+    merged.sort(key=lambda t: t.timestamp, reverse=True)
+    return merged[offset : offset + limit]
 
 
 class SkillEvolutionStore(ABC):
@@ -169,17 +230,13 @@ class InMemorySkillEvolutionStore(SkillEvolutionStore):
         limit: int = 100,
         offset: int = 0,
     ) -> list[SkillEvolutionTrace]:
-        filtered = self._traces
-
-        if skill_name:
-            filtered = [t for t in filtered if t.skill_name == skill_name]
-        if outcome:
-            filtered = [t for t in filtered if t.execution_outcome.value == outcome]
-
-        # Sort by timestamp descending (newest first)
-        filtered.sort(key=lambda t: t.timestamp, reverse=True)
-
-        return filtered[offset : offset + limit]
+        return _query_traces(
+            self._traces,
+            skill_name=skill_name,
+            outcome=outcome,
+            limit=limit,
+            offset=offset,
+        )
 
     async def get_trace_count(
         self,
@@ -191,6 +248,7 @@ class InMemorySkillEvolutionStore(SkillEvolutionStore):
             filtered = [t for t in filtered if t.skill_name == skill_name]
         if outcome:
             filtered = [t for t in filtered if t.execution_outcome.value == outcome]
+        filtered = [t for t in filtered if not _is_feedback_overlay(t)]
         return len(filtered)
 
     async def delete_old_traces(self, older_than_days: int = 30) -> int:
@@ -280,24 +338,15 @@ class JsonlSkillEvolutionStore(SkillEvolutionStore):
                 line = line.strip()
                 if not line:
                     continue
+                traces.append(_trace_from_dict(json.loads(line)))
 
-                data = json.loads(line)
-                trace = _trace_from_dict(data)
-
-                # Apply filters
-                if skill_name and trace.skill_name != skill_name:
-                    continue
-                if outcome:
-                    # Handle both enum and string comparison
-                    trace_outcome = trace.execution_outcome.value if hasattr(trace.execution_outcome, 'value') else trace.execution_outcome
-                    if trace_outcome != outcome:
-                        continue
-
-                traces.append(trace)
-
-        # Sort by timestamp descending
-        traces.sort(key=lambda t: t.timestamp, reverse=True)
-        return traces[offset : offset + limit]
+        return _query_traces(
+            traces,
+            skill_name=skill_name,
+            outcome=outcome,
+            limit=limit,
+            offset=offset,
+        )
 
     async def get_trace_count(
         self,
@@ -316,6 +365,8 @@ class JsonlSkillEvolutionStore(SkillEvolutionStore):
                     continue
 
                 data = json.loads(line)
+                if _is_feedback_overlay(_trace_from_dict(data)):
+                    continue
 
                 if skill_name and data.get("skill_name") != skill_name:
                     continue

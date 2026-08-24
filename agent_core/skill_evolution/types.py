@@ -86,6 +86,7 @@ class SkillEvolutionTrace:
     trace_id: str
     timestamp: float = field(default_factory=time.time)
     session_id: str | None = None
+    run_id: str = ""
     user_query: str = ""
     skill_name: str = ""
     loaded_rules: list[str] = field(default_factory=list)

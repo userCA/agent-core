@@ -47,6 +47,8 @@ import {
   Sun,
   Tag,
   Trash2,
+  ThumbsDown,
+  ThumbsUp,
   Upload,
   User,
   Wrench,
@@ -105,7 +107,9 @@ type IconName =
   | 'bar-chart'
   | 'sparkles'
   | 'eye'
-  | 'calendar';
+  | 'calendar'
+  | 'thumbs-up'
+  | 'thumbs-down';
 
 export const ICON_SIZES = {
   sm: 12,
@@ -174,6 +178,8 @@ const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
   sparkles: Sparkles,
   eye: Eye,
   calendar: Calendar,
+  'thumbs-up': ThumbsUp,
+  'thumbs-down': ThumbsDown,
 };
 
 export default function Icon({

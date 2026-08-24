@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -79,14 +78,9 @@ class SkillRuntime:
     async def _emit_skill_start(self, skill: Skill, *, source: str) -> None:
         self._active_skills.add(skill.name)
         self.harness.record_skill_activation(skill.name, source)
-        skill_start = SkillStart(
-            skill_name=skill.name,
-            skill_description=skill.description,
+        await self.harness.emit_event(
+            SkillStart(skill_name=skill.name, skill_description=skill.description)
         )
-        for handler in list(self._handlers):
-            result = handler(skill_start)
-            if asyncio.iscoroutine(result):
-                await result
 
     async def handle_turn_end(self, handlers: list[EventHandler]) -> None:
         from agent_core.core.events import SkillEnd
@@ -94,11 +88,7 @@ class SkillRuntime:
         if not self._active_skills:
             return
         for skill_name in list(self._active_skills):
-            skill_end = SkillEnd(skill_name=skill_name)
-            for handler in list(handlers):
-                result = handler(skill_end)
-                if asyncio.iscoroutine(result):
-                    await result
+            await self.harness.emit_event(SkillEnd(skill_name=skill_name))
         self._active_skills.clear()
 
     def clear_on_agent_end(self) -> None:

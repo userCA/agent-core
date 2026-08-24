@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 import tempfile
 
 from agent_core.prompts.builder import SystemPromptBuilder
+from agent_core.resources.skill_activation import SkillActivationTracker, expand_skill_command
 from agent_core.resources.loader import ResourceLoader
 from agent_core.resources.types import Skill, SourceInfo
-from scene.cli.chat_assistant import ChatAssistant
 
 
 def test_system_prompt_builder():
@@ -46,7 +45,8 @@ def test_system_prompt_builder_with_skills():
     assert "Python skill" in prompt.text
 
 
-async def test_chat_assistant_expand_skill_command():
+def test_expand_skill_command():
+    """Skill command expansion is now handled by skill_activation.expand_skill_command."""
     with tempfile.TemporaryDirectory() as tmpdir:
         skill_dir = os.path.join(tmpdir, "my-skill")
         os.makedirs(skill_dir)
@@ -56,22 +56,20 @@ async def test_chat_assistant_expand_skill_command():
         loader = ResourceLoader(cwd=tmpdir, extra_skill_paths=[skill_dir])
         skills, _ = loader.load_skills()
 
-        assistant = ChatAssistant(
-            agent=None,  # type: ignore[arg-type]
-            skills=skills,
-            cwd=tmpdir,
+        tracker = SkillActivationTracker()
+        expanded, should_emit = expand_skill_command(
+            "/skill:my-skill hello", skills, tracker
         )
-
-        expanded = assistant._expand_skill_command("/skill:my-skill hello")
         assert "Skill content here" in expanded
         assert "hello" in expanded
+        assert should_emit is True
+        assert "my-skill" in tracker.activated_names
 
 
-def test_chat_assistant_expand_unknown_skill():
-    assistant = ChatAssistant(
-        agent=None,  # type: ignore[arg-type]
-        skills=[],
-        cwd="/tmp",
-    )
-    text = assistant._expand_skill_command("/skill:unknown hello")
+def test_expand_unknown_skill():
+    """Unknown skill commands pass through unchanged."""
+    tracker = SkillActivationTracker()
+    text, should_emit = expand_skill_command("/skill:unknown hello", [], tracker)
     assert text == "/skill:unknown hello"
+    assert should_emit is False
+    assert len(tracker.activated_names) == 0

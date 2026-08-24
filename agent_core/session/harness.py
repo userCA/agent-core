@@ -309,6 +309,10 @@ class AgentHarness(HarnessEventsMixin, HarnessConfigMixin, HarnessQueuesMixin):
 
         return _unsub
 
+    async def emit_event(self, evt: AgentEvent) -> None:
+        """Inject an event onto the same bus as the agent loop (extensions + subscribers)."""
+        await self._handle_event(evt)
+
     async def _notify_listeners(self, evt: AgentEvent) -> None:
         for listener in list(self._listeners):
             try:

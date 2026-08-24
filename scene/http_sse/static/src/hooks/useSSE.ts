@@ -56,6 +56,7 @@ interface _Block {
 export function useSSE() {
   const abortRef = useRef<AbortController | null>(null);
   const blocksRef = useRef<_Block[]>([]);
+  const currentRunIdRef = useRef('');
 
   const {
     setStreaming, addMessage, setStreamingMessageId,
@@ -250,6 +251,7 @@ export function useSSE() {
       }
 
       case 'message_end':
+        currentRunIdRef.current = evt.run_id || '';
         setUsage(evt.usage);
         break;
 
@@ -315,6 +317,7 @@ export function useSSE() {
     setStreaming(true);
     resetSteps();
     blocksRef.current = [];
+    currentRunIdRef.current = '';
     const assistantId = `asst-${Date.now()}`;
     setStreamingMessageId(assistantId);
 
@@ -412,6 +415,7 @@ export function useSSE() {
         widgets: finalState.widgets.length > 0 ? [...finalState.widgets] : undefined,
         audios: finalState.audios.length > 0 ? [...finalState.audios] : undefined,
         usage: finalState.usage,
+        runId: currentRunIdRef.current || undefined,
         timestamp: Date.now(),
       });
     } catch (err: unknown) {

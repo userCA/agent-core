@@ -168,3 +168,56 @@ async def test_step_errors_mark_failure_outcome():
     traces = await store.get_traces()
     assert len(traces) == 1
     assert traces[0].execution_outcome.value == "failure"
+
+
+async def test_agent_start_run_id_written_on_trace():
+    store = InMemorySkillEvolutionStore()
+    collector = SkillTraceCollector(store)
+    collector.register_skills([_skill("demo")])
+
+    class FakeState:
+        system_prompt = (
+            "<available_skills>\n"
+            '  <skill name="demo">d</skill>\n'
+            '  <skill name="other">d</skill>\n'
+            "</available_skills>"
+        )
+        messages = [type("U", (), {"role": "user", "content": "hello"})()]
+        skill_activations = [("demo", "load_skill")]
+
+    class FakeHarness:
+        state = FakeState()
+        skill_activations = [("demo", "load_skill")]
+
+    ctx = ExtensionContext(session_id="s1", harness=FakeHarness(), store=store)
+    await collector.on_event(ctx, AgentStart(run_id="run-abc123def456"))
+    await collector.on_event(ctx, TurnEnd(message=_FakeMessage(), tool_results=[]))
+    traces = await store.get_traces()
+    assert len(traces) == 1
+    assert traces[0].skill_name == "demo"
+    assert traces[0].run_id == "run-abc123def456"
+    assert traces[0].user_query == "hello"
+
+
+async def test_no_activation_and_multiple_skills_writes_nothing():
+    store = InMemorySkillEvolutionStore()
+    collector = SkillTraceCollector(store)
+    collector.register_skills([_skill("a"), _skill("b")])
+
+    class FakeState:
+        system_prompt = (
+            "<available_skills>\n"
+            '  <skill name="a">d</skill>\n'
+            '  <skill name="b">d</skill>\n'
+            "</available_skills>"
+        )
+        messages = []
+
+    class FakeHarness:
+        state = FakeState()
+        skill_activations = []
+
+    ctx = ExtensionContext(session_id="s1", harness=FakeHarness(), store=store)
+    await collector.on_event(ctx, AgentStart(run_id="run-x"))
+    await collector.on_event(ctx, TurnEnd(message=_FakeMessage(), tool_results=[]))
+    assert await store.get_traces() == []

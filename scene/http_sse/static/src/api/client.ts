@@ -481,3 +481,18 @@ export async function fetchEvolutionAudit(
   if (!resp.ok) throw new Error(`Failed to fetch audit: ${resp.status}`);
   return resp.json() as Promise<{ entries: EvolutionAuditEntry[]; total: number }>;
 }
+
+export async function submitRunFeedback(body: {
+  run_id: string;
+  was_helpful: boolean;
+  session_id?: string;
+  feedback?: string;
+}): Promise<{ ok: boolean }> {
+  const resp = await fetch(`${API_BASE}/skills/evolution/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error('feedback failed');
+  return resp.json() as Promise<{ ok: boolean }>;
+}
